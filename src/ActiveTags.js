@@ -73,7 +73,7 @@ You should have received a copy of the GNU General Public License along with M7.
  */
 
 
-class activeTag099 {
+class ActiveTags {
     constructor(conf){
 	this._log = [];
 	this.intervals = {};
