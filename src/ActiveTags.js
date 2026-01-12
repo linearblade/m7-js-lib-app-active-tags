@@ -1348,7 +1348,7 @@ class activeTag099 {
 
 }
 
-export ActiveTags;
+export {ActiveTags};
 export default ActiveTags;
 
 
