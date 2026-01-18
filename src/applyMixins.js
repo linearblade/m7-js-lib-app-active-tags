@@ -8,3 +8,16 @@ export function applyMixins(targetClass, ...mixins) {
 
 export default applyMixins;
 
+/*
+// instance methods , getters/setters ... work on statics too later.
+export function applyMixins(targetClass, ...mixins) {
+  for (const mixin of mixins) {
+    Object.defineProperties(
+      targetClass.prototype,
+      Object.getOwnPropertyDescriptors(mixin)
+    );
+  }
+}
+
+export default applyMixins;
+*/
