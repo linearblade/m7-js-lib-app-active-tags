@@ -1,0 +1,71 @@
+{
+  "name": "",
+  "selector": "bind to this selector",
+
+  "require": "jobA jobB",
+
+  "enable": {
+    "enabled": true,
+    "autorun": false
+  },
+
+  "interval": {
+    "enabled": false,
+    "autorun": false,
+    "repeat": 5000,
+    "pipeline": "refresh",
+    "onError": "stop",
+    "allowOverlap": false
+  },
+
+  "intervals": {
+    "fastPoll": {
+      "enabled": true,
+      "autorun": true,
+      "repeat": 1000,
+      "max": 10,
+      "pipeline": "poll",
+      "onError": "stop",
+      "allowOverlap": false
+    }
+  },
+
+  "request": {
+    "url": "/api/bucket/delete",
+    "method": "POST"
+  },
+
+  "requests": {
+    "deleteBucket": {
+      "url": "/api/bucket/delete",
+      "method": "POST"
+    },
+    "refreshBuckets": {
+      "url": "/api/bucket/search",
+      "method": "POST",
+      "encoding": "json"
+    }
+  },
+
+  "confirm": "Are you sure?",
+  "pipelineConfirm": {
+    "initial": true
+  },
+
+  "pipelines": {
+    "initial": {
+      "run": [
+        { "op": "request.submit", "request": { "ref": "deleteBucket" } },
+        { "op": "response.json" },
+        { "op": "call", "name": "app.bucket.delete" }
+      ],
+      "onError": [
+        { "op": "ui.alert", "mode": "buffer" }
+      ]
+    }
+  },
+
+  "env": {
+    "recommended_user_space": "goes here"
+  }
+}

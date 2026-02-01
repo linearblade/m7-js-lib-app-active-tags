@@ -1,0 +1,159 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>m7 Active Tags test page</title>
+    <link rel="stylesheet" href="style.css">
+    <!--
+	<script src="https://js.m7.org/gs/v1/bootStrap.js"></script>
+	<script src="https://js.m7.org/activeTags/v.0.9.8/atLib.js"></script>
+	-->
+	<script type="module" >
+	  import lib from "/vendor/m7-js-lib/src/index.js";
+	  
+	  window.lib = lib;
+	</script>
+	<script type="module"  src="/vendor/m7-js-lib-tree/src/auto.js"></script>
+	<script type="module"  src="/vendor/m7-js-workspace/src/auto.js"></script>
+	<script type="module"  src="/vendor/m7-js-lib-primitive-log/src/auto.js"></script>
+	<script type="module"  src="/vendor/m7-js-lib-interval/src/auto.js"></script>
+	<script type="module"  src="/vendor/m7-js-lib-str-interp/src/auto.js"></script>
+	<script type="module"  src="/vendor/m7-js-lib-primitive-dom-eventdelegator/src/auto.js"></script>
+	<script type="module"  src="/vendor/m7-js-lib-primitive-dom-changeobserver/src/auto.js"></script>
+	<script type="module">
+	  import ActiveTags from '/vendor/m7-js-lib-active-tags/src/ActiveTags.js';
+	  window.ActiveTags = ActiveTags;
+	  lib.service.set('activeTags', new ActiveTags(lib) );
+	  window.AT = lib.service.get('activeTags');
+	</script>
+  </head>
+  <body>
+    <div style="display:flex; flex-direction:row; width:100%">
+      begginning the long climb for AT remake
+    </div>
+
+    <div data-activetag>
+      this is a test
+    </div>
+    <div data-somethingelse>
+      this is a non active tag
+    </div>
+
+    <!-- Drop this anywhere in <body> to test Job._configureReadDomInputs() -->
+    <form id="at-demo-form"
+	  name="demoForm"
+	  action="/api/demo/submit"
+	  method="POST"
+	  enctype="multipart/form-data"
+
+	  data-activetag="1"
+	  data-at="find:.config"
+	  data-config-at="find:.config"
+
+	  data-request-url="/api/demo/submit"
+	  data-request-method="post"
+	  data-request-headers-accept="application/json"
+	  data-request-headers-x-test="Hello"
+	  data-request-body-mode="json"
+	  data-request-timeout-ms="8000"
+	  data-request-retry-max="3"
+	  data-request-retry-backoff-ms="250"
+
+	  data-response-json="true"
+	  data-response-src="request:jsonData"
+	  data-response-target="#at-demo-out"
+	  data-response-mode="replace"
+
+	  data-pre-src="this:innerHTML"
+	  data-pre-transform="trim"
+	  data-post-src="this:innerHTML"
+	  data-post-transform="sanitize"
+
+	  data-pipeline-pre="validate normalize"
+	  data-pipeline-post="render notify"
+
+	  data-interval-main-every-ms="15000"
+	  data-interval-main-max-runs="5"
+	  data-interval-main-overlap-policy="coalesce"
+
+	  data-stack-main="request response"
+	  data-stack-main-0="request"
+	  data-stack-main-1="response"
+	  data-stack-onload="main"
+	  data-stack-onsubmit="main"
+
+	  data-debug="1"
+	  data-flags-enabled="true">
+      <script type="application/json" class="config">
+	{
+	    "name": "test-job",
+
+	    "enable": {
+		"enabled": true,
+		"autorun": true
+	    },
+
+	    "request_shape": {
+		"headers": {
+		    "X-Test": "yes"
+		}
+	    },
+
+	    "request": "/api/test/default",
+
+	    "requests": {
+		"delete": {
+		    "url": "/api/test/delete",
+		    "method": "post"
+		}
+	    },
+
+	    "interval_shape": {
+		"repeat": 5000
+	    },
+
+	    "interval": {
+		"onError": "continue"
+	    },
+
+	    "intervals": {
+		"poll": {
+		    "repeat": 2000,
+		    "allowOverlap": false
+		}
+	    },
+
+	    "pipeline_shape": {
+		"confirm": true
+	    },
+
+	    "pipeline": {
+		"run": "foo bar far"
+	    },
+
+	    "pipelines": {
+		"initial": {
+		    "confirm": "Run test pipeline?",
+		    "run": [
+			{ "op": "request.submit", "request": { "ref": "delete" } },
+			{ "op": "response.json" }
+		    ],
+		    "onError": [
+			{ "op": "ui.alert" }
+		    ]
+		}
+	    }
+	}
+      </script>
+      <label>
+	Email:
+	<input name="email" type="email" value="test@example.com" />
+      </label>
+
+      <button type="submit">Submit</button>
+    </form>
+
+    <div id="at-demo-out">Output target</div>
+    
+    </body>
+</html>

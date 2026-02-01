@@ -2,18 +2,19 @@ import ActiveTags from './ActiveTags.js';
 
 const MOD = '[activeTags]';
 
-// Browser + lib guard
 const lib = (typeof window !== 'undefined' && window.lib) ? window.lib : null;
-
-if (!lib) {
-  throw new Error(`${MOD} requires window.lib (browser environment).`);
-}
+if (!lib) throw new Error(`${MOD} requires window.lib (browser environment).`);
 
 if (typeof lib?.hash?.set !== 'function') {
   throw new Error(`${MOD} requires lib.hash.set (m7-lib not installed or incomplete).`);
 }
 
-// Register into lib hierarchy (idempotent / overwrite-safe)
+// Normalize lib.site.delagator typo for older libs
+if (!lib.site?.delegator && lib.site?.delagator) {
+  lib.site.delegator = lib.site.delagator;
+}
+
+// Register
 lib.hash.set(lib, 'site.activeTags', ActiveTags);
 
 export { ActiveTags };

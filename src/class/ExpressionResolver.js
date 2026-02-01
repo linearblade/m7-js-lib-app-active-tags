@@ -72,10 +72,58 @@
 // - It does NOT execute jobs, mutate state, or manage lifecycles.
 // - Evaluation semantics are intentionally split between parseTarget / evalParse.
 // -----------------------------------------------------------------------------
+/**
+this.expr = new ExpressionResolver({
+  lib: this.lib,
+  toJob: (x) => this.toJob(x),
+  logger: this.logger,
+  env: { window, document }
+});
+ */
+
+export class ExpressionResolver {
 
 
-export const expressionsTrait = {
+    constructor(opts = {}) {
+	const lib = opts.lib;
+	if (!lib) throw new Error("[ExpressionResolver] lib is required");
 
+	this.lib = lib;
+	this.toJob = opts.toJob || null;
+	this.logger = opts.logger || null;
+
+	// Prefer explicit env injection, fallback to lib._env.root
+	const env = opts.env || {};
+
+	const root = env.root || lib.hash.get(lib, "_env.root") || null;
+
+	// Keep env around for callers that want it
+	this.env = env;
+
+	// Prefer injected window/document if provided, else derive from root
+	this.window = env.window || root || null;
+	this.document = env.document || (root && root.document ? root.document : null);
+    }
+    
+    warn(msg, ctx) {
+	//this should be our logging object, but for the time being we'll roll this , in the event its not yet setup properly.
+	if (this.logger && typeof this.logger.warn === "function") {
+	    this.logger.warn(msg, ctx);
+	}
+	
+	//if(this.lib.utils.baseType(this.logger, "object") )
+        //this.logger.warn(msg, ctx);
+    }
+
+    /**
+     * Normalize job input (for debugging + uniform access).
+     * If no toJob is provided, we accept {e, ds, ws} shape directly.
+     */
+    _asJob(job) {
+	if(this.lib.utils.baseType(this.toJob, "function") )
+            return this.toJob(job);
+        return job;
+    }
 
 
     /**
@@ -113,11 +161,12 @@ export const expressionsTrait = {
 
 
     interpScheme(job,custom={}){
+	const lib = this.lib;
 	//$fixup workspace to job compatibility hack
 	if (lib.hash.is(job) && ('item' in job) && ('obj' in job)){
 	    //console.log('legacy hack!');
 	    job = job.item;
-	}else job=this.toJob(job);
+	}else job=this._asJob(job);
 
 	let obj = this;
 	//console.log('PREPARINGINTERP SCHEME',custom);
@@ -131,7 +180,7 @@ export const expressionsTrait = {
 		lib.hash.get(info.src, info.prop):
 		undefined;
 	}
-    },
+    }
     
     
 
@@ -200,7 +249,8 @@ export const expressionsTrait = {
      * - Warnings may be emitted if selectors fail to resolve.
      */
     parseTarget(job,target,custom={}){
-	job = this.toJob(job);
+	job = this._asJob(job);
+	const lib = this.lib;
 	if(!target)return undefined;
 	let splitter = function (str, exp=/\s+/,count=0){
 	    str = lib.utils.toString(str,1);
@@ -209,7 +259,8 @@ export const expressionsTrait = {
 
 	};
 
-	
+	const thisWindow = this.window;
+	const thisDocument = this.document;
 	let data;
 	//let [type,loc] = target.split(/:/,2);
 	let [type,loc] = splitter(target);
@@ -231,7 +282,7 @@ export const expressionsTrait = {
 	    },
 	    "window": () =>{
 		return {
-		    src: window,
+		    src: thisWindow,
 		    prop: loc
 		}
 	    },
@@ -266,6 +317,7 @@ export const expressionsTrait = {
 		//console.log('running find on ',job.e,loc);
 		try{
 		    result = job.e.querySelector(loc);
+		    //console.log("found " , result);
 		    if(!result && job.e.matches(loc))result = job.e;
 
 		}catch{
@@ -278,7 +330,7 @@ export const expressionsTrait = {
 	    "doc": () =>{
 		let result = undefined;
 		try{
-		    result = document.querySelector(loc);
+		    result = thisDocument.querySelector(loc);
 		}catch{
 		    result = undefined;
 		    this.warn(`error with  querySelector(selector '${loc}')`);
@@ -316,7 +368,7 @@ export const expressionsTrait = {
 	    if (!(type in disp))type="inline";
 	    return disp[type]();
 	}
-    },
+    }
 
     /**
      * Resolve and evaluate a target expression to its final value.
@@ -349,7 +401,7 @@ export const expressionsTrait = {
     evalTarget(job, target,custom){
 	let parse = this.parseTarget(...arguments);
 	return this.evalParse(parse);
-    },
+    }
 
 
     /**
@@ -378,16 +430,17 @@ export const expressionsTrait = {
      * - This method is intentionally small and deterministic.
      */
     evalParse(parse){
+	const lib = this.lib;
 	//console.log('EP',parse);
 	if(lib.utils.baseType(parse,'object') && parse.src && parse.prop) {
 	    return lib.dom.is(parse.src)?lib.dom.get(parse.src, parse.prop):lib.hash.get(parse.src,parse.prop);
 	}
 	return parse;
-    },
+    }
 
 
     
     
-};
+}
 
-export default expressionsTrait;
+export default ExpressionResolver;
