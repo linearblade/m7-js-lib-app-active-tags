@@ -47,7 +47,7 @@
 
 import CONSTANTS from './constants.js';
 import Report    from '../Report.js';
-
+import DSL       from './DSL.js';
 export default class Master {
     /**
      * Create a Master schema compiler workspace.
@@ -72,10 +72,13 @@ export default class Master {
      * @throws {Error}
      *     If `args.lib` is not provided.
      */
-    constructor({ lib,  env = {} }) {
+    constructor({ lib,  expr, env = {} }) {
 	if (!lib) throw new Error("Master: missing lib");
+	if(!expr) throw new Error("Master: missing expr");
 	this.lib = lib;
 	this.env = env;
+	this.expr = expr;
+	this.DSL = new DSL({lib,expr});
     }
 
     // ---------- public API ----------
@@ -120,8 +123,15 @@ export default class Master {
         this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.REQUEST);
 	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.INTERVAL);
 	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.PIPELINE);
+	
 
-        return {report:report.export(), schema: this._exportShape(output) };
+	//work on the final shape rather than futz with artifacts
+	const normalized =  this._exportShape(output);
+
+	this.DSL._compilePipelineDSL(report, normalized);
+        const rv =  {report:report.export(), schema: normalized };
+	console.log(rv);
+	return rv;
 	
     }
 
@@ -770,7 +780,7 @@ export default class Master {
         const lib = this.lib;
 
         p = lib.hash.to(p);
-
+	//console.log(lib.utils.deepCopy(p) );
         // confirm canonical (pipeline-level)
         p.confirm = this._normalizeConfirm(
             ctx.report,
@@ -780,6 +790,10 @@ export default class Master {
         );
 
         // run/onError: leave as-is for phase2 parsing, but ensure keys exist
+	//p.run = lib.array.to(p.run, CONSTANTS.ARR_TO_OPTS);
+	//console.log(p.run);
+	//p.onError = lib.array.to(p.onError, CONSTANTS.ARR_TO_OPTS);
+	//console.log(lib.utils.deepCopy(p));
         if (!('run' in p)) p.run = [];
         if (!('onError' in p)) p.onError = [];
 

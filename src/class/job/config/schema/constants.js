@@ -1,3 +1,6 @@
+//arr_to_opts duplicated from the main constants...
+export const ARR_TO_OPTS = {split:/\s+/,trim:true};
+
 //request defaults.
 export const INTERVAL = {
     RANGE_ERROR   : ['stop', 'continue'],
@@ -99,5 +102,5 @@ export default {
     DEFAULT_PIPELINE_SHAPE,
     DEFAULT_INTERVAL_SHAPE,
     BLOCK_NORMALIZERS,
-    
+    ARR_TO_OPTS
 };

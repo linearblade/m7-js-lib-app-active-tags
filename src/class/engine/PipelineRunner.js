@@ -29,6 +29,26 @@ export class PipelineRunner {
 	return pipeRef;
     }
 
+    _opLabel(op) {
+    // Prefer stable human-readable labels for logs/hooks.
+    if (typeof op === "string") return op;
+
+    if (typeof op === "function") {
+        return op.name && op.name.length ? op.name : "(anonymous fn)";
+    }
+
+    if (op && typeof op === "object") {
+        // Constructor name if meaningful
+        const ctor = op.constructor && op.constructor.name;
+        if (ctor && ctor !== "Object") return ctor;
+        // Fallback
+        return "(object op)";
+    }
+
+    if (op === null) return "(null op)";
+    return `(${typeof op} op)`;
+}
+    
     //all this is doing is extracting the relevent phase from the pipeline rec.
     _getSteps(pipelineDef, phase) {
 	if (!pipelineDef) return null;
@@ -67,7 +87,7 @@ export class PipelineRunner {
 	return this.lib.func.get(fn);
     }
 
-    validateStep({ job, ticket }) {
+    _validateStep({ job, ticket }) {
 	const pipelineKey = String(ticket.pipelineKey || "default");
 
 	const pipelineDef = this._getPipelineDef(job, pipelineKey);
@@ -91,30 +111,40 @@ export class PipelineRunner {
 	}
 
 	const stepRec = steps[ticket.cursor.stage];
-
+	//console.log(`stage is ${ticket.cursor.stage}`);
 	// End-of-phase
 	if (!stepRec) {
+	    // If we've exhausted the onError track, we treat this as a *handled* completion.
 	    if (ticket.phase === "onError") {
-		const e = ticket.errorInfo?.error || new Error("Pipeline error");
 		return {
 		    done: true,
-		    err: helpers.SR_error(e, { pipelineKey, phase: "onError", original: ticket.errorInfo }),
+		    complete: true,
+		    res: helpers.SR_complete({
+			pipelineKey,
+			phase: "onError",
+			handled: true,
+			original: ticket.errorInfo || null,
+		    }),
 		    pipelineKey,
 		    pipelineDef,
 		    steps,
 		};
 	    }
 
+	    // Normal run end-of-line: clean completion.
 	    return {
 		done: true,
 		complete: true,
-		res: helpers.SR_complete({ pipelineKey, phase: ticket.phase }),
+		res: helpers.SR_complete({
+		    pipelineKey,
+		    phase: ticket.phase,
+		    handled: false,
+		}),
 		pipelineKey,
 		pipelineDef,
 		steps,
 	    };
 	}
-
 	const { op, args } = this._resolveStage(stepRec);
 	if (!op) {
 	    return {
@@ -198,10 +228,97 @@ export class PipelineRunner {
     _responseComplete({ v }) {
 	return helpers.SR_complete({ pipelineKey: v.pipelineKey, op: v.op, early: true });
     }
-    
     _responseError({ ticket, v, res }) {
-	if (ticket.phase === "onError") return res;
+    // If the error handler itself fails (we are already in onError),
+    // do NOT re-enter onError. Surface handler failure and preserve original.
+    if (ticket.phase === "onError") {
+        const detail = Object.assign({}, res?.detail || {});
+        if (!detail.original) detail.original = ticket.errorInfo || null;
+        detail.onErrorFailed = true;
+        detail.onErrorOp = v?.op;
+        detail.onErrorStep = v?.stepRec;
+        return helpers.SR_error(res?.error, detail);
+    }
 
+    const hasOnError = Array.isArray(v.pipelineDef.onError) && v.pipelineDef.onError.length > 0;
+    if (hasOnError) {
+        const from = {
+            pipelineKey: v.pipelineKey,
+            phase: ticket.phase,
+            stageIndex: ticket.cursor?.stage ?? 0,
+            op: v.op,
+            opLabel: this._opLabel ? this._opLabel(v.op) : (typeof v.op === "string" ? v.op : "(op)"),
+            step: v.stepRec,
+        };
+
+        ticket.errorInfo = {
+            error: res.error || new Error("Stage error"),
+            detail: res.detail || null,
+            ...from,
+        };
+
+        ticket.phase = "onError";
+        ticket.cursor.stage = 0;
+
+        return helpers.SR_ok({
+            pipelineKey: v.pipelineKey,
+            reason: "enter onError",
+            from,
+            original: ticket.errorInfo || null,
+        });
+    }
+
+    return res;
+}
+    ddd_responseError({ ticket, v, res }) {
+	//if (ticket.phase === "onError") return res;
+	// If the error handler itself fails, do NOT lose the original triggering error.
+	// Keep ticket.errorInfo as the original root cause, but attach it to the emitted result.
+
+	const hasOnError = Array.isArray(v.pipelineDef.onError) && v.pipelineDef.onError.length > 0;
+	if (hasOnError) {
+	    // Snapshot the failing stage identity BEFORE mutating the ticket.
+	    const from = {
+		pipelineKey: v.pipelineKey,
+		phase: ticket.phase,                         // should be "run" here
+		stageIndex: ticket.cursor?.stage ?? 0,
+		op: v.op,
+		opLabel: this._opLabel ? this._opLabel(v.op) : (typeof v.op === "string" ? v.op : "(op)"),
+		step: v.stepRec,
+	    };
+
+	    // Preserve the original error (root cause) including where it happened.
+	    ticket.errorInfo = {
+		error: res.error || new Error("Stage error"),
+		detail: res.detail || null,
+		...from,
+	    };
+
+	    // Transition to error track
+	    ticket.phase = "onError";
+	    ticket.cursor.stage = 0;
+
+	    // Return OK to continue ticking, but include transition + source failure info
+	    return helpers.SR_ok({
+		pipelineKey: v.pipelineKey,
+		reason: "enter onError",
+		from,                               // <-- failing stage identity
+		original: ticket.errorInfo || null, // <-- full root cause snapshot
+	    });
+	}
+	
+	if (ticket.phase === "onError") {
+	    const detail = Object.assign({}, res?.detail || {});
+	    if (!detail.original) detail.original = ticket.errorInfo || null;
+	    detail.onErrorFailed = true;
+	    detail.onErrorOp = v?.op;
+	    detail.onErrorStep = v?.stepRec;
+
+	    // Return a new SR_error so downstream sees the handler error + the original cause.
+	    return helpers.SR_error(res?.error, detail);
+	}
+	/*
+	  //trying to clean up response shapes
 	const hasOnError = Array.isArray(v.pipelineDef.onError) && v.pipelineDef.onError.length > 0;
 	if (hasOnError) {
 	    ticket.errorInfo = {
@@ -213,7 +330,7 @@ export class PipelineRunner {
 	    ticket.phase = "onError";
 	    ticket.cursor.stage = 0;
 	    return helpers.SR_ok({ pipelineKey: v.pipelineKey, reason: "enter onError" });
-	}
+	} */
 
 	return res;
     }
@@ -232,10 +349,35 @@ export class PipelineRunner {
     async step({ job, ticket, ctx }) {
 	this._ensureTicketRuntime(ticket);
 
-	const v = this.validateStep({ job, ticket });
-	if (v.err) return v.err;
-	if (v.done) return v.res || v.err;
+	const v = this._validateStep({ job, ticket });
 
+	//console.log(v.stepRec,v);
+	//
+	//if (v.err) return v.err;
+	//if (v.done) return v.res || v.err;
+	// If we return from validation (no stage executed), tag it so Tick can report correctly.
+
+	const tagNoStage = (sr) => {
+	    if (!sr || typeof sr !== "object") return sr;
+	    if (!sr.detail || typeof sr.detail !== "object") sr.detail = {};
+	    sr.detail.noStage = true;
+	    return sr;
+	};
+
+	if (v.err) return tagNoStage(v.err);
+	if (v.done) return tagNoStage(v.res || v.err);
+
+	//$CLEANING Snapshot stage identity BEFORE execution/handlers mutate ticket (e.g., run -> onError).
+	const exec = {
+	    phase: ticket.phase,                 // "run" | "onError"
+	    stageIndex: ticket.cursor?.stage ?? 0,
+	    pipelineKey: v.pipelineKey,
+	    op: v.op,                            // may be string, function, etc
+	    opLabel: this._opLabel(v.op),
+	    step: v.stepRec,                     // raw step record (string/object)
+	};
+	//END $CLEANING
+	
 	let res;
 	try {
 	    res = await v.fn({
@@ -249,7 +391,21 @@ export class PipelineRunner {
 	    res = helpers.SR_error(err, { pipelineKey: v.pipelineKey, op: v.op, step: v.stepRec });
 	}
 
+	
 	res = this.normalizeReturn(res, { pipelineKey: v.pipelineKey, op: v.op });
+	const return_status = res.status;
+	// $CLEANING Stamp stable stage identity into the result for hooks/logging.
+	if (!res.detail || typeof res.detail !== "object") res.detail = {};
+	res.detail.phase = exec.phase;
+	res.detail.stageIndex = exec.stageIndex;
+	res.detail.pipelineKey = exec.pipelineKey;
+
+	// Preserve the original op value AND a label.
+	res.detail.op = exec.op;               // raw
+	res.detail.opLabel = exec.opLabel;     // safe string label
+	// Keep the raw step too (super useful for debugging DSL strings)
+	res.detail.step = exec.step;
+	// END CLEANING
 
 	const env = { job, ticket, ctx, v, res }; // <-- EVERYTHING
 
@@ -261,6 +417,46 @@ export class PipelineRunner {
 	};
 
 	const handler = disp[res.status] || this._responseUnknown;
-	return handler.call(this, env);
+	const rv =  handler.call(this, env);
+	rv.return_status = return_status;
+	return rv;
     }
 }
+
+
+/**
+{
+  // identity
+  jobId,
+  ticketId,
+  pipelineKey,
+
+  // execution context (if a stage was involved)
+  stage: {
+    phase,        // "run" | "onError"
+    stageIndex,   // number | null
+    op,           // raw op (string | fn | object | null)
+    opLabel,      // string (always safe)
+    step,         // raw step record (debug)
+  } | null,
+
+  // result of the step / transition
+  result: {
+    status,       // "ok" | "wait" | "error" | "complete"
+    detail,       // StageResult.detail (augmented)
+    error,        // Error | null
+  },
+
+  // terminal summary (ONLY when terminal === true)
+  summary: {
+    state,        // "complete" | "error"
+    handled,      // boolean
+    phase,        // terminal phase
+    originalError,// snapshot | null
+  } | null,
+
+  // control flags
+  didWork,        // boolean (engine did something)
+  terminal,       // boolean (ticket ended)
+}
+ */

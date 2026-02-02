@@ -11,16 +11,16 @@ export const STAGE_STATUS = Object.freeze({
 
 
 export function SR_ok(detail) {
-    return { status: StageStatus.OK, detail };
+    return { status: STAGE_STATUS.OK, detail };
 }
 export function SR_wait(awaitInfo, detail) {
-    return { status: StageStatus.WAIT, await: awaitInfo || null, detail };
+    return { status: STAGE_STATUS.WAIT, await: awaitInfo || null, detail };
 }
 export function SR_error(error, detail) {
-    return { status: StageStatus.ERROR, error: error || new Error("Stage error"), detail };
+    return { status: STAGE_STATUS.ERROR, error: error || new Error("Stage error"), detail };
 }
 export function SR_complete(detail) {
-    return { status: StageStatus.COMPLETE, detail };
+    return { status: STAGE_STATUS.COMPLETE, detail };
 }
 
 // -----------------------------------------------------------------------------

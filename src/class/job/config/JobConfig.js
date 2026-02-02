@@ -212,7 +212,7 @@ export class JobConfig {
 	    return this.status = JOB_CONFIG_STATUS.ERROR_DOM;
 
 	// --- coerce a schema from it ----
-	const schemaService = new Schema({lib:this.lib});
+	const schemaService = new Schema({lib:this.lib,expr:this.expr});
 	const schemaResp = schemaService.compile(resp.output);
 	this.schemaReport = schemaResp.report;
 	this.schema   = schemaResp.schema;

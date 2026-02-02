@@ -32,7 +32,7 @@
       begginning the long climb for AT remake
     </div>
 
-    <div data-activetag>
+    <div data-activetag data-enable-enabled="no">
       this is a test
     </div>
     <div data-somethingelse>
@@ -69,8 +69,8 @@
 	  data-post-src="this:innerHTML"
 	  data-post-transform="sanitize"
 
-	  data-pipeline-pre="validate normalize"
-	  data-pipeline-post="render notify"
+	  ddata-pipeline-pre="validate normalize"
+	  ddata-pipeline-post="render notify"
 
 	  data-interval-main-every-ms="15000"
 	  data-interval-main-max-runs="5"
@@ -128,7 +128,8 @@
 	    },
 
 	    "pipeline": {
-		"run": "foo bar far"
+		"run": "foo:1,2,3 bar:${a},${b} far",
+		"onError" : "errOutput:whoopsie"
 	    },
 
 	    "pipelines": {
@@ -156,4 +157,24 @@
     <div id="at-demo-out">Output target</div>
     
     </body>
+
+    <script>
+      function foo(...args){
+	  console.log('calling foo',...args);
+	  //throw new Error("asdad");
+	  return true;
+      }
+      function bar(...args){
+	  console.log('calling bar',...args);
+	  return false;
+      }
+      function errOutput(...args){
+	  console.log('got an error',...args);
+	  return false;
+      }
+      function far(){
+	  console.log('end of line');
+	  return true;
+      }
+      </script>
 </html>

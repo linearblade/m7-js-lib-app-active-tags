@@ -12,6 +12,8 @@ import JobRegistry   from './class/job/Registry.js';
 import CONSTANTS   from './constants.js';
 import ExpressionResolver from './class/ExpressionResolver.js';
 import Engine from './class/engine/Engine.js';
+import testHooks from './class/engine/testHooks.js';
+
 class ActiveTags {
     constructor(lib, conf = {}) {
 	if (!lib) {
@@ -57,7 +59,13 @@ class ActiveTags {
 	// options (delegated)
 	this.opts = this.getOpts(conf);
 	this.conf = this.opts;
-	this.engine = new Engine({lib,jobRegistry: this.jobs});
+	//this.engine = new Engine({lib,jobRegistry: this.jobs});
+	console.log('jamming test hooks', testHooks);
+	this.engine = new Engine({
+	    lib,
+	    jobRegistry: this.jobs,
+	    hooks:testHooks,
+	});
 
 	const doc = lib.hash.get(lib, '_env.root.document');
 	if (doc && doc.body) {

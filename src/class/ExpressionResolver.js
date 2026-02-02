@@ -80,7 +80,7 @@ this.expr = new ExpressionResolver({
   env: { window, document }
 });
  */
-
+import CONSTANTS from '../constants.js';
 export class ExpressionResolver {
 
 
@@ -439,7 +439,49 @@ export class ExpressionResolver {
     }
 
 
-    
+     //v098 parser
+    //basic string parsing is supported, but generally speaking if you want more complex handling, use json configs
+    //not currently implemented into the previous functions, used for v1 bridging.
+    // e:.config
+    // foo:1,2,3
+    //err is not yet implemented. malformed data will be truncated.
+    parseList(input,err){
+        const lib = this.lib;
+        input = lib.utils.deepCopy(input);
+        input = lib.array.to(input,CONSTANTS.ARR_TO_OPTS);
+        const output = [];
+        for (let i =0; i < input.length; i++){
+            const item = input[i];
+            console.log('item' , item);
+            if(lib.hash.is(item)){
+                output.push(item);
+                continue;
+            }
+
+            if (lib.str.is(item) ){
+
+                const comp = {raw:item};
+                const idx= item.indexOf(':');
+                if (idx === -1){
+                    comp.op = item;
+                    comp.args = [];
+                    comp.raw = item;
+                }else {
+                    comp.op = item.substr(0,idx);
+                    const rem = item.substr(idx+1);
+                    const arr = lib.array.to(rem, {split:/\,/,trim:true} );
+                    comp.args = arr;
+                    comp.raw = item;
+                }
+                output.push(comp);
+                continue;
+            }
+            if(lib.func.get(err) ){
+
+            }
+        }
+        return output;
+    }
     
 }
 

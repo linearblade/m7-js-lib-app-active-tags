@@ -15,6 +15,8 @@ import trait_cst   from './traits/constructor.js';
 import JobRegistry   from './class/job/Registry.js';
 import CONSTANTS   from './constants.js';
 import ExpressionResolver from './class/ExpressionResolver.js';
+import Engine from './class/engine/Engine.js';
+
 class ActiveTags {
     constructor(lib, conf = {}) {
 	if (!lib) {
@@ -60,7 +62,7 @@ class ActiveTags {
 	// options (delegated)
 	this.opts = this.getOpts(conf);
 	this.conf = this.opts;
-
+	this.engine = new Engine({lib,jobRegistry: this.jobs});
 
 	const doc = lib.hash.get(lib, '_env.root.document');
 	if (doc && doc.body) {
@@ -120,6 +122,1002 @@ export default ActiveTags;
 
 
 # --- end: auto.js ---
+
+
+
+# --- begin: class/engine/Engine.js ---
+
+// -----------------------------------------------------------------------------
+// Engine (top-level façade)
+//  - state   : owns authoritative runtime state + invariants (EngineState)
+//  - tick    : owns execution/stepping (Tick)
+//  - manager : owns management/policy API (EngineManager)
+// -----------------------------------------------------------------------------
+
+import EngineState from './EngineState.js';
+import EngineManager from './EngineManager.js';
+
+import { Scheduler } from './Scheduler.js';
+import { PipelineRunner } from './PipelineRunner.js';
+import { Tick } from './Tick.js';
+
+export class Engine {
+  constructor({ lib, jobRegistry, runner, scheduler, hooks = {}, builtins } = {}) {
+    if (!lib) throw new Error("Engine requires lib");
+    this.lib = lib;
+
+    // external registry (jobLike -> job)
+    this.jobRegistry = jobRegistry || null;
+
+    // subsystems
+    this.state = new EngineState({ lib });
+    this.scheduler = scheduler || new Scheduler({ lib });
+    this.runner = runner || new PipelineRunner({ lib, builtins });
+
+    // hooks (optional)
+    this.hooks = {
+      onEnqueue: hooks.onEnqueue || null,
+      onDequeue: hooks.onDequeue || null,
+      onStage: hooks.onStage || null,
+      onTicketDone: hooks.onTicketDone || null,
+      onError: hooks.onError || null,
+    };
+
+    // manager (policy + coordination)
+    this.manager = new EngineManager({ lib, engine: this });
+
+    // executor (stepping)
+    this._tick = new Tick({ lib, engine: this });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public execution façade
+  // ---------------------------------------------------------------------------
+
+  tick({ ctx = {} } = {}) {
+    return this._tick.tick({ ctx });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Job resolution (shared helper used by manager/tick)
+  // ---------------------------------------------------------------------------
+
+  _resolveJob(jobLike) {
+    const jr = this.jobRegistry;
+    if (!jr || typeof jr.resolve !== "function") {
+      throw new Error("Engine requires jobRegistry.resolve(jobLike)");
+    }
+    return jr.resolve(jobLike);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Management façade (delegate to EngineManager)
+  // ---------------------------------------------------------------------------
+
+  enqueue(jobLike, key = "default", opts = undefined) {
+    return this.manager.enqueue(jobLike, key, opts);
+  }
+
+  lockTicket(ticketId, lock = undefined) {
+    return this.manager.lockTicket(ticketId, lock);
+  }
+
+  lock(jobLike, key = "default", lock = undefined) {
+    return this.manager.lock(jobLike, key, lock);
+  }
+
+  unlockTicket(ticketId, token = undefined) {
+    return this.manager.unlockTicket(ticketId, token);
+  }
+
+  unlock(jobLike, key = "default", token = undefined) {
+    return this.manager.unlock(jobLike, key, token);
+  }
+
+  cancel(jobLike, key = "default") {
+    return this.manager.cancel(jobLike, key);
+  }
+
+  cancelTicket(ticketId) {
+    return this.manager.cancelTicket(ticketId);
+  }
+}
+
+export default Engine;
+
+
+# --- end: class/engine/Engine.js ---
+
+
+
+# --- begin: class/engine/EngineManager.js ---
+
+// -----------------------------------------------------------------------------
+// EngineManager (management arm)
+// - Owns policy + coordination (enqueue/cancel/lock/unlock)
+// - Does NOT own state maps (engine.state owns jobs/tickets/alias)
+// - Does NOT own execution (Tick owns stepping)
+// -----------------------------------------------------------------------------
+
+import helpers from './helpers.js';
+
+export class EngineManager {
+    constructor({ lib, engine } = {}) {
+	this.lib = lib || null;
+	this.engine = engine;
+	if (!this.engine) throw new Error("EngineManager requires { engine }");
+    }
+
+    // ---------------------------------------------------------------------------
+    // Resolution helpers (delegates to engine)
+    // ---------------------------------------------------------------------------
+
+    _resolveJob(jobLike) {
+	return this.engine._resolveJob(jobLike);
+    }
+
+    _resolveTicketId(jobLike, key = "default") {
+	const job = this._resolveJob(jobLike);
+	if (!job || !job.id) return null;
+	const pipelineKey = String(key || "default");
+	return this.engine.state.aliasGet(job.id, pipelineKey);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Management API (mirrors prior Engine methods)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Enqueue a ticket for (job + pipelineKey), deduping by alias.
+     * Returns the existing ticket if already enqueued for that alias.
+     */
+    enqueue(jobLike, key = "default", { inputs, priority = 0, meta = {} } = {}) {
+	const job = this._resolveJob(jobLike);
+	if (!job || !job.id) throw new Error("EngineManager.enqueue requires a resolved job with id");
+
+	const jobId = job.id;
+	const pipelineKey = String(key || "default");
+
+	const st = this.engine.state.jobState(jobId);
+
+	// Dedupe via alias: (jobId + pipelineKey) -> ticketId
+	const existingId = st.alias.get(pipelineKey);
+	if (existingId) {
+	    const existing = this.engine.state.getTicket(existingId);
+	    if (existing) return existing;
+	    st.alias.delete(pipelineKey); // stale alias
+	}
+
+	const ticket = helpers.makeRunTicket({ jobId, pipelineKey, inputs, priority, meta });
+
+	this.engine.state.indexTicket(jobId, ticket);
+	this.engine.state.aliasSet(jobId, pipelineKey, ticket.id);
+
+	st.queue.push(ticket);
+
+	// Mark runnable if not currently running and not locked
+	if (!st.active && !this.engine.state.isLockedJobId(jobId)) {
+	    this.engine.scheduler.markRunnable(jobId);
+	}
+
+	if (this.engine.hooks.onEnqueue) this.engine.hooks.onEnqueue({ job, ticket });
+	return ticket;
+    }
+
+    // --- locking (tickets are the unique runner)
+
+    lockTicket(ticketId, lock) {
+	const rec = this.engine.state.getTicketRec(ticketId);
+	if (!rec) return 0;
+
+	rec.ticket.lock = lock || { type: "ticket", token: `ltk_${Date.now()}` };
+	return 1;
+    }
+
+    lock(jobLike, key = "default", lock) {
+	const ticketId = this._resolveTicketId(jobLike, key);
+	if (!ticketId) return 0;
+
+	return this.lockTicket(ticketId, lock || { type: "jobKey", token: `ljk_${Date.now()}` });
+    }
+
+    unlockTicket(ticketId, token) {
+	const rec = this.engine.state.getTicketRec(ticketId);
+	if (!rec) return 0;
+
+	const t = rec.ticket;
+	if (!t.lock) return 1;
+
+	// token optional; if provided, must match
+	if (token && t.lock.token && token !== t.lock.token) return 0;
+
+	t.lock = null;
+
+	// if this job has work, allow scheduler to pick it up again
+	const st = this.engine.state.jobs.get(rec.jobId);
+	if (st && (st.active || st.queue.length)) this.engine.scheduler.markRunnable(rec.jobId);
+
+	return 1;
+    }
+
+    unlock(jobLike, key = "default", token) {
+	const ticketId = this._resolveTicketId(jobLike, key);
+	if (!ticketId) return 0;
+
+	return this.unlockTicket(ticketId, token);
+    }
+
+    // --- cancel
+
+    cancel(jobLike, key = "default") {
+	const ticketId = this._resolveTicketId(jobLike, key);
+	if (!ticketId) return 0;
+
+	return this.cancelTicket(ticketId);
+    }
+
+    cancelTicket(ticketId) {
+	const rec = this.engine.state.getTicketRec(ticketId);
+	if (!rec) return 0;
+
+	const { jobId, ticket } = rec;
+	const st = this.engine.state.jobs.get(jobId);
+
+	// Always clear global ticket index
+	this.engine.state.deleteTicket(ticketId);
+
+	if (!st) return 1;
+
+	// Active
+	if (st.active && st.active.id === ticketId) {
+	    if (st.active.pipelineKey) {
+		this.engine.state.aliasDeleteIfPointsTo(jobId, st.active.pipelineKey, ticketId);
+	    }
+
+	    st.active.state = "error";
+	    st.active = null;
+
+	    if (st.queue.length && !this.engine.state.isLockedJobId(jobId)) {
+		this.engine.scheduler.markRunnable(jobId);
+	    }
+	    return 1;
+	}
+
+	// Queued
+	const before = st.queue.length;
+	st.queue = st.queue.filter(x => x.id !== ticketId);
+
+	if (st.queue.length !== before) {
+	    if (ticket && ticket.pipelineKey) {
+		this.engine.state.aliasDeleteIfPointsTo(jobId, ticket.pipelineKey, ticketId);
+	    }
+	    return 1;
+	}
+
+	// If it wasn't in active/queue, index was stale; alias cleanup if possible
+	if (ticket && ticket.pipelineKey) {
+	    this.engine.state.aliasDeleteIfPointsTo(jobId, ticket.pipelineKey, ticketId);
+	}
+	return 1;
+    }
+}
+
+export default EngineManager;
+
+
+# --- end: class/engine/EngineManager.js ---
+
+
+
+# --- begin: class/engine/EngineState.js ---
+
+// -----------------------------------------------------------------------------
+// EngineState (authoritative runtime state: jobs, tickets, alias, lock helpers)
+// -----------------------------------------------------------------------------
+export class EngineState {
+  constructor({ lib } = {}) {
+    this.lib = lib || null;
+
+    // jobId -> { queue[], active, stats, alias: Map<pipelineKey,ticketId> }
+    this.jobs = new Map();
+
+    // ticketId -> { jobId, ticket }
+    this.tickets = new Map();
+  }
+
+  // --- core job state record
+
+  jobState(jobId) {
+    let st = this.jobs.get(jobId);
+    if (!st) {
+      st = {
+        queue: [],
+        active: null,
+        stats: { runs: 0, errors: 0, lastRunAt: 0 },
+        alias: new Map(),
+      };
+      this.jobs.set(jobId, st);
+    }
+    return st;
+  }
+
+  // --- ticket index
+
+  getTicketRec(ticketId) {
+    return this.tickets.get(ticketId) || null;
+  }
+
+  getTicket(ticketId) {
+    const rec = this.tickets.get(ticketId);
+    return rec ? rec.ticket : null;
+  }
+
+  indexTicket(jobId, ticket) {
+    this.tickets.set(ticket.id, { jobId, ticket });
+    return ticket;
+  }
+
+  deleteTicket(ticketId) {
+    this.tickets.delete(ticketId);
+  }
+
+  // --- alias helpers
+
+  aliasGet(jobId, pipelineKey) {
+    const st = this.jobs.get(jobId);
+    if (!st) return null;
+    return st.alias.get(pipelineKey) || null;
+  }
+
+  aliasSet(jobId, pipelineKey, ticketId) {
+    const st = this.jobState(jobId);
+    st.alias.set(pipelineKey, ticketId);
+  }
+
+  aliasDeleteIfPointsTo(jobId, pipelineKey, ticketId) {
+    const st = this.jobs.get(jobId);
+    if (!st) return;
+    if (st.alias.get(pipelineKey) === ticketId) st.alias.delete(pipelineKey);
+  }
+
+  // --- lock helpers
+
+  isExpired(lock) {
+    return !!(lock && lock.until && Date.now() > lock.until);
+  }
+
+  /**
+   * Checks whether a job is blocked from running, based solely on ACTIVE ticket lock.
+   * Tickets are the unique runners.
+   */
+  isLockedJobId(jobId) {
+    const st = this.jobs.get(jobId);
+    if (!st || !st.active) return false;
+
+    const t = st.active;
+    if (!t.lock) return false;
+
+    if (this.isExpired(t.lock)) {
+      t.lock = null;
+      return false;
+    }
+
+    return true;
+  }
+}
+
+export default EngineState;
+
+
+# --- end: class/engine/EngineState.js ---
+
+
+
+# --- begin: class/engine/helpers.js ---
+
+// -----------------------------------------------------------------------------
+// StageResult helpers
+// -----------------------------------------------------------------------------
+
+export const STAGE_STATUS = Object.freeze({
+    OK: "ok",
+    WAIT: "wait",
+    ERROR: "error",
+    COMPLETE: "complete",
+});
+
+
+export function SR_ok(detail) {
+    return { status: STAGE_STATUS.OK, detail };
+}
+export function SR_wait(awaitInfo, detail) {
+    return { status: STAGE_STATUS.WAIT, await: awaitInfo || null, detail };
+}
+export function SR_error(error, detail) {
+    return { status: STAGE_STATUS.ERROR, error: error || new Error("Stage error"), detail };
+}
+export function SR_complete(detail) {
+    return { status: STAGE_STATUS.COMPLETE, detail };
+}
+
+// -----------------------------------------------------------------------------
+// RunTicket (one execution request for a job)
+// -----------------------------------------------------------------------------
+
+let _ticketCounter = 0;
+
+export function makeRunTicket({ jobId, stackPlan, inputs, priority = 0, meta = {} } = {}) {
+    return {
+	id: `rt_${++_ticketCounter}`,
+	jobId,
+	createdAt: Date.now(),
+	priority,
+
+	// what to run
+	stackPlan: Array.isArray(stackPlan) ? stackPlan.slice() : ["main"],
+
+	// cursor: where we are in stackPlan and within the current pipeline
+	cursor: { stack: 0, stage: 0 },
+
+	// always-mutable run inputs
+	inputs: inputs || {},
+
+	// runtime state
+	state: "ready", // ready|running|wait|error|complete
+	last: null,
+	await: null,
+
+	meta: meta || {},
+    };
+}
+
+
+export default {
+    STAGE_STATUS,
+    SR_ok,
+    SR_wait,
+    SR_error,
+    SR_complete,
+    makeRunTicket,
+};
+
+
+# --- end: class/engine/helpers.js ---
+
+
+
+# --- begin: class/engine/PipelineRunner.js ---
+
+// -----------------------------------------------------------------------------
+// PipelineRunner (deterministic stepping of a single ticket) — v1 (pipelineKey)
+// -----------------------------------------------------------------------------
+import helpers from './helpers.js';
+export class PipelineRunner {
+    constructor({ lib, builtins } = {}) {
+	if(!lib)   throw new Error("PASS lib :) ");
+	this.lib = lib ;
+	this.builtins = builtins || {}; //this is unnecessary but the AI bitches when I lint, b/c it seems to have trouble reading my libs.
+    }
+
+    /**
+     * Resolve the pipeline definition by key from the job.
+     *
+     * Supported shapes (v1 target):
+     *   job.pipelines = { default:{run:[...], onError:[...]}, initial:{...} }
+     *
+     * Back-compat (legacy-ish / transitional):
+     *   job.pipeline = { run:[...] }  -> treated as default
+     *   job.pipelineDefs = { main:[...] } -> treated as { run:[...]} arrays
+     */
+    _getPipelineDef(job, pipelineKey) {
+	if (!job) return null;
+	const lib = this.lib;
+	const key = String(pipelineKey || "default");
+
+	const pipeRef =  lib.hash.get(job, `config.schema.pipelines.${key}`,null);
+	//consider nomralizing if not already done.
+	return pipeRef;
+    }
+
+    //all this is doing is extracting the relevent phase from the pipeline rec.
+    _getSteps(pipelineDef, phase) {
+	if (!pipelineDef) return null;
+
+	const lib = this.lib;
+	const allowed = lib.utils.clamp(["run", "onError"], phase, null);
+	if (!allowed) return null;
+
+	// `allowed` is "run" or "onError"
+	return lib.hash.get(pipelineDef, allowed, null);
+    }
+    //leaving this 'raw', b/c I havent decided if I will make tickets an class entity rather than a raw hash.
+    _ensureTicketRuntime(ticket) {
+	// Minimal runtime fields for the runner.
+	if (!ticket.cursor || typeof ticket.cursor !== "object") ticket.cursor = {};
+	if (typeof ticket.cursor.stage !== "number") ticket.cursor.stage = 0;
+
+	// phase: "run" or "onError"
+	if (!ticket.phase) ticket.phase = "run";
+
+	// keep original error when transitioning into onError
+	if (!ticket.errorInfo) ticket.errorInfo = null;
+    }
+
+    //back up groom in case we didnt properly groom it in normalization of records during ingestion.
+    _resolveStage(step) {
+	// step can be:
+	// - "request.submit"
+	// - { op:"request.submit", ... }
+	let rec = this.lib.hash.to(step, "op");
+	return { op: rec.op || null, args: rec.args || null, raw: step };
+    }
+    _getFn(fn){
+	const builtin = this.lib.hash.get(this.builtins,fn,null);
+	if(builtin) return builtin;
+	return this.lib.func.get(fn);
+    }
+
+    _validateStep({ job, ticket }) {
+	const pipelineKey = String(ticket.pipelineKey || "default");
+
+	const pipelineDef = this._getPipelineDef(job, pipelineKey);
+	if (!pipelineDef) {
+	    return {
+		err: helpers.SR_error(new Error(`Missing pipeline '${pipelineKey}'`), { pipelineKey }),
+		pipelineKey,
+	    };
+	}
+
+	const steps = this._getSteps(pipelineDef, ticket.phase);
+	if (!steps) {
+	    return {
+		err: helpers.SR_error(new Error(`Invalid pipeline '${pipelineKey}' definition`), {
+		    pipelineKey,
+		    phase: ticket.phase,
+		}),
+		pipelineKey,
+		pipelineDef,
+	    };
+	}
+
+	const stepRec = steps[ticket.cursor.stage];
+	console.log(`stage is ${ticket.cursor.stage}`);
+	// End-of-phase
+	if (!stepRec) {
+	    if (ticket.phase === "onError") {
+		const e = ticket.errorInfo?.error || new Error("Pipeline error");
+		return {
+		    done: true,
+		    err: helpers.SR_error(e, { pipelineKey, phase: "onError", original: ticket.errorInfo }),
+		    pipelineKey,
+		    pipelineDef,
+		    steps,
+		};
+	    }
+	    
+	    return {
+		done: true,
+		complete: true,
+		res: helpers.SR_complete({ pipelineKey, phase: ticket.phase }),
+		pipelineKey,
+		pipelineDef,
+		steps,
+	    };
+	}
+
+	const { op, args } = this._resolveStage(stepRec);
+	if (!op) {
+	    return {
+		err: helpers.SR_error(new Error("Invalid pipeline step (missing op)"), { pipelineKey, step: stepRec }),
+		pipelineKey,
+		pipelineDef,
+		steps,
+		stepRec,
+	    };
+	}
+
+	const fn = this._getFn(op);
+	if (!fn) {
+	    return {
+		err: helpers.SR_error(new Error(`Unknown op '${op}'`), { pipelineKey, op, step: stepRec }),
+		pipelineKey,
+		pipelineDef,
+		steps,
+		stepRec,
+		op,
+	    };
+	}
+
+	return {
+	    err: null,
+	    pipelineKey,
+	    pipelineDef,
+	    steps,
+	    stepRec,
+	    op,
+	    args,
+	    fn,
+	};
+    }
+
+    normalizeReturn(res, { pipelineKey, op } = {}) {
+
+	// Already a StageResult
+	if (res && typeof res === "object" && res.status) {
+	    return res;
+	}
+
+	// ---- Legacy / implied semantics ----
+	// v098 rules (formalized):
+	// - falsy        -> ERROR
+	// - true / 1     -> OK
+	// - truthy other -> WAIT
+
+	// Falsy => ERROR
+	if (!res) {
+	    return helpers.SR_error(
+		new Error("Stage returned falsy"),
+		{ pipelineKey, op, legacy: true }
+	    );
+	}
+
+	// Explicit success
+	if (res === true || res === 1) {
+	    return helpers.SR_ok({ pipelineKey, op, legacy: true });
+	}
+
+	// Any other truthy value => WAIT
+	return helpers.SR_wait({
+	    pipelineKey,
+	    op,
+	    legacy: true,
+	    value: res
+	});
+    }
+
+
+    _responseOk({ ticket, res }) {
+	ticket.cursor.stage += 1;
+	return res;
+    }
+    
+    _responseWait({ res }) {
+	return res;
+    }
+
+    _responseComplete({ v }) {
+	return helpers.SR_complete({ pipelineKey: v.pipelineKey, op: v.op, early: true });
+    }
+    
+    _responseError({ ticket, v, res }) {
+	if (ticket.phase === "onError") return res;
+
+	const hasOnError = Array.isArray(v.pipelineDef.onError) && v.pipelineDef.onError.length > 0;
+	if (hasOnError) {
+	    ticket.errorInfo = {
+		error: res.error || new Error("Stage error"),
+		detail: res.detail || null,
+		op: v.op,
+		step: v.stepRec,
+	    };
+	    ticket.phase = "onError";
+	    ticket.cursor.stage = 0;
+	    return helpers.SR_ok({ pipelineKey: v.pipelineKey, reason: "enter onError" });
+	}
+
+	return res;
+    }
+    _responseUnknown({ v, res }) {
+	return helpers.SR_error(new Error(`Unknown stage status '${res?.status}'`), {
+	    pipelineKey: v?.pipelineKey,
+	    op: v?.op,
+	});
+    }
+    
+
+    /**
+     * Run exactly ONE stage step for this ticket.
+     * Returns StageResult-like: status ok|wait|error|complete
+     */
+    async step({ job, ticket, ctx }) {
+	this._ensureTicketRuntime(ticket);
+
+	const v = this._validateStep({ job, ticket });
+	console.log(v.stepRec,v);
+	//needs to 
+	if (v.err) return v.err;
+	if (v.done) return v.res || v.err;
+
+	let res;
+	try {
+	    res = await v.fn({
+		job,
+		ticket,
+		inputs: ticket.inputs,
+		ctx,
+		step: v.args || v.stepRec,
+	    });
+	} catch (err) {
+	    res = helpers.SR_error(err, { pipelineKey: v.pipelineKey, op: v.op, step: v.stepRec });
+	}
+
+	res = this.normalizeReturn(res, { pipelineKey: v.pipelineKey, op: v.op });
+
+	const env = { job, ticket, ctx, v, res }; // <-- EVERYTHING
+
+	const disp = {
+	    [helpers.STAGE_STATUS.OK]: this._responseOk,
+	    [helpers.STAGE_STATUS.WAIT]: this._responseWait,
+	    [helpers.STAGE_STATUS.ERROR]: this._responseError,
+	    [helpers.STAGE_STATUS.COMPLETE]: this._responseComplete,
+	};
+
+	const handler = disp[res.status] || this._responseUnknown;
+	return handler.call(this, env);
+    }
+}
+
+
+# --- end: class/engine/PipelineRunner.js ---
+
+
+
+# --- begin: class/engine/Scheduler.js ---
+
+/*
+ * ActiveTags v1 — Engine Skeleton (Job-first, Pipeline-second)
+ * -----------------------------------------------------------
+ * This is a minimal, testable engine core that:
+ *  - Orders work by JOB first (fairness + locking)
+ *  - Runs PIPELINES second (deterministic stage stepping)
+ *
+ * Notes:
+ *  - No DOM observer / delegator wiring here.
+ *  - No transport implementation here (stages may return WAIT with await tokens).
+ *  - Designed to plug into compiled Job artifacts:
+ *      job.pipelineDefs / job.stackDefs (your compiler will own those)
+ *
+ * Usage sketch:
+ *   const engine = new Engine({ lib, jobRegistry: at.jobs, stageRegistry });
+ *   engine.enqueue(job, { stackPlan:["main"], inputs:{ event, vars } });
+ *   engine.drain({ maxSteps: 1000 });
+ */
+
+
+// -----------------------------------------------------------------------------
+// Scheduler (fairness: which job runs next)
+// -----------------------------------------------------------------------------
+
+export class Scheduler {
+  constructor({ lib } = {}) {
+    this.lib = lib || null;
+    this._ready = [];      // FIFO queue of jobIds
+    this._present = new Set(); // prevent duplicates in _ready
+  }
+
+  markRunnable(jobId) {
+    if (!jobId) return;
+    if (this._present.has(jobId)) return;
+    this._present.add(jobId);
+    this._ready.push(jobId);
+  }
+
+  nextRunnable() {
+    while (this._ready.length) {
+      const jobId = this._ready.shift();
+      this._present.delete(jobId);
+      if (jobId) return jobId;
+    }
+    return null;
+  }
+
+  clear(jobId) {
+    // cheap clear: let it drain naturally; remove presence so it can be re-enqueued
+    if (jobId) this._present.delete(jobId);
+  }
+}
+
+
+
+
+
+# --- end: class/engine/Scheduler.js ---
+
+
+
+# --- begin: class/engine/Tick.js ---
+
+import helpers from './helpers.js';
+
+export class Tick {
+    constructor({ lib, engine }) {
+        this.lib = lib;
+        this.engine = engine;
+    }
+
+    /**
+     * Advance the engine by ONE stage step globally.
+     * Picks the next runnable job from the scheduler, advances that job's ACTIVE ticket by one step.
+     *
+     * Returns a small trace object for debugging/tests.
+     */
+    async tick({ ctx = {} } = {}) {
+        const v = this._validateTick({ ctx });
+        if (v.done) return v.res;
+
+        const finalize = this._makeFinalize(v);
+
+        let res;
+        try {
+            res = await this.engine.runner.step({ job: v.job, ticket: v.ticket, ctx: v.ctx });
+        } catch (err) {
+            res = { status: helpers.STAGE_STATUS.ERROR, error: err };
+        }
+
+        v.ticket.last = { at: Date.now(), res };
+        if (this.engine.hooks.onStage) this.engine.hooks.onStage({ job: v.job, ticket: v.ticket, res });
+
+        const env = { ...v, res, finalize };
+
+        const disp = {
+            [helpers.STAGE_STATUS.OK]: this._responseOk,
+            [helpers.STAGE_STATUS.WAIT]: this._responseWait,
+            [helpers.STAGE_STATUS.ERROR]: this._responseError,
+            [helpers.STAGE_STATUS.COMPLETE]: this._responseComplete,
+        };
+
+        const handler = disp[res?.status] || this._responseUnknown;
+        return handler.call(this, env);
+    }
+
+    _makeFinalize(env) {
+        const { jobId, st, ticket } = env;
+
+        return (finalState) => {
+            ticket.state = finalState;
+
+            // drop active
+            st.active = null;
+
+            // clear ticket index
+            this.engine.state.deleteTicket(ticket.id);
+
+            // clear alias mapping for this pipelineKey IF it points to this ticket
+            if (ticket.pipelineKey) {
+                this.engine.state.aliasDeleteIfPointsTo(jobId, ticket.pipelineKey, ticket.id);
+            }
+
+            st.stats.lastRunAt = Date.now();
+
+            // if more queued work exists, keep job runnable
+            if (st.queue.length && !this.engine.state.isLockedJobId(jobId)) {
+                this.engine.scheduler.markRunnable(jobId);
+            }
+        };
+    }
+
+    _validateTick({ ctx = {} } = {}) {
+        const jobId = this.engine.scheduler.nextRunnable();
+        if (!jobId) return { done: true, res: { didWork: false } };
+
+        // If active ticket is locked, do not run this job now
+        if (this.engine.state.isLockedJobId(jobId)) {
+            return { done: true, res: { didWork: false, jobId, locked: true } };
+        }
+
+        // Resolve job (jobId is the stringified identity)
+        let job = null;
+        try {
+            job = this.engine._resolveJob(jobId);
+        } catch (e1) {
+            // optional fallback: some registries might want {id}
+            try {
+                job = this.engine._resolveJob({ id: jobId });
+            } catch (e2) {
+                job = null;
+            }
+        }
+
+        if (!job || !job.id) {
+            return { done: true, res: { didWork: false, jobId, missingJob: true } };
+        }
+
+        const st = this.engine.state.jobState(jobId);
+
+        // Ensure there is an active ticket (one active per job)
+        if (!st.active) {
+            st.active = st.queue.shift() || null;
+            if (st.active && this.engine.hooks.onDequeue) {
+                this.engine.hooks.onDequeue({ job, ticket: st.active });
+            }
+        }
+
+        const ticket = st.active;
+        if (!ticket) {
+            return { done: true, res: { didWork: false, jobId, empty: true } };
+        }
+
+        // If ticket is locked, do not run
+        if (ticket.lock) {
+            if (this.engine.state.isExpired(ticket.lock)) ticket.lock = null;
+            else return { done: true, res: { didWork: false, jobId, ticketId: ticket.id, locked: true } };
+        }
+
+        ticket.state = "running";
+
+        return { done: false, jobId, job, st, ticket, ctx };
+    }
+
+    _responseOk(env) {
+        const { jobId, ticket, res } = env;
+        this.engine.scheduler.markRunnable(jobId);
+        return { didWork: true, jobId, ticketId: ticket.id, result: res };
+    }
+
+    _responseWait(env) {
+        const { jobId, ticket, res } = env;
+        ticket.state = "wait";
+        ticket.lock = res.lock || res.await || { type: "wait", token: `aw_${Date.now()}` };
+        return { didWork: true, jobId, ticketId: ticket.id, result: res, waiting: true };
+    }
+
+    _responseError(env) {
+        const { jobId, job, ticket, res, st, finalize } = env;
+
+        st.stats.errors += 1;
+        if (this.engine.hooks.onError) {
+            this.engine.hooks.onError({ job, ticket, error: res?.error, res });
+        }
+
+        finalize("error");
+        if (this.engine.hooks.onTicketDone) {
+            this.engine.hooks.onTicketDone({ job, ticket, state: "error" });
+        }
+
+        return { didWork: true, jobId, ticketId: ticket.id, result: res, error: true };
+    }
+
+    _responseComplete(env) {
+        const { jobId, job, ticket, res, st, finalize } = env;
+
+        st.stats.runs += 1;
+
+        finalize("complete");
+        if (this.engine.hooks.onTicketDone) {
+            this.engine.hooks.onTicketDone({ job, ticket, state: "complete" });
+        }
+
+        return { didWork: true, jobId, ticketId: ticket.id, result: res, complete: true };
+    }
+
+    _responseUnknown(env) {
+        const { jobId, job, ticket, res, st, finalize } = env;
+        const err = new Error(`Unknown stage status '${res?.status}'`);
+
+        st.stats.errors += 1;
+        if (this.engine.hooks.onError) {
+            this.engine.hooks.onError({ job, ticket, error: err, res });
+        }
+
+        finalize("error");
+        if (this.engine.hooks.onTicketDone) {
+            this.engine.hooks.onTicketDone({ job, ticket, state: "error" });
+        }
+
+        return {
+            didWork: true,
+            jobId,
+            ticketId: ticket.id,
+            result: { status: helpers.STAGE_STATUS.ERROR, error: err },
+            error: true,
+        };
+    }
+}
+
+export default Tick;
+
+
+# --- end: class/engine/Tick.js ---
 
 
 
@@ -207,7 +1205,7 @@ this.expr = new ExpressionResolver({
   env: { window, document }
 });
  */
-
+import CONSTANTS from '../constants.js';
 export class ExpressionResolver {
 
 
@@ -566,7 +1564,49 @@ export class ExpressionResolver {
     }
 
 
-    
+     //v098 parser
+    //basic string parsing is supported, but generally speaking if you want more complex handling, use json configs
+    //not currently implemented into the previous functions, used for v1 bridging.
+    // e:.config
+    // foo:1,2,3
+    //err is not yet implemented. malformed data will be truncated.
+    parseList(input,err){
+        const lib = this.lib;
+        input = lib.utils.deepCopy(input);
+        input = lib.array.to(input,CONSTANTS.ARR_TO_OPTS);
+        const output = [];
+        for (let i =0; i < input.length; i++){
+            const item = input[i];
+            console.log('item' , item);
+            if(lib.hash.is(item)){
+                output.push(item);
+                continue;
+            }
+
+            if (lib.str.is(item) ){
+
+                const comp = {raw:item};
+                const idx= item.indexOf(':');
+                if (idx === -1){
+                    comp.op = item;
+                    comp.args = [];
+                    comp.raw = item;
+                }else {
+                    comp.op = item.substr(0,idx);
+                    const rem = item.substr(idx+1);
+                    const arr = lib.array.to(rem, {split:/\,/,trim:true} );
+                    comp.args = arr;
+                    comp.raw = item;
+                }
+                output.push(comp);
+                continue;
+            }
+            if(lib.func.get(err) ){
+
+            }
+        }
+        return output;
+    }
     
 }
 
@@ -1278,7 +2318,7 @@ export class JobConfig {
 	    return this.status = JOB_CONFIG_STATUS.ERROR_DOM;
 
 	// --- coerce a schema from it ----
-	const schemaService = new Schema({lib:this.lib});
+	const schemaService = new Schema({lib:this.lib,expr:this.expr});
 	const schemaResp = schemaService.compile(resp.output);
 	this.schemaReport = schemaResp.report;
 	this.schema   = schemaResp.schema;
@@ -1590,6 +2630,9 @@ export default class Report {
 
 # --- begin: class/job/config/schema/constants.js ---
 
+//arr_to_opts duplicated from the main constants...
+export const ARR_TO_OPTS = {split:/\s+/,trim:true};
+
 //request defaults.
 export const INTERVAL = {
     RANGE_ERROR   : ['stop', 'continue'],
@@ -1691,11 +2734,91 @@ export default {
     DEFAULT_PIPELINE_SHAPE,
     DEFAULT_INTERVAL_SHAPE,
     BLOCK_NORMALIZERS,
-    
+    ARR_TO_OPTS
 };
 
 
 # --- end: class/job/config/schema/constants.js ---
+
+
+
+# --- begin: class/job/config/schema/DSL.js ---
+
+import CONSTANTS from './constants.js';
+
+export class DSL {
+
+    constructor({lib,expr}) {
+	this.lib  = lib;
+	this.expr = expr;
+    }
+    
+    /**
+     * Phase 2: Compile/validate pipeline DSL (strings → parsed descriptors).
+     *
+     * Wrapper: iterates `output.pipelines` and compiles each pipeline item.
+     * - Expects Phase 1 normalization already ran (_normalizeBlock PIPELINE),
+     *   so `output.pipelines` should be a hash of pipelineName → pipelineObject.
+     * - Mutates `output` in-place (adds compiled fields on each pipeline item).
+     */
+    _compilePipelineDSL(report, output) {
+	const lib = this.lib;
+	console.log('here', lib.utils.deepCopy(output) );
+	output = lib.hash.to(output);
+
+	const pipelines = lib.hash.get(output, "pipelines");
+	if (!lib.hash.is(pipelines)) return output;
+	const keys = lib.hash.keys(pipelines);
+	//console.log(keys);
+	for (const key of keys) {
+
+            const p = pipelines[key];
+            if (!lib.hash.is(p)) continue;
+
+            // Ensure pipeline item knows its own name (helps diagnostics)
+            p.name = key;
+            pipelines[key] = this._compilePipelineDSLItem(report, p, { key });
+	}
+
+	// Write back (in case output.pipelines was not the same reference)
+	lib.hash.set(output, "pipelines", pipelines);
+
+	return output;
+    }
+
+    /**
+     * Compile one pipeline item.
+     *
+     * Stub for now:
+     * - In a later pass, this will parse `p.run` / `p.onError` entries from raw
+     *   strings into executable descriptors (AST), validate syntax (quotes closed,
+     *   etc.), and optionally validate callable names.
+     *
+     * Expected future behavior:
+     * - p.runAst     = Array<Descriptor>
+     * - p.onErrorAst = Array<Descriptor>
+     * - keep p.run/p.onError as raw tokens for debugging/round-tripping
+     */
+    _compilePipelineDSLItem(report, p, ctx = {}) {
+	const lib = this.lib;
+
+	p = lib.hash.to(p);
+	ctx = lib.hash.to(ctx);
+
+	console.log(`scrubbing pipeline ${ctx.key}`);
+	
+	p.run     = this.expr.parseList(p.run);
+	p.onError = this.expr.parseList(p.onError);
+
+	return p;
+    }
+
+}
+
+export default DSL;
+
+
+# --- end: class/job/config/schema/DSL.js ---
 
 
 
@@ -1750,7 +2873,7 @@ export default {
 
 import CONSTANTS from './constants.js';
 import Report    from '../Report.js';
-
+import DSL       from './DSL.js';
 export default class Master {
     /**
      * Create a Master schema compiler workspace.
@@ -1775,10 +2898,13 @@ export default class Master {
      * @throws {Error}
      *     If `args.lib` is not provided.
      */
-    constructor({ lib,  env = {} }) {
+    constructor({ lib,  expr, env = {} }) {
 	if (!lib) throw new Error("Master: missing lib");
+	if(!expr) throw new Error("Master: missing expr");
 	this.lib = lib;
 	this.env = env;
+	this.expr = expr;
+	this.DSL = new DSL({lib,expr});
     }
 
     // ---------- public API ----------
@@ -1823,8 +2949,15 @@ export default class Master {
         this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.REQUEST);
 	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.INTERVAL);
 	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.PIPELINE);
+	
 
-        return {report:report.export(), schema: this._exportShape(output) };
+	//work on the final shape rather than futz with artifacts
+	const normalized =  this._exportShape(output);
+
+	this.DSL._compilePipelineDSL(report, normalized);
+        const rv =  {report:report.export(), schema: normalized };
+	console.log(rv);
+	return rv;
 	
     }
 
@@ -2473,7 +3606,7 @@ export default class Master {
         const lib = this.lib;
 
         p = lib.hash.to(p);
-
+	//console.log(lib.utils.deepCopy(p) );
         // confirm canonical (pipeline-level)
         p.confirm = this._normalizeConfirm(
             ctx.report,
@@ -2483,6 +3616,10 @@ export default class Master {
         );
 
         // run/onError: leave as-is for phase2 parsing, but ensure keys exist
+	//p.run = lib.array.to(p.run, CONSTANTS.ARR_TO_OPTS);
+	//console.log(p.run);
+	//p.onError = lib.array.to(p.onError, CONSTANTS.ARR_TO_OPTS);
+	//console.log(lib.utils.deepCopy(p));
         if (!('run' in p)) p.run = [];
         if (!('onError' in p)) p.onError = [];
 
@@ -3620,14 +4757,6 @@ export default class Registry {
 
 
 
-# --- begin: class/runtime/Runner.js ---
-
-
-
-# --- end: class/runtime/Runner.js ---
-
-
-
 # --- begin: constants.js ---
 
 // src/constants.js
@@ -4471,6 +5600,35 @@ import CONSTANTS from '../constants.js';
 
 export const trait_load = {
 
+enqueueAll() {
+  const jobs = this.jobs.list();
+
+  for (const job of jobs) {
+    // enabled gate (matches your schema shape shown)
+    const enabled = job?.config?.schema?.enable?.enabled;
+    if (enabled === false) continue;
+
+    // autorun list lives here in your example
+    let autorun = job?.config?.schema?.enable?.autorun;
+
+    // policy: if autorun is missing/null, do nothing (explicit only)
+    if (!Array.isArray(autorun) || autorun.length === 0) continue;
+
+    for (let key of autorun) {
+      if (!key) continue;
+
+      // "__DEFAULT__" -> "default"
+      if (key === "__DEFAULT__") key = "default";
+
+      this.engine.enqueue(job, key, {
+        inputs: { reason: "boot" },
+        meta: { source: "enqueueAll" },
+      });
+    }
+  }
+},
+
+    
     /**
      * Discover and register Active Tags jobs from the DOM.
      *
