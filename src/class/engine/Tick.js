@@ -14,15 +14,15 @@ export class Tick {
      *
      * Returns a small trace object for debugging/tests.
      */
-    async tick({ ctx = {} } = {}) {
-        const v = this._validateTick({ ctx });
+    async tick({ ctx = {} ,ticket=null} = {}) {
+        const v = this._validateTick({ ctx, ticket });
         if (v.done) return v.res;
 
         const finalize = this._makeFinalize(v);
 
         let res;
         try {
-            res = await this.engine.runner.step({ job: v.job, ticket: v.ticket, ctx: v.ctx });
+            res = await this.engine.vm.step({ job: v.job, ticket: v.ticket, ctx: v.ctx});
         } catch (err) {
 	    res = helpers.SR_error(err, { pipelineKey: v.ticket?.pipelineKey || null });
             //res = { status: helpers.STAGE_STATUS.ERROR, error: err };
@@ -68,8 +68,29 @@ export class Tick {
 	this._emitHook("onStage", stageTrace);
 
     }
-    
+
     _makeFinalize(env) {
+	const { jobId, st, ticket } = env;
+
+	return (finalState) => {
+            ticket.state = finalState;
+
+            // drop active
+            st.active = null;
+
+            // clear ticket index
+            this.engine.state.deleteTicket(ticket.id);
+
+            st.stats.lastRunAt = Date.now();
+
+            // only clear alias on terminal states
+            if (ticket.pipelineKey && (finalState === "complete" || finalState === "error")) {
+		this.engine.state.aliasDeleteIfPointsTo(jobId, ticket.pipelineKey, ticket.id);
+            }
+	    
+	};
+    }
+    _oldmakeFinalize(env) {
         const { jobId, st, ticket } = env;
 
         return (finalState) => {
@@ -87,14 +108,117 @@ export class Tick {
 
             st.stats.lastRunAt = Date.now();
 
+	    // only clear alias on terminal states
+	    //if (ticket.pipelineKey && (finalState === "complete" || finalState === "error")) {
+	    //this.engine.state.aliasDeleteIfPointsTo(jobId, ticket.pipelineKey, ticket.id);
+	    //}
             // if more queued work exists, keep job runnable
             if (st.queue.length && !this.engine.state.isLockedJobId(jobId)) {
-                this.engine.scheduler.markRunnable(jobId);
+            this.engine.scheduler.markRunnable(jobId);
             }
         };
     }
 
-    _validateTick({ ctx = {} } = {}) {
+    _validateTick({  ctx = {},ticket=null } = {}) {
+	return ticket ?
+	    this._validateTickNamed({ctx,ticket}):
+	    this._validateTickNext({ctx});
+    }
+    
+    _validateTickNamed({ ctx = {}, ticket = null } = {}) {
+	
+	// -----------------------------------------------------------------
+	// Targeted mode: tick a specific ticket id (or ticket object)
+	// -----------------------------------------------------------------
+	if (ticket) {
+            const ticketId = (typeof ticket === "string") ? ticket : ticket.id;
+            if (!ticketId) {
+		return { done: true, res: this.response._makeTickTrace({
+                    flags: { didWork: false, reason: "badTicketArg" }
+		}) };
+            }
+
+            const rec = this.engine.state.getTicketRec(ticketId);
+            if (!rec || !rec.jobId || !rec.ticket) {
+		return { done: true, res: this.response._makeTickTrace({
+                    ticketId,
+                    flags: { didWork: false, reason: "missingTicket" }
+		}) };
+            }
+
+            const jobId = rec.jobId;
+            const t = rec.ticket;
+
+            // Resolve job
+            let job = null;
+            try {
+		job = this.engine._resolveJob(jobId);
+            } catch (e1) {
+		try { job = this.engine._resolveJob({ id: jobId }); }
+		catch (e2) { job = null; }
+            }
+
+            if (!job || !job.id) {
+		return { done: true, res: this.response._makeTickTrace({
+                    jobId,
+                    ticketId,
+                    flags: { didWork: false, reason: "missingJob" }
+		}) };
+            }
+
+            const st = this.engine.state.jobState(jobId);
+
+            // If some OTHER ticket is active, do not steal the job mid-run
+            if (st.active && st.active.id !== ticketId) {
+		return { done: true, res: this.response._makeTickTrace({
+                    jobId, job, ticketId,
+                    flags: { didWork: false, reason: "differentActiveTicket" }
+		}) };
+            }
+
+            // Promote from queue -> active if needed
+            if (!st.active) {
+		const idx = st.queue.findIndex(x => x && x.id === ticketId);
+		if (idx >= 0) {
+                    st.active = st.queue.splice(idx, 1)[0];
+
+                    const tr = this.response._makeTickTrace({
+			jobId, job, ticket: st.active,
+			flags: { didWork: false, reason: "dequeueTarget" }
+                    });
+                    this._emitHook("onDequeue", tr);
+		} else {
+                    // Ticket exists in global index, but not in this job’s queue/active
+                    // (stale index or canceled) — treat as missing runnable
+                    return { done: true, res: this.response._makeTickTrace({
+			jobId, job, ticketId,
+			flags: { didWork: false, reason: "ticketNotRunnable" }
+                    }) };
+		}
+            }
+
+            // Lock checks (match your global behavior)
+            if (this.engine.state.isLockedJobId(jobId)) {
+		return { done: true, res: this.response._makeTickTrace({
+                    jobId, job, ticket: st.active,
+                    flags: { didWork: false, locked: true, reason: "jobLocked" }
+		}) };
+            }
+
+            if (st.active.lock) {
+		if (this.engine.state.isExpired(st.active.lock)) st.active.lock = null;
+		else return { done: true, res: this.response._makeTickTrace({
+                    jobId, job, ticket: st.active,
+                    flags: { didWork: false, locked: true, reason: "ticketLocked" }
+		}) };
+            }
+
+            st.active.state = "running";
+            return { done: false, jobId, job, st, ticket: st.active, ctx };
+	}
+    }
+    
+    _validateTickNext({ ctx = {} } = {}) {
         const jobId = this.engine.scheduler.nextRunnable();
         if (!jobId)
 	    return { done: true, res: this.response._makeTickTrace({ flags: { didWork: false, reason: "noRunnable" } }) };

@@ -123,7 +123,7 @@ export default class Master {
         this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.REQUEST);
 	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.INTERVAL);
 	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.PIPELINE);
-	
+	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.EVENT);
 
 	//work on the final shape rather than futz with artifacts
 	const normalized =  this._exportShape(output);
@@ -175,7 +175,8 @@ export default class Master {
 
             requests  : s._effectiveRequests  || {},
             intervals : s._effectiveIntervals || {},
-	    pipelines : s._effectivePipelines || {}
+	    pipelines : s._effectivePipelines || {},
+	    events    : s._effectiveEvents || {}
         };
 
 	return out;
@@ -800,6 +801,35 @@ export default class Master {
         return p;
     }
 
+
+    _normalizeEventItem(ev, ctx) {
+	const lib = this.lib;
+
+	ev = lib.hash.to(ev);
+
+	// default to enabled=true unless explicit "no"
+	ev.enabled = !lib.bool.no(ev.enabled);
+
+	// event type: required-ish, canonical lower-case string
+	ev.event = lib.str.to(ev.event, true).trim().toLowerCase();
+
+	// pipeline: required-ish
+	ev.pipeline = lib.str.to(ev.pipeline, true).trim();
+
+	// selector: keep as string; empty -> default (runtime can treat as self)
+	// For now we keep this very light, because selector semantics are runtime-defined.
+	ev.selector = lib.str.to(ev.selector, true).trim();
+	if (!ev.selector) ev.selector = "__SELF__"; // sentinel; NOT CSS (AT runtime interprets)
+
+	// options: addEventListener-ish bag
+	ev.options = lib.hash.to(ev.options);
+	ev.options.capture = lib.bool.yes(ev.options.capture);
+	ev.options.passive = lib.bool.yes(ev.options.passive);
+	ev.options.once    = lib.bool.yes(ev.options.once);
+
+	return ev;
+    }
+    
     // ---------- phase 2: validate ----------
     // unimplimented at this time. may not be necessary.
 }

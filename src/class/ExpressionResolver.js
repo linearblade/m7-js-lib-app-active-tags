@@ -452,7 +452,7 @@ export class ExpressionResolver {
         const output = [];
         for (let i =0; i < input.length; i++){
             const item = input[i];
-            console.log('item' , item);
+            //console.log('item' , item);
             if(lib.hash.is(item)){
                 output.push(item);
                 continue;

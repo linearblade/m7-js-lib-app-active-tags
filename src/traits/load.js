@@ -82,33 +82,35 @@ import CONSTANTS from '../constants.js';
 
 export const trait_load = {
 
-enqueueAll() {
-  const jobs = this.jobs.list();
+    
+    
+    enqueueAll() {
+	const jobs = this.jobs.list();
 
-  for (const job of jobs) {
-    // enabled gate (matches your schema shape shown)
-    const enabled = job?.config?.schema?.enable?.enabled;
-    if (enabled === false) continue;
+	for (const job of jobs) {
+	    // enabled gate (matches your schema shape shown)
+	    const enabled = job?.config?.schema?.enable?.enabled;
+	    if (enabled === false) continue;
 
-    // autorun list lives here in your example
-    let autorun = job?.config?.schema?.enable?.autorun;
+	    // autorun list lives here in your example
+	    let autorun = job?.config?.schema?.enable?.autorun;
 
-    // policy: if autorun is missing/null, do nothing (explicit only)
-    if (!Array.isArray(autorun) || autorun.length === 0) continue;
+	    // policy: if autorun is missing/null, do nothing (explicit only)
+	    if (!Array.isArray(autorun) || autorun.length === 0) continue;
 
-    for (let key of autorun) {
-      if (!key) continue;
+	    for (let key of autorun) {
+		if (!key) continue;
 
-      // "__DEFAULT__" -> "default"
-      if (key === "__DEFAULT__") key = "default";
+		// "__DEFAULT__" -> "default"
+		if (key === "__DEFAULT__") key = "default";
 
-      this.engine.enqueue(job, key, {
-        inputs: { reason: "boot" },
-        meta: { source: "enqueueAll" },
-      });
-    }
-  }
-},
+		this.engine.enqueue(job, key, {
+		    inputs: { reason: "boot" },
+		    meta: { source: "enqueueAll" },
+		});
+	    }
+	}
+    },
 
     
     /**

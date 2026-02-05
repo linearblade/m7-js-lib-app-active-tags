@@ -5,15 +5,15 @@
 //  - manager : owns management/policy API (EngineManager)
 // -----------------------------------------------------------------------------
 
-import EngineState from './EngineState.js';
+import EngineState   from './EngineState.js';
 import EngineManager from './EngineManager.js';
 
 import { Scheduler } from './Scheduler.js';
-import { PipelineRunner } from './PipelineRunner.js';
-import { Tick } from './Tick.js';
+import { VM }        from './vm/VM.js';
+import { Tick }      from './Tick.js';
 
 export class Engine {
-    constructor({ lib, jobRegistry, runner, scheduler, hooks = {}, builtins } = {}) {
+    constructor({ lib, jobRegistry, vm, scheduler, hooks = {}, builtins } = {}) {
 	if (!lib) throw new Error("Engine requires lib");
 	this.lib = lib;
 
@@ -23,7 +23,7 @@ export class Engine {
 	// subsystems
 	this.state = new EngineState({ lib });
 	this.scheduler = scheduler || new Scheduler({ lib });
-	this.runner = runner || new PipelineRunner({ lib, builtins });
+	this.vm = vm || new VM({ lib, builtins });
 
 	// hooks (optional)
 	this.hooks = {
@@ -46,10 +46,22 @@ export class Engine {
     // Public execution façade
     // ---------------------------------------------------------------------------
 
-    tick({ ctx = {} } = {}) {
-	return this._tick.tick({ ctx });
+    tick({ ctx = {},ticket=null } = {}) {
+	return this._tick.tick({ ctx,ticket });
     }
 
+
+    async drain({ max = 1000, ticket = undefined, ctx = {}} = {}) {
+	let did = 0;
+
+	while (did < max) {
+            const res = await this._tick.tick({ ctx, ticket });
+            if (!res?.didWork) break;
+            did++;
+	}
+
+	return did;
+    }
     // ---------------------------------------------------------------------------
     // Job resolution (shared helper used by manager/tick)
     // ---------------------------------------------------------------------------
@@ -65,7 +77,9 @@ export class Engine {
     // ---------------------------------------------------------------------------
     // Management façade (delegate to EngineManager)
     // ---------------------------------------------------------------------------
-
+    getTicketByJob(jobLike, key) {
+    return this.manager.getTicketByJob(jobLike, key);
+    }
     enqueue(jobLike, key = "default", opts = undefined) {
 	return this.manager.enqueue(jobLike, key, opts);
     }

@@ -8,6 +8,7 @@ export const STAGE_STATUS = Object.freeze({
     ERROR: "error",
     COMPLETE: "complete",
 });
+export const PIPELINE_PHASE = Object.freeze(["run","onError"]);
 
 
 export function SR_ok(detail) {
@@ -28,38 +29,38 @@ export function SR_complete(detail) {
 // -----------------------------------------------------------------------------
 
 let _ticketCounter = 0;
-
-export function makeRunTicket({ jobId, stackPlan, inputs, priority = 0, meta = {} } = {}) {
+export function makeRunTicket({ jobId, pipelineKey, inputs, priority = 0, meta = {} } = {}) {
     return {
-	id: `rt_${++_ticketCounter}`,
-	jobId,
-	createdAt: Date.now(),
-	priority,
+        id: `rt_${++_ticketCounter}`,
+        jobId,
+        createdAt: Date.now(),
+        priority,
 
-	// what to run
-	stackPlan: Array.isArray(stackPlan) ? stackPlan.slice() : ["main"],
+        // what to run (VM expects this)
+        pipelineKey: String(pipelineKey || "default"),
 
-	// cursor: where we are in stackPlan and within the current pipeline
-	cursor: { stack: 0, stage: 0 },
+        // cursor: where we are in the pipeline
+        cursor: { stage: 0 },
 
-	// always-mutable run inputs
-	inputs: inputs || {},
+        // always-mutable run inputs
+        inputs: inputs || {},
 
-	// runtime state
-	state: "ready", // ready|running|wait|error|complete
-	last: null,
-	await: null,
+        // runtime state
+        state: "ready", // ready|running|wait|error|complete
+        last: null,
+        await: null,
 
-	meta: meta || {},
+        meta: meta || {},
     };
 }
 
-
 export default {
     STAGE_STATUS,
+    PIPELINE_PHASE,
     SR_ok,
     SR_wait,
     SR_error,
     SR_complete,
     makeRunTicket,
+
 };

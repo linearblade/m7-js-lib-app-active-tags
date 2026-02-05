@@ -33,6 +33,31 @@ export class EngineManager {
     // Management API (mirrors prior Engine methods)
     // ---------------------------------------------------------------------------
 
+    getTicketByJob(jobLike, key = undefined) {
+	const job = this._resolveJob(jobLike);
+	if (!job || !job.id) return key === undefined ? [] : null;
+
+	const st = this.engine.state.jobState(job.id);
+	if (!st) return key === undefined ? [] : null;
+
+	// CASE 1: key specified > single lookup via alias
+	if (typeof key === "string") {
+            const pipelineKey = String(key || "default");
+            const ticketId = st.alias.get(pipelineKey);
+            if (!ticketId) return null;
+            return this.engine.state.getTicket(ticketId) || null;
+	}
+
+	// CASE 2: no key > return all active tickets for job
+	const out = [];
+	for (const ticketId of st.alias.values()) {
+            const t = this.engine.state.getTicket(ticketId);
+            if (t) out.push(t);
+	}
+
+	return out;
+    }
+    
     /**
      * Enqueue a ticket for (job + pipelineKey), deduping by alias.
      * Returns the existing ticket if already enqueued for that alias.
@@ -55,7 +80,7 @@ export class EngineManager {
 	}
 
 	const ticket = helpers.makeRunTicket({ jobId, pipelineKey, inputs, priority, meta });
-
+	//console.log(ticket);
 	this.engine.state.indexTicket(jobId, ticket);
 	this.engine.state.aliasSet(jobId, pipelineKey, ticket.id);
 

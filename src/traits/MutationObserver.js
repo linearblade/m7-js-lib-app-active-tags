@@ -4,7 +4,7 @@ export const trait_mutation_observer = {
     startObserver() {
 	if (!this.lib) return;
 
-	const obs = this.domObserver;
+	const obs = this.svc.domObserver;
 
 	if (!obs) {
             throw new Error("[ActiveTags] DomChangeObserver service not found: primitive.dom.changeobserver");
@@ -45,7 +45,7 @@ export const trait_mutation_observer = {
     
     old2startObserver() {
 	if (!this.lib) return;
-	if (this.domObserver) return;
+	if (this.svc.domObserver) return;
 
 	const lib = this.lib;
 	const observe = (this.opts && this.opts.observe) ? this.opts.observe : {};
@@ -79,7 +79,7 @@ export const trait_mutation_observer = {
 	}
 
 	// keep a local ref (so your other methods can use this.domObserver if they do)
-	this.domObserver = obs;
+	this.svc.domObserver = obs;
 
 	// Apply configuration (service instance is shared; be explicit)
 	// Root is frozen SOT but changeable via setRoot()
@@ -105,7 +105,7 @@ export const trait_mutation_observer = {
     },
     oldstartObserver() {
 	if (!this.lib) return;
-	if (this.domObserver) return;
+	if (this.svc.domObserver) return;
 
 	const lib = this.lib;
 	const observe = (this.opts && this.opts.observe) ? this.opts.observe : {};
@@ -133,7 +133,7 @@ export const trait_mutation_observer = {
             throw new Error("[ActiveTags] empty attribute filter list on observer");
 	}
 	
-	this.domObserver = new DomChangeObserver({
+	this.svc.domObserver = new DomChangeObserver({
             root,
             selectors,
             includeSubtreeMatches: true,
@@ -143,7 +143,7 @@ export const trait_mutation_observer = {
             onChange: (batch) => this._onDomChanges(batch),
 	});
 
-	this.domObserver.start();
+	this.svc.domObserver.start();
     },
 
     /**
@@ -238,13 +238,13 @@ export const trait_mutation_observer = {
 	};
     },
     stopObserver() {
-	if (!this.domObserver) return;
-	this.domObserver.stop();
-	this.domObserver = null; // allow clean restart + GC
+	if (!this.svc.domObserver) return;
+	this.svc.domObserver.stop();
+	this.svc.domObserver = null; // allow clean restart + GC
     },
     setObserverSelectors(selectors) {
-	if (!this.domObserver) return;
-	this.domObserver.setSelectors(selectors);
+	if (!this.svc.domObserver) return;
+	this.svc.domObserver.setSelectors(selectors);
     }
 };
 

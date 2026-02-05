@@ -62,6 +62,27 @@ export const DEFAULT_PIPELINE_SHAPE = {
     onError: []                // ops list (string|array coerced later)
 };
 
+export const DEFAULT_EVENT_SHAPE = {
+    // master switch for the event definition
+    enabled: true,
+
+    // DOM event type (pointerover, pointerout, click, submit, etc)
+    event: "",
+
+    // selector intent (NOT raw CSS semantics)
+    // "" or "__SELF__" means “the job element itself”
+    selector: "",
+
+    // pipeline to enqueue when the event fires
+    pipeline: "",
+
+    // addEventListener options
+    options: {
+        capture: false,
+        passive: true,
+        once: false
+    }
+};
 
 export const BLOCK_NORMALIZERS = {
     REQUEST: {
@@ -92,6 +113,16 @@ export const BLOCK_NORMALIZERS = {
 	user_shape: "pipeline_shape",
         handler: "_normalizePipelineItem",
         outKey: "_effectivePipelines"
+    },
+
+    EVENT: {
+	single: "event",
+	plural: "events",
+	default_shape: DEFAULT_EVENT_SHAPE,
+	hotkey: null,
+	user_shape: "event_shape",
+	handler: "_normalizeEventItem",
+	outKey: "_effectiveEvents"
     }
 };
 
@@ -101,6 +132,7 @@ export default {
     DEFAULT_REQUEST_SHAPE,
     DEFAULT_PIPELINE_SHAPE,
     DEFAULT_INTERVAL_SHAPE,
+    DEFAULT_EVENT_SHAPE,
     BLOCK_NORMALIZERS,
     ARR_TO_OPTS
 };

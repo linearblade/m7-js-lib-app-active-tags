@@ -20,10 +20,13 @@
 	<script type="module"  src="/vendor/m7-js-lib-str-interp/src/auto.js"></script>
 	<script type="module"  src="/vendor/m7-js-lib-primitive-dom-eventdelegator/src/auto.js"></script>
 	<script type="module"  src="/vendor/m7-js-lib-primitive-dom-changeobserver/src/auto.js"></script>
+	<script type="module"  src="/vendor/m7-js-lib-site-form/src/auto.js"></script>
 	<script type="module">
 	  import ActiveTags from '/vendor/m7-js-lib-active-tags/src/ActiveTags.js';
 	  window.ActiveTags = ActiveTags;
-	  lib.service.set('activeTags', new ActiveTags(lib) );
+	  lib.bool.xTrue = lib.bool.intentTrue;
+	  lib.bool.xFalse = lib.bool.intentFalse;
+	  lib.service.set('activeTags', new ActiveTags(lib,{intervalOn : false, eventOn:true}) );
 	  window.AT = lib.service.get('activeTags');
 	</script>
   </head>
@@ -45,7 +48,7 @@
 	  action="/api/demo/submit"
 	  method="POST"
 	  enctype="multipart/form-data"
-
+	  data-confirm="are you sure?"
 	  data-activetag="1"
 	  data-at="find:.config"
 	  data-config-at="find:.config"
@@ -72,9 +75,9 @@
 	  ddata-pipeline-pre="validate normalize"
 	  ddata-pipeline-post="render notify"
 
-	  data-interval-main-every-ms="15000"
-	  data-interval-main-max-runs="5"
-	  data-interval-main-overlap-policy="coalesce"
+	  ddata-interval-main-every-ms="15000"
+	  ddata-interval-main-max-runs="5"
+	  ddata-interval-main-overlap-policy="coalesce"
 
 	  data-stack-main="request response"
 	  data-stack-main-0="request"
@@ -93,6 +96,23 @@
 		"autorun": true
 	    },
 
+
+	    "events": {
+		"hover:on" : {
+		    "enabled" : true,
+		    "event": "pointerover",
+		    "selector": "[data-button]",
+		    "pipeline": "hover_on",
+		    "options": { "capture": false, "passive": true }
+		},
+		"hover:off" : {
+		    "event": "pointerout",
+		    "selector": "[data-button]",
+		    "pipeline": "hover_off",
+		    "options": { "capture": false, "passive": true }
+		}
+	    },
+	    
 	    "request_shape": {
 		"headers": {
 		    "X-Test": "yes"
@@ -109,15 +129,17 @@
 	    },
 
 	    "interval_shape": {
-		"repeat": 5000
+		"repeat": 7000,
+		"allowOverlap": false
 	    },
 
 	    "interval": {
-		"onError": "continue"
+		"pipeline" : "interval"
 	    },
 
 	    "intervals": {
 		"poll": {
+		    "pipeline" : "interval2",
 		    "repeat": 2000,
 		    "allowOverlap": false
 		}
@@ -131,17 +153,20 @@
 		"run": "foo:1,2,3 bar:${a},${b} far",
 		"onError" : "errOutput:whoopsie"
 	    },
-
-	    "pipelines": {
-		"initial": {
-		    "confirm": "Run test pipeline?",
-		    "run": [
-			{ "op": "request.submit", "request": { "ref": "delete" } },
-			{ "op": "response.json" }
-		    ],
-		    "onError": [
-			{ "op": "ui.alert" }
-		    ]
+	    
+	"pipelines": {
+	"patch" :{
+	    "run": ["confirm", "form.submit", "form.collect", {"op": "dom.patch", "args" : {"style.font-weight": "bold",	"style.color"      : "red"} }, "http.send" , "foo"],
+	"onError": "errOutput"
+	},
+		"hover_on": {
+		    "run": "hover_on hover_b",
+		    "onError": "errOutput"
+		},
+		
+		"hover_off": {
+		    "run": "hover_off",
+		    "onError": "errOutput"
 		}
 	    }
 	}
@@ -151,7 +176,7 @@
 	<input name="email" type="email" value="test@example.com" />
       </label>
 
-      <button type="submit">Submit</button>
+      <button type="submit" data-button>Submit</button>
     </form>
 
     <div id="at-demo-out">Output target</div>
@@ -176,5 +201,35 @@
 	  console.log('end of line');
 	  return true;
       }
-      </script>
+
+      async function hover_on(input) {
+	  const job = input.job;
+	  console.warn('hover on!',input);
+	  input.ctx.test='foo';
+
+	  if (!job || !job.e) return false;
+
+	  const el = job.e;
+
+	  el.style.outline = '2px solid red';
+	  el.style.outlineOffset = '2px';
+
+	  return true;
+      }
+      function hover_b(input){
+	  console.warn('hover b',input);
+	  return true;
+      }
+      async function hover_off({ job }) {
+	  console.warn('hover off!');
+	  if (!job || !job.e) return false;
+
+	  const el = job.e;
+
+	  el.style.outline = '';
+	  el.style.outlineOffset = '';
+
+	  return true;
+      }
+    </script>
 </html>
