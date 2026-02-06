@@ -13,7 +13,11 @@ export class TickResponse {
 
 	return {
             phase: src.phase || ticket?.phase || null,
-            stageIndex: (typeof src.stageIndex === "number") ? src.stageIndex : null,
+            //stageIndex: (typeof src.stageIndex === "number") ? src.stageIndex : null,
+	    stageIndex:
+	    (typeof src.stageIndex === "number") ? src.stageIndex :
+		(typeof src?.step?.stageIndex === "number") ? src.step.stageIndex :
+		null,
             op: (src.op !== undefined) ? src.op : null,
             opLabel: (src.opLabel !== undefined) ? src.opLabel : null,
             step: (src.step !== undefined) ? src.step : null,

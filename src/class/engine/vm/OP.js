@@ -82,13 +82,25 @@ export class OP {
 	    );
 	}
 	
-
+	//console.log('normaled resp', res);
 	//base type will differentiate null, array, (object, hash) => object
 	if(this.lib.utils.baseType(res,'object')) {
-	    // Already a StageResult
-	    if (this.lib.bool.isIntent(res.status)) {
-		return res;
+	    // Already a StageResult ... return new object in order to minimize fuckery in user func.
+	    const status = res.status;
+	    // Coerce boolish legacy status FIRST 
+	    if (this.lib.bool.isIntent(status)) {
+		const coerced = this.lib.bool.yes(status)
+		      ? helpers.STAGE_STATUS.OK
+		      : helpers.STAGE_STATUS.ERROR;
+		return { ...res, status: coerced };
 	    }
+	    
+	    // Accept canonical StageResult statuses 
+	    if (helpers.STAGE_STATUS_RANGE.includes(status)) 
+		return {...res};
+
+	    
+	    console.log('invalid status... ', res.status);
 	    // Explicit legacy wait
 	    if (res.wait === true) {
 		return helpers.SR_wait({
@@ -107,7 +119,7 @@ export class OP {
         );
     }
     
-    _normalizeReturn(res, { pipelineKey, op } = {}) {
+    _oldnormalizeReturn(res, { pipelineKey, op } = {}) {
 
 	// Already a StageResult
 	if (res && typeof res === "object" && res.status) {

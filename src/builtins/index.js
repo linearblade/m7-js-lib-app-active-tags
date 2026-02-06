@@ -1,24 +1,27 @@
-import  domPatch     from './domPatch.js';
-import  formCollect  from './formCollect.js';
-import  formSubmit   from './formSubmit.js';
+import  dom          from './dom/index.js';
+import  form         from './form/index.js';
 import  httpSend     from './httpSend.js';
 import  confirm      from './confirm.js';
-
-export { domPatch };
-export { formCollect };
-export { formSubmit };
+import  errorDump    from './errorDump.js';
+import  buffer       from './buffer/index.js';
+import  target       from './target/index.js';
+export { dom };
+export { form};
 export { httpSend };
+export { errorDump };
+export { buffer };
+export { target };
 
 export default {
     confirm,
-    dom : {
-	patch: domPatch
-    },
-    form : {
-	collect: formCollect,
-	submit : formSubmit
-    },
+    dom,
+    form ,
     http: {
 	send: httpSend
-    }
+    },
+    error: {
+	dump: errorDump
+    },
+    buffer,
+    target
 };

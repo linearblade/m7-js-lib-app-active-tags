@@ -79,7 +79,7 @@ export class EngineManager {
 	    st.alias.delete(pipelineKey); // stale alias
 	}
 
-	const ticket = helpers.makeRunTicket({ jobId, pipelineKey, inputs, priority, meta });
+	const ticket = helpers.makeRunTicket({job, pipelineKey, inputs, priority, meta });
 	//console.log(ticket);
 	this.engine.state.indexTicket(jobId, ticket);
 	this.engine.state.aliasSet(jobId, pipelineKey, ticket.id);

@@ -156,8 +156,9 @@
 	    
 	"pipelines": {
 	"patch" :{
-	    "run": ["confirm", "form.submit", "form.collect", {"op": "dom.patch", "args" : {"style.font-weight": "bold",	"style.color"      : "red"} }, "http.send" , "foo"],
-	"onError": "errOutput"
+	"run": [ "confirm", "form.prepare", "form.collect", {"op": "dom.patch", "args" : {"style.font-weight": "bold",	"style.color"      : "red"} },
+	{"op": "form.submit", "args": {"contentType": "json"} } ],
+	"onError": [{"op": "error.dump", "args": {"throw":true} }]
 	},
 		"hover_on": {
 		    "run": "hover_on hover_b",
@@ -230,6 +231,10 @@
 	  el.style.outlineOffset = '';
 
 	  return true;
+      }
+
+      function barf(){
+	  return false;
       }
     </script>
 </html>

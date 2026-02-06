@@ -24,10 +24,11 @@ export class Tick {
         try {
             res = await this.engine.vm.step({ job: v.job, ticket: v.ticket, ctx: v.ctx});
         } catch (err) {
+	    console.warn('trap an error');
 	    res = helpers.SR_error(err, { pipelineKey: v.ticket?.pipelineKey || null });
             //res = { status: helpers.STAGE_STATUS.ERROR, error: err };
         }
-
+	console.log(res);
 	v.ticket.last = { at: Date.now(), res };
 	// build a non-terminal trace for stage events (even if it's a transition OK)
 	this._emitOnStage({v,res});

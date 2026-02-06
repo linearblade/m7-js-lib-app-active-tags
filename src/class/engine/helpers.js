@@ -1,7 +1,8 @@
 // -----------------------------------------------------------------------------
 // StageResult helpers
 // -----------------------------------------------------------------------------
-
+import Buffer from './Buffer.js';
+export const STAGE_STATUS_RANGE = ['ok','wait','error','complete']; 
 export const STAGE_STATUS = Object.freeze({
     OK: "ok",
     WAIT: "wait",
@@ -29,13 +30,14 @@ export function SR_complete(detail) {
 // -----------------------------------------------------------------------------
 
 let _ticketCounter = 0;
-export function makeRunTicket({ jobId, pipelineKey, inputs, priority = 0, meta = {} } = {}) {
+export function makeRunTicket({ job, pipelineKey, inputs, priority = 0, meta = {} } = {}) {
     return {
         id: `rt_${++_ticketCounter}`,
-        jobId,
+        jobId: job.id,
         createdAt: Date.now(),
         priority,
-
+	buffer : new Buffer(),
+	target : job.e,
         // what to run (VM expects this)
         pipelineKey: String(pipelineKey || "default"),
 
@@ -55,6 +57,7 @@ export function makeRunTicket({ jobId, pipelineKey, inputs, priority = 0, meta =
 }
 
 export default {
+    STAGE_STATUS_RANGE,
     STAGE_STATUS,
     PIPELINE_PHASE,
     SR_ok,

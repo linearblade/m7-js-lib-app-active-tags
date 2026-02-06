@@ -31,6 +31,85 @@ export class VM {
 	    return sr;
 	};
 
+	// always compute trigger + snapshot (even for validate errors)
+	const trigger =
+	      lib.hash.get(ticket, "inputs.trigger") ||
+	      lib.hash.get(job, "e") ||
+	      null;
+
+	const snapShot = this._snapShot({ v, ticket });
+
+	let res;
+
+	// ------------------------------------------------------------
+	// 1) Validate-time outcomes become normal "res" values
+	//    (NO early returns; must flow through handler dispatch)
+	// ------------------------------------------------------------
+	if (v.err) {
+	    res = tagNoStage(v.err);
+	} else if (v.done) {
+	    res = tagNoStage(v.res || v.err);
+	} else {
+	    // ------------------------------------------------------------
+	    // 2) Normal stage execution
+	    // ------------------------------------------------------------
+	    try {
+		res = await v.fn({
+		    job,
+		    lib,
+		    args: v.args,
+		    buffer : ticket.buffer,
+		    inputs: ticket.inputs,
+		    trigger,
+		    ticket,
+		    ctx,
+		    step: v.stepRec,
+		});
+	    } catch (err) {
+		res = helpers.SR_error(err, { pipelineKey: v.pipelineKey, op: v.op, step: v.stepRec });
+	    }
+
+	    // normalize only for real op execution
+	    res = this.op._normalizeReturn(res, { pipelineKey: v.pipelineKey, op: v.op });
+	}
+
+	// raw status MUST be captured BEFORE any handler transforms it (enter onError, etc.)
+	const return_status = res.status ?? null;
+
+	// finalizeResponse can attach stage metadata, etc. (keep as you have it)
+	res = this._finalizeResponse(res, snapShot);
+
+	const env = { job, ticket, ctx, v, res, return_status };
+
+	const disp = {
+	    [helpers.STAGE_STATUS.OK]:       this._responseOk,
+	    [helpers.STAGE_STATUS.WAIT]:     this._responseWait,
+	    [helpers.STAGE_STATUS.ERROR]:    this._responseError,   // <- critical: now runs for v.err too
+	    [helpers.STAGE_STATUS.COMPLETE]: this._responseComplete,
+	};
+
+	const handler = disp[res?.status] || this._responseUnknown;
+	const rv = handler.call(this, env);
+
+	// preserve your rule: return_status is raw, unmodified by handler transitions
+	rv.return_status = return_status;
+
+	return rv;
+    }
+    
+    async oldstep({ job, ticket, ctx }) {
+	const lib = this.lib;
+	this.validator._ensureTicketRuntime(ticket);
+
+	const v = this.validator._validateStep({ job, ticket });
+
+	const tagNoStage = (sr) => {
+	    if (!sr || typeof sr !== "object") return sr;
+	    if (!sr.detail || typeof sr.detail !== "object") sr.detail = {};
+	    sr.detail.noStage = true;
+	    return sr;
+	};
+
 	if (v.err) return tagNoStage(v.err);
 	if (v.done) return tagNoStage(v.res || v.err);
 
