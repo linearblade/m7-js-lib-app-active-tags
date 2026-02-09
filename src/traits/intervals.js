@@ -10,7 +10,7 @@ export const intervalTraits = {
     for (const job of jobs) {
       if (!job) continue;
 
-      const enabled = lib.hash.get(job, "config.schema.enable.enabled");
+      const enabled = lib.hash.get(job, "config.schema.enabled");
       if (lib.bool.no(enabled)) continue;
 
       this.registerIntervals(job);

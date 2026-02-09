@@ -338,7 +338,7 @@ export class Tick {
             jobId, job, ticket, res, summary,
             flags: { didWork: true, terminal: true, complete: true }
 	});
-
+	this.lib.hash.set(job,"flags.hasRun", true);
 	// uniform terminal hooks (same payload)
 	this._emitHook("onComplete", trace);
 	this._emitHook("onTicketDone", trace);

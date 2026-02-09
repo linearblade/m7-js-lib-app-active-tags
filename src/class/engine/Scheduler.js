@@ -23,32 +23,94 @@
 // -----------------------------------------------------------------------------
 
 export class Scheduler {
-  constructor({ lib } = {}) {
-    this.lib = lib || null;
-    this._ready = [];      // FIFO queue of jobIds
-    this._present = new Set(); // prevent duplicates in _ready
-  }
-
-  markRunnable(jobId) {
-    if (!jobId) return;
-    if (this._present.has(jobId)) return;
-    this._present.add(jobId);
-    this._ready.push(jobId);
-  }
-
-  nextRunnable() {
-    while (this._ready.length) {
-      const jobId = this._ready.shift();
-      this._present.delete(jobId);
-      if (jobId) return jobId;
+    constructor({ lib, engine } = {}) {
+	this.lib = lib || null;
+	this._ready = [];      // FIFO queue of jobIds
+	this._present = new Set(); // prevent duplicates in _ready
+	this.engine = engine;
+	if(!lib || !engine) {
+	    throw new Error("scheduler requires lib and engine");
+	}
     }
-    return null;
-  }
 
-  clear(jobId) {
-    // cheap clear: let it drain naturally; remove presence so it can be re-enqueued
-    if (jobId) this._present.delete(jobId);
-  }
+    markRunnable(jobId) {
+	if (!jobId) return;
+	if (this._present.has(jobId)) return;
+	this._present.add(jobId);
+	this._ready.push(jobId);
+    }
+
+    nextRunnable() {
+	const engine = this.engine;
+	const registry = engine.jobRegistry;
+
+	for (let i = 0; i < this._ready.length; i++) {
+            const jobId = this._ready[i];
+            if (!jobId) continue;
+
+            // live resolve (jobs may unload)
+            const job = registry.resolve(jobId);
+            if (!job) {
+		// job no longer exists — remove from scheduler
+		this._ready.splice(i, 1);
+		this._present.delete(jobId);
+		i--;
+		continue;
+            }
+
+	    const st = engine.state.jobState(jobId);
+
+	    // Ticket selection for gating:
+	    // - prefer active (already running)
+	    // - else peek head of queue (not yet activated)
+	    const ticket = st.active || (st.queue && st.queue.length ? st.queue[0] : null);
+
+	    if (!ticket) {
+		// nothing to run; jobId should not be in scheduler
+		this._ready.splice(i, 1);
+		this._present.delete(jobId);
+		i--;
+		continue;
+	    }
+	    
+            // REQUIRE GATE (live, no global registry)
+            if (ticket.require && ticket.require.length) {
+		let ok = true;
+
+		for (const reqJobLike of ticket.require) {
+                    const dep = registry.resolve(reqJobLike);
+                    if (!dep || !dep.flags || dep.flags.hasRun !== true) {
+			ok = false;
+			break;
+                    }
+		}
+
+		if (!ok) continue; // cock blocked (requirements not met)
+            }
+
+            // Runnable — remove from queue and return
+            this._ready.splice(i, 1);
+            this._present.delete(jobId);
+            return jobId;
+	}
+
+	return null;
+    }
+    
+    //preserve incase the cock blocker fails to function
+    basic_nextRunnable() {
+	while (this._ready.length) {
+	    const jobId = this._ready.shift();
+	    this._present.delete(jobId);
+	    if (jobId) return jobId;
+	}
+	return null;
+    }
+
+    clear(jobId) {
+	// cheap clear: let it drain naturally; remove presence so it can be re-enqueued
+	if (jobId) this._present.delete(jobId);
+    }
 }
 
 

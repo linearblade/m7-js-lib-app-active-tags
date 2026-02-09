@@ -6,12 +6,13 @@ import Validate from './Validate.js';
 import OP       from './OP.js';
 
 export class VM {
-    constructor({ lib, builtins } = {}) {
+    constructor({ lib, builtins,expr } = {}) {
 	if(!lib)       throw new Error("PASS lib :) ");
 	this.lib       = lib ;
 	this.builtins  = builtins || {}; //this is unnecessary but the AI bitches when I lint, b/c it seems to have trouble reading my libs.
 	this.validator = new Validate({lib,builtins});
 	this.op        = new OP({lib});
+	this.expr      = expr;
     }
 
     /**
@@ -54,10 +55,11 @@ export class VM {
 	    // 2) Normal stage execution
 	    // ------------------------------------------------------------
 	    try {
+		const args = this.expr.materialize({ticket,job},v.args);
 		res = await v.fn({
 		    job,
 		    lib,
-		    args: v.args,
+		    args: args,
 		    buffer : ticket.buffer,
 		    inputs: ticket.inputs,
 		    trigger,
@@ -73,7 +75,7 @@ export class VM {
 	    res = this.op._normalizeReturn(res, { pipelineKey: v.pipelineKey, op: v.op });
 	}
 
-	// raw status MUST be captured BEFORE any handler transforms it (enter onError, etc.)
+	// raw status MUST be captured BEFORE any handler transforms it (enter PIPELINE_PHASE_ERROR, etc.)
 	const return_status = res.status ?? null;
 
 	// finalizeResponse can attach stage metadata, etc. (keep as you have it)
@@ -178,25 +180,25 @@ export class VM {
      * Handle a stage error and apply pipeline error-handling semantics.
      *
      * This method is responsible for deciding whether a stage error:
-     *   1) Transitions execution into the `onError` pipeline, or
+     *   1) Transitions execution into the `PIPELINE_PHASE_ERROR` pipeline, or
      *   2) Terminates execution with a final error.
      *
      * Behavior:
-     * - If the current ticket is already in the `onError` phase, a failing
+     * - If the current ticket is already in the `PIPELINE_PHASE_ERROR` phase, a failing
      *   stage is treated as a terminal error. The original error context is
      *   preserved and annotated to indicate error-handler failure.
      *
-     * - If the ticket is not in `onError` and the pipeline defines an
-     *   `onError` handler, execution transitions into the `onError` phase.
+     * - If the ticket is not in `PIPELINE_PHASE_ERROR` and the pipeline defines an
+     *   `PIPELINE_PHASE_ERROR` handler, execution transitions into the `PIPELINE_PHASE_ERROR` phase.
      *   The ticket cursor is reset and the original error context is stored
      *   on the ticket for later inspection.
      *
-     * - If no `onError` handler exists, the original StageResult is returned
+     * - If no `PIPELINE_PHASE_ERROR` handler exists, the original StageResult is returned
      *   unchanged and will be treated as a terminal error by the caller.
      *
      * Invariants:
      * - This method mutates ticket execution state (`phase`, `cursor`,
-     *   `errorInfo`) when transitioning into `onError`.
+     *   `errorInfo`) when transitioning into `PIPELINE_PHASE_ERROR`.
      * - This method does NOT finalize tickets or manage scheduling.
      *
      * @param {Object} env
@@ -210,15 +212,15 @@ export class VM {
      *
      * @returns {Object}
      *     A StageResult:
-     *     - `SR_ok` when transitioning into `onError`
+     *     - `SR_ok` when transitioning into `PIPELINE_PHASE_ERROR`
      *     - `SR_error` when the error is terminal
      *     - or the original `res` when no error handling is defined.
      */
     _responseError({ ticket, v, res }) {
 
-	// If the error handler itself fails (we are already in onError),
-	// do NOT re-enter onError. Surface handler failure and preserve original.
-	if (ticket.phase === "onError") {
+	// If the error handler itself fails (we are already in PIPELINE_PHASE_ERROR),
+	// do NOT re-enter PIPELINE_PHASE_ERROR. Surface handler failure and preserve original.
+	if (ticket.phase === helpers.PIPELINE_PHASE_ERROR) {
 	    const detail = this.lib.hash.to(res.detail);
 
 	    if (!detail.original) 
@@ -230,9 +232,9 @@ export class VM {
 
 	    return helpers.SR_error(res.error, detail);
 	}
-	//const hasOnError = Array.isArray(v.pipelineDef.onError) && v.pipelineDef.onError.length > 0;
+
 	//array len checks arbitrary vals. no need to use defensively.
-	const hasOnError = this.lib.array.len(v.pipelineDef.onError) > 0;
+	const hasOnError = this.lib.array.len(v.pipelineDef[helpers.PIPELINE_PHASE_ERROR]) > 0;
 	if (hasOnError) {
             const from = {
 		pipelineKey: v.pipelineKey,
@@ -249,12 +251,12 @@ export class VM {
 		...from,
             };
 
-            ticket.phase = "onError";
+            ticket.phase = helpers.PIPELINE_PHASE_ERROR;
             ticket.cursor.stage = 0;
 
             return helpers.SR_ok({
 		pipelineKey: v.pipelineKey,
-		reason: "enter onError",
+		reason: `enter ${helpers.PIPELINE_PHASE_ERROR}`,
 		from,
 		original: ticket.errorInfo || null,
             });
@@ -270,10 +272,10 @@ export class VM {
 	});
     }
 
-    //Snapshot stage identity BEFORE execution/handlers mutate ticket (e.g., run -> onError).
+    //Snapshot stage identity BEFORE execution/handlers mutate ticket (e.g., run -> PIPELINE_PHASE_ERROR).
     _snapShot({ticket,v}){
 	const exec = {
-	    phase: ticket.phase,                 // "run" | "onError"
+	    phase: ticket.phase,                 // "run" | PIPELINE_PHASE_ERROR
 	    stageIndex: ticket.cursor?.stage ?? 0,
 	    pipelineKey: v.pipelineKey,
 	    op: v.op,                            // may be string, function, etc
@@ -312,7 +314,7 @@ export default VM;
 
    // execution context (if a stage was involved)
    stage: {
-   phase,        // "run" | "onError"
+   phase,        // "run" | "PIPELINE_PHASE_ERROR"
    stageIndex,   // number | null
    op,           // raw op (string | fn | object | null)
    opLabel,      // string (always safe)

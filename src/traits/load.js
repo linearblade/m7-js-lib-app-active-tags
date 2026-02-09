@@ -1,5 +1,6 @@
 import Job from '../class/job/Job.js';
 import CONSTANTS from '../constants.js';
+import configReporter from '../helpers/reporter/configReporter.js'
 //REQUIRES STACK CONSTRUCTION AND INTERVAL STAGING STILL.
 //RUNNER == requires a reset job.
 
@@ -81,22 +82,34 @@ import CONSTANTS from '../constants.js';
 
 
 export const trait_load = {
+    parseSomeShit(job,stuff) {
+	const parsed = this.expr.walker.parseExpressions(stuff);
+	const at = this;
+	const scheme = AT.expr.interpScheme(job, {ticket:5})
+	const resolved = this.expr.walker.evalCompiled(parsed, (expr) => {
+	    // this is where ExpressionResolver does the real work
+	    console.log('stuffies');
 
-    
+	    return at.expr.evalTarget(job, expr, scheme);
+	    //return at.expr.eval(expr, { job, ticket, inputs, ctx, trigger });
+	});
+	return resolved;
+    },
     
     enqueueAll() {
 	const jobs = this.jobs.list();
-
+	const lib = this.lib;
 	for (const job of jobs) {
 	    // enabled gate (matches your schema shape shown)
-	    const enabled = job?.config?.schema?.enable?.enabled;
+	    const enabled = lib.hash.get(job,"config.schema.enabled") ;
+
 	    if (enabled === false) continue;
 
 	    // autorun list lives here in your example
-	    let autorun = job?.config?.schema?.enable?.autorun;
+	    let autorun = lib.hash.get(job,"config.schema.autorun");
 
 	    // policy: if autorun is missing/null, do nothing (explicit only)
-	    if (!Array.isArray(autorun) || autorun.length === 0) continue;
+	    if (!lib.array.len(autorun) ) continue;
 
 	    for (let key of autorun) {
 		if (!key) continue;
@@ -151,11 +164,11 @@ export const trait_load = {
      * - Execution is intentionally decoupled and handled elsewhere (runner/pump).
      */
     
-    load(sel=null,opts={}){
+    async load(sel=null,opts={}){
 	const list = this.sweep(sel);
 	if (!list) return;
 	console.log(`found ${list.length} candidates`);
-	const reg = this.registerJobs(list,opts);
+	const reg = await this.registerJobs(list,opts);
 	console.log(`registered ${this.lib.array.len(reg)} new jobs`);
     },
 
@@ -197,7 +210,7 @@ export const trait_load = {
      * - Initial job state is `{ status: 'ready' }`.
      */
 
-    registerJobs(list,opts={}) {
+    async registerJobs(list,opts={}) {
 	const lib = this.lib;
 	const jobs = [];
 	opts = lib.hash.to(opts,'ignoreExisting');
@@ -214,12 +227,23 @@ export const trait_load = {
 		continue;
             }
 
-            const job = new Job({ lib: this.lib, expr: this.expr, e: tag, ws: {} });
+            const job = new Job({ lib: this.lib, expr: this.expr, e: tag, ws: {},env:this.env });
 
             const registered = this.jobs.register(job);
             jobs.push(registered);
 
-            registered.configure();
+	    const def = lib.hash.to( lib.hash.get(this,"opts.job.config", {}) );
+	    const jobConf = lib.hash.slice( lib.hash.merge(def, opts) , "evalEnabled evalType importEnabled importPath");
+	    
+            await registered.configure(jobConf);
+
+	    // emit config diagnostics (dom + schema) through logging buckets
+	    configReporter({
+		job: registered,
+		lib: this.lib,
+		log:  this.svc.log,
+		bucketName: CONSTANTS.LOG_BUCKETS.CONFIG
+	    });
 	    //console.log('setting name for',registered, registered.name);
 	    this.jobs.setName(registered, registered.name);
 	}
@@ -228,6 +252,7 @@ export const trait_load = {
     },
     
 
+    
 
     /**
      * Rewrite legacy `data-*` attributes into modern dataset shape.

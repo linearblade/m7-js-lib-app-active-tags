@@ -16,10 +16,10 @@ export class Validate {
 	if (!ticket.cursor || typeof ticket.cursor !== "object") ticket.cursor = {};
 	if (typeof ticket.cursor.stage !== "number") ticket.cursor.stage = 0;
 
-	// phase: "run" or "onError"
+	// phase: "run" or "error"
 	if (!ticket.phase) ticket.phase = "run";
 
-	// keep original error when transitioning into onError
+	// keep original error when transitioning into error
 	if (!ticket.errorInfo) ticket.errorInfo = null;
     }
 
@@ -29,7 +29,7 @@ export class Validate {
      * Resolve the pipeline definition by key from the job.
      *
      * Supported shapes (v1 target):
-     *   job.pipelines = { default:{run:[...], onError:[...]}, initial:{...} }
+     *   job.pipelines = { default:{run:[...], error:[...]}, initial:{...} }
      *
      * Back-compat (legacy-ish / transitional):
      *   job.pipeline = { run:[...] }  -> treated as default
@@ -54,7 +54,7 @@ export class Validate {
 	const allowed = lib.utils.clamp(helpers.PIPELINE_PHASE, phase, null);
 	if (!allowed) return null;
 
-	// `allowed` is "run" or "onError"
+	// `allowed` is "run" or "error"
 	return lib.hash.get(pipelineDef, allowed, null);
     }
 
@@ -99,14 +99,14 @@ export class Validate {
 	//console.log(`stage is ${ticket.cursor.stage}`);
 	// End-of-phase
 	if (!stepRec) {
-	    // If we've exhausted the onError track, we treat this as a *handled* completion.
-	    if (ticket.phase === "onError") {
+	    // If we've exhausted the error track, we treat this as a *handled* completion.
+	    if (ticket.phase === helpers.PIPELINE_PHASE_ERROR) {
 		return {
 		    done: true,
 		    complete: true,
 		    res: helpers.SR_complete({
 			pipelineKey,
-			phase: "onError",
+			phase: helpers.PIPELINE_PHASE_ERROR,
 			handled: true,
 			original: ticket.errorInfo || null,
 		    }),

@@ -161,6 +161,194 @@ export default ActiveTags;
 
 
 
+# --- begin: builtins/buffer/index.js ---
+
+// builtins/buffer.js
+// Builtins: buffer.set, buffer.get, buffer.traverse, buffer.clear
+// VM signature: ({ job, lib, args, trigger, ticket, inputs, buffer, ctx, step }) => StageResultLike
+
+import helpers from "../../class/engine/helpers.js";
+
+/**
+ * Normalize args into a plain object.
+ * - If args is scalar => { value: args }
+ * - If args is array  => { value: args[0] }
+ * - If args is object => args
+ */
+function normalizeArgs(lib, args) {
+    if (lib?.utils?.isScalar?.(args)) return { value: args };
+    if (lib?.array?.is?.(args)) return { value: args[0] };
+    if (args && typeof args === "object") return args;
+    return {};
+}
+
+/**
+ * Convert a path into tokens.
+ * Supports:
+ *  - "a.b.c"
+ *  - "a[0].b"
+ *  - ["a", 0, "b"]
+ */
+function tokenizePath(lib, path) {
+    if (Array.isArray(path)) return path;
+    if (!path || typeof path !== "string") return [];
+
+    // Convert bracket notation: a[0].b -> a.0.b
+    const s = path.replace(/\[(\d+)\]/g, ".$1");
+    return s.split(".").filter(Boolean).map(tok => {
+	// numeric tokens become numbers
+	return (/^\d+$/).test(tok) ? Number(tok) : tok;
+    });
+}
+
+function getBufferOrError(buffer, step) {
+    if (!buffer || typeof buffer.get !== "function" || typeof buffer.set !== "function") {
+	return helpers.SR_error(
+	    new Error("buffer.* builtin: missing buffer slot (expected buffer.get/set/clear)"),
+	    { op: "buffer", step }
+	);
+    }
+    return null;
+}
+
+// -----------------------------------------------------------------------------
+// buffer.set
+// -----------------------------------------------------------------------------
+export async function bufferSet({ lib, args, inputs, buffer, step } = {}) {
+    try {
+	const bad = getBufferOrError(buffer, step);
+	if (bad) return bad;
+
+	const opts = normalizeArgs(lib, args);
+	const value = ("value" in opts) ? opts.value : null;
+	const meta = opts.meta && typeof opts.meta === "object" ? opts.meta : null;
+
+	buffer.set(value, meta);
+
+	// convenience mirror (optional): expose latest value
+	if (inputs && typeof inputs === "object") inputs.buffer = buffer.get();
+
+	return helpers.SR_ok({ op: "buffer.set", step });
+    } catch (err) {
+	return helpers.SR_error(err, { op: "buffer.set", step });
+    }
+}
+
+// -----------------------------------------------------------------------------
+// buffer.get
+// -----------------------------------------------------------------------------
+export async function bufferGet({ inputs, buffer, step } = {}) {
+    try {
+	const bad = getBufferOrError(buffer, step);
+	if (bad) return bad;
+
+	const value = buffer.get();
+
+	// convenience: mirror into inputs.buffer (so other ops can read it easily)
+	if (inputs && typeof inputs === "object") inputs.buffer = value;
+
+	return helpers.SR_ok({ op: "buffer.get", step, value });
+    } catch (err) {
+	return helpers.SR_error(err, { op: "buffer.get", step });
+    }
+}
+
+// -----------------------------------------------------------------------------
+// buffer.clear
+// -----------------------------------------------------------------------------
+export async function bufferClear({ inputs, buffer, step } = {}) {
+    try {
+	const bad = getBufferOrError(buffer, step);
+	if (bad) return bad;
+
+	if (typeof buffer.clear === "function") buffer.clear();
+	else buffer.set(null);
+
+	if (inputs && typeof inputs === "object") inputs.buffer = buffer.get();
+
+	return helpers.SR_ok({ op: "buffer.clear", step });
+    } catch (err) {
+	return helpers.SR_error(err, { op: "buffer.clear", step });
+    }
+}
+
+// -----------------------------------------------------------------------------
+// buffer.traverse
+// Moves buffer.value => buffer.value[path]
+// args:
+//   { path: "a.b[0].c", required: true|false }
+// -----------------------------------------------------------------------------
+export async function bufferTraverse({ lib, args, inputs, buffer, step } = {}) {
+    try {
+	const bad = getBufferOrError(buffer, step);
+	if (bad) return bad;
+
+	const opts = normalizeArgs(lib, args);
+	const path = opts.path ?? opts.value ?? null;
+	const required = ("required" in opts) ? !!opts.required : true;
+
+	const tokens = tokenizePath(lib, path);
+	if (!tokens.length) {
+	    return helpers.SR_error(new Error("buffer.traverse: missing/invalid path"), {
+		op: "buffer.traverse",
+		step,
+		path
+	    });
+	}
+
+	const root = buffer.get();
+
+	// Prefer lib.hash.get if available (handles deep paths consistently)
+	let out;
+	if (lib?.hash?.get) {
+	    // lib.hash.get usually expects "a.b.c" form; rebuild for it.
+	    const dotPath = tokens.map(String).join(".");
+	    out = lib.hash.get(root, dotPath);
+	} else {
+	    // Manual traversal
+	    out = root;
+	    for (const k of tokens) {
+		if (out == null) break;
+		out = out[k];
+	    }
+	}
+
+	if (required && out === undefined) {
+	    return helpers.SR_error(new Error("buffer.traverse: path not found"), {
+		op: "buffer.traverse",
+		step,
+		path,
+		tokens
+	    });
+	}
+
+	buffer.set(out, { traverse: { path, tokens } });
+
+	if (inputs && typeof inputs === "object") inputs.buffer = buffer.get();
+
+	return helpers.SR_ok({ op: "buffer.traverse", step, path, tokens });
+    } catch (err) {
+	return helpers.SR_error(err, { op: "buffer.traverse", step });
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Export bundle
+// -----------------------------------------------------------------------------
+export const BUFFER = {
+    set: bufferSet,
+    get: bufferGet,
+    clear: bufferClear,
+    traverse: bufferTraverse,
+};
+
+export default BUFFER;
+
+
+# --- end: builtins/buffer/index.js ---
+
+
+
 # --- begin: builtins/confirm.js ---
 
 // builtins/confirm.js
@@ -220,236 +408,611 @@ export default async function confirmOp({ job, lib, args, inputs, step } = {}) {
 
 
 
-# --- begin: builtins/domPatch.js ---
+# --- begin: builtins/dom/domPatch.js ---
 
 // builtins/domPatch.js
-import helpers from '../class/engine/helpers.js';
+import helpers from '../../class/engine/helpers.js';
 
 /**
- * dom.patch (v1)
+ * dom.patch (v1, target-driven)
+ *
+ * Target:
+ *  - `ticket.target` MUST be a DOM element (hard fail if not)
+ *  - Target selection and navigation are handled explicitly via `target.*` builtins
  *
  * Sources:
- *  - data-attr-* attributes on the job element (strip the prefix)
+ *  - `data-attr-*` attributes on the target element (prefix stripped)
  *  - op args (explicit patch object)
  *
  * Merge precedence:
- *  - args override DOM attributes
+ *  - op args override DOM attributes
  *
  * Effect:
- *  - for each key: lib.dom.set(job.e, key, value)
+ *  - For each key/value pair in the merged patch object:
+ *      lib.dom.set(target, key, value)
+ *
+ * Notes:
+ *  - This builtin does not read from or write to the buffer.
+ *  - It operates strictly on the current working target.
+ *  - Payload/data pipelines are expected to resolve targets explicitly
+ *    before invoking dom.patch.
  */
-// builtins/domPatch.js
-// NOTE: Must conform to VM call signature:
-// ({ job, lib, args, trigger, ticket, inputs, ctx, step }) => StageResultLike
-
-export default async function domPatch({ job, lib, args, step } = {}) {
+export default async function domPatch({ job, lib, args, ticket, target, step } = {}) {
     try {
-	const e = job?.e;
-	if ( !lib.dom.is(e)) {
+        // 1) target must be DOM (hard fail)
+        const el = target || ticket.target;
+        lib.dom.attempt(el, true);
 
-	    return {
-		status: "error",
-		error: new Error("dom.patch: job.e is not a DOM element"),
-		detail: { op: "dom.patch", step },
-	    };
-	}
+        // 2) patch from DOM attributes on target
+        const fromDom = lib.dom.filterAttributes(el, /^data-attr-/, 1) || {};
 
-	// 1) Scan element for data-attr-* directives (strip => keys like "style.color")
-	// Uses the same behavior you referenced (strip matched prefix).
-	const fromDom = lib.dom.filterAttributes(e, /^data-attr-/, 1) || {};
+        // 3) patch from args (args wins)
+        const fromArgs = lib.array.is(args)
+            ? lib.hash.to(args[0])
+            : lib.hash.to(args);
 
-	// 2) Merge with args patch object (args wins)
-	// You said args is like: {"style.color":"red"} (or args.args in your higher config)
-	// In the VM you pass v.args directly, so domPatch expects args to BE the patch object.
-	const fromArgs = lib.array.is(args) ?
-	      lib.hash.to(args[0]) :
-	      lib.hash.to(args) ;
-	const patch = { ...fromDom, ...fromArgs };
+        const patch = { ...fromDom, ...fromArgs };
 
-	// 3) Apply using lib.dom.set
-	let applied = 0;
-	for (const k in patch) {
-	    if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
-	    lib.dom.set(e, k, patch[k]);
-	    applied++;
-	}
+        // 4) apply
+        let applied = 0;
+        for (const k in patch) {
+            if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+            lib.dom.set(el, k, patch[k]);
+            applied++;
+        }
 
-	return {
-	    status: "ok",
-	    detail: {
-		op: "dom.patch",
-		applied,
-		keys: lib.hash.keys(patch),
-		step,
-	    },
-	};
+        return helpers.SR_ok({
+            op: "dom.patch",
+            applied,
+            keys: lib.hash.keys(patch),
+            step,
+        });
     } catch (err) {
-	return {
-	    status: "error",
-	    error: err,
-	    detail: { op: "dom.patch", step },
-	};
+        return helpers.SR_error(err, { op: "dom.patch", step });
     }
 }
 
 
-# --- end: builtins/domPatch.js ---
+# --- end: builtins/dom/domPatch.js ---
 
 
 
-# --- begin: builtins/formCollect.js ---
+# --- begin: builtins/dom/index.js ---
 
-// builtins/formCollect.js
+// builtins/dom/index.js
+import patch from './domPatch.js';
 
-export default async function formCollect({ job, lib, args, trigger, inputs, step } = {}) {
-    try {
-	if (!lib?.site?.form?.collect) {
-	    return {
-		status: "error",
-		error: new Error("form.collect: lib.site.form.collect is missing"),
-		detail: { op: "form.collect", step },
-	    };
-	}
+const DOM = {
+    PATCH: "patch",
+    // grow here: HTML, TEXT, ATTR, CLASS_ADD, CLASS_REMOVE, REMOVE, APPEND, etc.
+};
 
-	// Prefer the runtime trigger (submit button / clicked element).
-	// Fallback to the job element if trigger isn't provided.
-	const source = trigger || job?.e;
-	if (!lib.dom?.isDom || !lib.dom.isDom(source)) {
-	    return {
-		status: "error",
-		error: new Error("form.collect: no valid trigger/job element"),
-		detail: { op: "form.collect", step },
-	    };
-	}
+export { DOM };
 
-	// Optional opts: { debug: true } etc (forwarded)
-	const opts = args && typeof args === "object" ? args : {};
-	const data = lib.site.form.collect(source, opts);
+// Named exports (ergonomic for direct import)
+export const domPatch = patch;
 
-	if (!data || !data.form) {
-	    return {
-		status: "error",
-		error: new Error("form.collect: collect() returned no form context"),
-		detail: { op: "form.collect", step },
-	    };
-	}
-
-	// Ensure inputs exists (it should, but be defensive)
-	if (!inputs || typeof inputs !== "object") {
-	    return {
-		status: "error",
-		error: new Error("form.collect: ticket.inputs missing/invalid"),
-		detail: { op: "form.collect", step },
-	    };
-	}
-
-	// Store into canonical location for http.send
-	inputs.request = {
-	    url: data.url || null,
-	    method: data.method || null,
-	    parms: Array.isArray(data.parms) ? data.parms : [],
-	    form: data.form || null,
-	    trigger: data.event || source || null,
-	};
-
-	// Convenience (optional): also expose raw collection
-	inputs.form = data;
-
-	return {
-	    status: "ok",
-	    detail: { op: "form.collect", step, count: inputs.request.parms.length },
-	};
-    } catch (err) {
-	return {
-	    status: "error",
-	    error: err,
-	    detail: { op: "form.collect", step },
-	};
-    }
-}
+// Default export: iterable builtin tree for barrel registration
+export default {
+    [DOM.PATCH]: patch,
+};
 
 
-# --- end: builtins/formCollect.js ---
+# --- end: builtins/dom/index.js ---
 
 
 
-# --- begin: builtins/formSubmit.js ---
+# --- begin: builtins/errorDump.js ---
 
-export default async function formSubmit({ job, lib, trigger, inputs, step } = {}) {
+export default async function errorDump({ job, lib, args, trigger, ticket, inputs, ctx, step } = {}) {
   try {
-    if (!inputs || typeof inputs !== "object") {
-      return { status: "error", error: new Error("form.submit: missing inputs"), detail: { op:"form.submit", step } };
-    }
+    const opts = (args && typeof args === "object") ? args : {};
 
-    // determine a submitter/trigger
-    const e = inputs.event || null;
-    const submitter =
-      (e && e.submitter) ||
-      trigger ||
-      job?.e ||
+    const original = ticket?.errorInfo || null;
+    const err =
+      original?.error ||
+      ticket?.last?.res?.error ||
       null;
 
-    inputs.trigger = submitter;
-    inputs.eventName = inputs.eventName || "submit";
+    const payload = {
+      at: Date.now(),
+      op: "error.dump",
+      phase: ticket?.phase || null,
+      pipelineKey: ticket?.pipelineKey || null,
+      step: step || null,
+      jobId: job?.id || null,
+      jobName: job?.name || null,
+      trigger: trigger || null,
+      original,
+      error: err ? { name: err.name, message: err.message, stack: err.stack } : null,
+      inputs: (opts.includeInputs === false) ? null : inputs,
+      ctx: opts.includeCtx ? ctx : null,
+    };
 
-    return { status: "ok", detail: { op: "form.submit", step } };
-  } catch (err) {
-    return { status: "error", error: err, detail: { op:"form.submit", step } };
+    // store for later inspection
+    if (inputs && typeof inputs === "object") {
+      if (!Array.isArray(inputs.errors)) inputs.errors = [];
+      inputs.errors.push(payload);
+    }
+
+    // console output (keeps stack visible)
+    if (opts.console !== false) {
+      const log = (opts.level === "warn") ? console.warn : console.error;
+      log("[AT][error.dump]", payload);
+      if (opts.printStack !== false && err) log(err); // ensures browser prints stack as an Error
+    }
+
+    // optional breakpoint for “traceable”
+    if (opts.debugger === true) debugger;
+
+    // OPTIONAL: throw to stop execution + get a real stack trace
+    if (opts.throw === true) {
+      // Prefer rethrowing original if present (best stack)
+      if (err instanceof Error) {
+        err.atPayload = payload; // attach payload for inspection
+        throw err;
+      }
+
+      // Otherwise throw a new error with cause
+      const e = new Error("AT error.dump: throwing for trace", { cause: err || undefined });
+      e.atPayload = payload;
+      throw e;
+    }
+
+    return { status: "ok", detail: { op: "error.dump", dumped: true, step } };
+  } catch (err2) {
+    return { status: "error", error: err2, detail: { op: "error.dump", step } };
   }
 }
 
 
-# --- end: builtins/formSubmit.js ---
+# --- end: builtins/errorDump.js ---
+
+
+
+# --- begin: builtins/form/formCollect.js ---
+
+//builtins/form/formCollect.js
+/**
+ * Collect form data from the effective form source and stage it onto the buffer.
+ *
+ * This builtin invokes `lib.site.form.collect` using the engine trigger (or job
+ * element fallback) and replaces the current buffer value with the collected
+ * form context.
+ *
+ * Source resolution order:
+ *  1) `trigger` — engine-provided trigger element
+ *  2) `job.e`   — the job’s bound element (usually the <form>)
+ *
+ * The resolved source is asserted to be a valid DOM element. The collection
+ * result is expected to include a `form` context; failure to do so is treated
+ * as a system error.
+ *
+ * This stage performs no network activity and does not mutate `inputs`.
+ * It exists solely to move form state onto the buffer for downstream stages
+ * such as `form.submit` / `http.send`.
+ *
+ * Failure semantics:
+ * - Throws if no valid DOM element can be resolved.
+ * - Throws if `lib.site.form.collect` returns an invalid result.
+ * - Thrown errors are caught and returned as a terminal stage error.
+ *
+ * @param {Object} params
+ * @param {Object} params.job        The current job (guaranteed by engine)
+ * @param {Object} params.lib        ActiveTags lib utilities
+ * @param {Object|null} params.args  Optional options forwarded to form.collect
+ * @param {Object} params.buffer     Ticket buffer (conveyor slot)
+ * @param {Element|null} params.trigger
+ *                                  Engine-provided trigger element
+ * @param {Object} params.step       Pipeline step metadata
+ *
+ * @returns {StageResultLike}
+ *   `{ status: "ok" }` after placing collected form data onto the buffer,
+ *   or `{ status: "error" }` if form resolution or collection fails.
+ */
+
+export default async function formCollect({ job, lib, args, step, trigger, buffer } = {}) {
+    try {
+        const collect = lib.site.form.collect;
+
+        const source = trigger || job.e;
+        lib.dom.attempt(source, true);
+
+        const opts = lib.hash.is(args) ? args : {};
+        const data = collect(source, opts);
+
+        if (!data || !data.form) {
+            throw new Error("form.collect: collect() returned invalid form context");
+        }
+
+        // conveyor: buffer now carries collected form context
+        buffer.set(data);
+
+        return {
+            status: "ok",
+            detail: {
+                op: "form.collect",
+                step,
+                count: lib.array.len(data.parms),
+            },
+        };
+    } catch (err) {
+        return {
+            status: "error",
+            error: err,
+            detail: { op: "form.collect", step },
+        };
+    }
+}
+
+
+# --- end: builtins/form/formCollect.js ---
+
+
+
+# --- begin: builtins/form/formPrepare.js ---
+
+/**
+ * Prepare submit context for a form-driven pipeline.
+ *
+ * This builtin resolves the effective DOM element that should act as the
+ * submit source and stages it for downstream form operations.
+ *
+ * In most cases this stage is **not required**:
+ * - A typical form pipeline triggered by a submit button will already
+ *   have a valid engine-provided `trigger`.
+ * - `form.collect` and `form.submit` can usually operate without any
+ *   explicit preparation.
+ *
+ * This stage exists primarily as:
+ * - An explicit override point when a different submit source is desired
+ *   (e.g. custom triggers, delegated events, synthetic submissions).
+ * - A reserved staging hook for future extensions (confirmation,
+ *   preprocessing, linting, or trigger normalization).
+ *
+ * Resolution order:
+ *  1) `inputs.trigger` — explicit user override (if present)
+ *  2) `trigger`        — engine-provided trigger element
+ *  3) `job.e`          — the job’s bound element (typically the `<form>`)
+ *
+ * The resolved element is asserted to be a valid DOM element and written
+ * to the ticket buffer. This prepares the pipeline for `form.collect`,
+ * which expects a form element or one of its descendants.
+ *
+ * This stage performs **no submission, collection, or network activity**.
+ * It exists purely to normalize and stage submit context.
+ *
+ * Failure semantics:
+ * - Throws if no valid DOM element can be resolved.
+ * - Thrown errors are caught and returned as a terminal stage error.
+ *
+ * @param {Object} params
+ * @param {Object} params.job        The current job (guaranteed by engine)
+ * @param {Object} params.lib        ActiveTags lib utilities
+ * @param {Element|null} params.trigger
+ *                                  Engine-provided trigger element
+ * @param {Object|null} params.inputs
+ *                                  User-provided inputs (may be null/undefined)
+ * @param {Object} params.buffer     Ticket buffer (submit context staging)
+ * @param {Object} params.step       Pipeline step metadata
+ *
+ * @returns {StageResultLike}
+ *   `{ status: "ok" }` after staging the submitter,
+ *   or `{ status: "error" }` if resolution or assertion fails.
+ */
+
+export default async function formPrepare({ job, lib, trigger, inputs, ticket, step } = {}) {
+    try {
+        // optional user override (may be null / non-dom)
+        const override = lib.dom.attempt(inputs?.trigger);
+
+        const submitter =
+            override ||
+            trigger ||
+            job.e;
+
+        lib.dom.attempt(submitter, true);
+
+        // canonicalize trigger for the rest of the ticket lifetime
+        ticket.trigger = submitter;
+
+        return { status: "ok", detail: { op: "form.prepare", step } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: "form.prepare", step } };
+    }
+}
+
+
+# --- end: builtins/form/formPrepare.js ---
+
+
+
+# --- begin: builtins/form/formSubmit.js ---
+
+// builtins/form/formSubmit.js
+/**
+ * @file formSubmit.js
+ *
+ * ActiveTags builtin: form.submit
+ *
+ * Pipeline-aware wrapper around `lib.site.form.submit` that integrates
+ * form submission into the ActiveTags execution model.
+ *
+ * ---
+ * Responsibilities
+ * - Resolves request options via pipeline metadata (`buffer.meta()`) and runtime args.
+ * - Normalizes the submission source (DOM element or prior form.collect output).
+ * - Delegates collection, encoding, transport, and response parsing to `lib.site.form.submit`.
+ * - Records the request/response pair as a transaction on the job.
+ * - Advances the pipeline conveyor by writing the response into the buffer.
+ *
+ * ---
+ * Design Notes
+ * - This builtin prefers an existing `form.collect` output if present in the buffer;
+ *   otherwise it resolves the submission source from the engine trigger or job element.
+ * - The buffer is not implicitly mutated on input; it is only written on successful submission.
+ * - Request metadata (headers, mode, etc.) is resolved centrally via `makeOpts`,
+ *   with pipeline-staged metadata taking precedence over per-op arguments.
+ * - The builtin does not mutate `inputs`; the buffer is the sole data conveyor.
+ * - Transaction storage is observational only and does not affect pipeline control flow.
+ *
+ * ---
+ * Expected Buffer States
+ * - Input: form.collect output (optional)
+ * - Output: submission response payload
+ *
+ * ---
+ * Related helpers
+ * - makeOpts: resolves final request options from buffer meta and args
+ * - normalizeTarget: resolves and validates the submission source
+ * - storeTransaction: records request/response metadata on the job
+ *
+ * This builtin intentionally mirrors the behavior of legacy ActiveTags (v098)
+ * while conforming to the v1 pipeline and buffer-based execution model.
+ */
+
+export default async function formSubmit({ job, lib, args, trigger, buffer, step } = {}) {
+    try {
+        const submit = lib.site.form.submit;
+
+        // request metadata (headers etc.)
+        const opts = makeOpts({ lib, buffer, args });
+
+        // resolve submission source (DOM element or collect object)
+        const { src } = normalizeTarget({ lib, buffer, trigger, job });
+
+        // send (submit handles collect+encode+request+parse per opts)
+        const payload = await submit(src, opts);
+
+        // ---- OUTPUT WIRING ----
+        const reqName = opts.name || opts.requestName || "default";
+
+        storeTransaction({
+            lib,
+            job,
+            name: reqName,
+            request: src,
+            response: payload,
+            type: "HTTP/1",
+            meta: { op: "form.submit" },
+        });
+
+        // conveyor: buffer now carries response
+        buffer.set(payload);
+
+        return {
+            status: "ok",
+            detail: {
+                op: "form.submit",
+                step,
+                ok: !!payload?.ok,
+                status: payload?.status ?? null,
+            },
+        };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: "form.submit", step } };
+    }
+}
+
+function makeOpts({ lib, buffer, args } = {}) {
+    const staged = buffer.meta() || {};
+    const runtime = lib.hash.is(args) ? args : {};
+
+    const rHeaders = lib.hash.is(runtime.headers) ? runtime.headers : {};
+    const sHeaders = lib.hash.is(staged.headers) ? staged.headers : null;
+
+    // headers: staged wins over runtime
+    const headers = sHeaders
+        ? Object.assign({}, rHeaders, sHeaders)
+        : (lib.hash.is(runtime.headers) ? runtime.headers : undefined);
+
+    return {
+        ajax: true, // ActiveTags default policy
+        ...runtime,
+        ...staged,
+        headers,
+    };
+}
+
+function normalizeTarget({ lib, buffer, trigger, job } = {}) {
+    const isCollect = (x) => x && x.form && Array.isArray(x.parms);
+
+    const buf = buffer.get();
+    const src = isCollect(buf)
+        ? buf
+        : (trigger || job.e);
+
+    const dom = isCollect(src) ? (src.event || src.form) : src;
+    lib.dom.attempt(dom, true);
+
+    return { src, dom };
+}
+function storeTransaction({ lib, job, name, request, response, meta, type } = {}) {
+    const txName = name || "default";
+
+    if (!job.transactions) job.transactions = {};
+
+    const tx = {
+        ts: Date.now(),
+        request: request ?? null,
+        response: response ?? null,
+        type: type || "HTTP/1",
+        meta: meta || null,
+    };
+
+    job.transactions[txName] = tx;
+
+    return tx;
+}
+
+
+# --- end: builtins/form/formSubmit.js ---
+
+
+
+# --- begin: builtins/form/index.js ---
+
+import  formCollect      from './formCollect.js';
+import  formPrepare      from './formPrepare.js';
+import  formSubmit       from './formSubmit.js';
+import  requestHeaders   from './requestHeaders.js';
+
+export { formCollect };
+export { formPrepare };
+export { formSubmit };
+export { requestHeaders };
+
+export const FORM = {
+    collect: formCollect,
+    prepare: formPrepare,
+    submit: formSubmit,
+    headers: requestHeaders
+};
+
+export default FORM;
+
+
+# --- end: builtins/form/index.js ---
+
+
+
+# --- begin: builtins/form/requestHeaders.js ---
+
+// builtins/requestHeaders.js
+// Op name: "request.headers"
+/**
+ * Attach HTTP request headers to the current buffer context.
+ *
+ * This builtin annotates the ticket buffer with request-scoped headers
+ * to be consumed later by transport stages (e.g. `form.submit`, `http.send`).
+ *
+ * Headers are stored on `buffer.meta().headers` and do not affect the
+ * buffer value itself. This keeps payload data and transport metadata
+ * cleanly separated.
+ *
+ * Supported argument shapes:
+ * - `{ "X-CSRF": "abc", "Authorization": "Bearer token" }`
+ * - `{ headers: { ... } }`
+ * - `{ mode: "merge" | "replace" | "clear", headers: { ... } }`
+ *
+ * Modes:
+ * - `"merge"`   (default): shallow-merge headers into existing set
+ * - `"replace"`: replace all existing headers
+ * - `"clear"`  : remove all headers
+ *
+ * This stage performs no network activity and does not validate header
+ * values. It exists purely to stage request metadata for downstream
+ * transport operations.
+ *
+ * Failure semantics:
+ * - Throws on invalid arguments or buffer access errors.
+ * - Thrown errors are caught and returned as a terminal stage error.
+ *
+ * @param {Object} params
+ * @param {Object} params.lib        ActiveTags lib utilities
+ * @param {Object|null} params.args  Header definitions and options
+ * @param {Object} params.buffer     Ticket buffer (conveyor slot)
+ * @param {Object} params.step       Pipeline step metadata
+ *
+ * @returns {StageResultLike}
+ *   `{ status: "ok" }` after headers are staged on the buffer,
+ *   or `{ status: "error" }` if header mutation fails.
+ */
+
+export default async function requestHeaders({ lib, args, buffer, step } = {}) {
+    try {
+        const a = lib.hash.is(args) ? args : {};
+    // args is user-supplied; normalize lightly using your tools
+    // Supported shapes:
+    //  - { "X-CSRF": "abc" }
+    //  - { headers: { ... } }
+    //  - { mode: "replace"|"merge"|"clear", headers: { ... } }
+
+        const mode = a.mode || "merge";
+        const h = lib.hash.is(a.headers) ? a.headers : a;
+
+        const meta = buffer.meta();
+        meta.headers = lib.hash.is(meta.headers) ? meta.headers : {};
+
+        if (mode === "clear") {
+            meta.headers = {};
+        } else if (mode === "replace") {
+            meta.headers = h;           // no coercion
+        } else {
+            Object.assign(meta.headers, h);
+        }
+
+        return { status: "ok", detail: { op: "request.headers", step, mode } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: "request.headers", step } };
+    }
+}
+
+
+# --- end: builtins/form/requestHeaders.js ---
 
 
 
 # --- begin: builtins/httpSend.js ---
 
 // builtins/httpSend.js
-// VM signature: ({ job, lib, args, trigger, ticket, inputs, ctx, step }) => StageResultLike
-
 export default async function httpSend({ job, lib, args, trigger, inputs, step } = {}) {
   try {
-    if (!inputs || typeof inputs !== "object") {
-      return { status: "error", error: new Error("http.send: missing inputs"), detail: { op: "http.send", step } };
-    }
-    if (!lib?.site?.form?.submit) {
-      return { status: "error", error: new Error("http.send: lib.site.form.submit missing"), detail: { op: "http.send", step } };
-    }
+    const submit = lib.site.form.submit;
 
     // Prefer trigger (submitter / event target), fallback to job element
-    const source = trigger || job?.e;
-    if (!lib.dom?.isDom || !lib.dom.isDom(source)) {
-      return { status: "error", error: new Error("http.send: no valid DOM source (trigger/job.e)"), detail: { op: "http.send", step } };
-    }
+    const source = trigger || job.e;
+    lib.dom.attempt(source, true);
 
-    // args are your runtime overrides:
-    // e.g. { ajax: true, contentType:"json", response:"json", headers:{...}, useStructured:true, name:"default" }
-    const opts = (args && typeof args === "object") ? { ...args } : {};
-
-    // Force ajax mode for pipeline send
-    // (matches your intention: request happens here, not browser navigation)
+    // runtime overrides
+    const opts = lib.hash.is(args) ? { ...args } : {};
     opts.ajax = true;
 
-    // Let lib.site.form.submit do the heavy lifting (collect+encode+fetch+parse)
-    const payload = await lib.site.form.submit(source, opts);
+    // send (submit handles collect+encode+request+parse per opts)
+    const payload = await submit(source, opts);
 
-    // Store response for downstream ops (dom.patch etc.)
+    // downstream consumption
     inputs.response = payload;
 
-    // Optional: store last request record on job
+    // optional request record
     const reqName = opts.name || opts.requestName || "default";
-    if (job) {
-      if (!job.requests) job.requests = {};
-      job.requests[reqName] = {
-        ts: Date.now(),
-        input: inputs.request || null,  // if form.collect ran earlier
-        output: payload,
-        meta: { op: "http.send" },
-      };
-    }
+    if (!job.requests) job.requests = {};
+    job.requests[reqName] = {
+      ts: Date.now(),
+      input: inputs.request || null,
+      output: payload,
+      meta: { op: "http.send" },
+    };
 
-    return { status: "ok", detail: { op: "http.send", step, ok: !!payload?.ok, status: payload?.status ?? null } };
+    return {
+      status: "ok",
+      detail: {
+        op: "http.send",
+        step,
+        ok: !!payload?.ok,
+        status: payload?.status ?? null,
+      },
+    };
   } catch (err) {
     return { status: "error", error: err, detail: { op: "http.send", step } };
   }
@@ -462,33 +1025,268 @@ export default async function httpSend({ job, lib, args, trigger, inputs, step }
 
 # --- begin: builtins/index.js ---
 
-import  domPatch     from './domPatch.js';
-import  formCollect  from './formCollect.js';
-import  formSubmit   from './formSubmit.js';
+import  dom          from './dom/index.js';
+import  form         from './form/index.js';
 import  httpSend     from './httpSend.js';
 import  confirm      from './confirm.js';
-
-export { domPatch };
-export { formCollect };
-export { formSubmit };
+import  errorDump    from './errorDump.js';
+import  buffer       from './buffer/index.js';
+import  target       from './target/index.js';
+export { dom };
+export { form};
 export { httpSend };
+export { errorDump };
+export { buffer };
+export { target };
 
 export default {
     confirm,
-    dom : {
-	patch: domPatch
-    },
-    form : {
-	collect: formCollect,
-	submit : formSubmit
-    },
+    dom,
+    form ,
     http: {
 	send: httpSend
-    }
+    },
+    error: {
+	dump: errorDump
+    },
+    buffer,
+    target
 };
 
 
 # --- end: builtins/index.js ---
+
+
+
+# --- begin: builtins/target/index.js ---
+
+// builtins/target/index.js
+
+const TARGET = {
+    RESET:   "reset",
+    SET:     "set",
+    FROMBUF: "fromBuffer",
+    TOBUF:   "toBuffer",
+    CLOSEST: "closest",
+    FIND:    "find",
+    PARENT:  "parent",
+    CHILD:   "child",
+};
+
+/**
+ * Normalize: current target must be a DOM element.
+ */
+function _cur({ lib, ticket }) {
+    const cur = ticket.target;
+    lib.dom.attempt(cur, true);
+    return cur;
+}
+
+/**
+ * target.reset
+ * Sets ticket.target back to job.e.
+ */
+export async function targetReset({ job, lib, ticket } = {}) {
+    try {
+        ticket.target = job.e;
+        lib.dom.attempt(ticket.target, true);
+        return { status: "ok", detail: { op: TARGET.RESET } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: TARGET.RESET } };
+    }
+}
+
+/**
+ * target.set
+ * Sets ticket.target from:
+ *  - args.selector (string) resolved from document
+ *  - args.el (DOM element)
+ *  - args (string selector) shorthand
+ */
+export async function targetSet({ lib, args, ticket } = {}) {
+    try {
+        const doc = lib.hash.get(lib, "_env.root.document") || document;
+
+        let next = null;
+        if (typeof args === "string") {
+            next = doc.querySelector(args);
+        } else if (args && typeof args === "object") {
+            if (args.el) next = args.el;
+            else if (args.selector) next = doc.querySelector(args.selector);
+        }
+
+        lib.dom.attempt(next, true);
+        ticket.target = next;
+
+        return { status: "ok", detail: { op: TARGET.SET } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: TARGET.SET } };
+    }
+}
+
+/**
+ * target.fromBuffer
+ * Sets ticket.target from buffer.get() (must be DOM).
+ */
+export async function targetFromBuffer({ lib, ticket, buffer } = {}) {
+    try {
+        const next = buffer.get();
+        lib.dom.attempt(next, true);
+        ticket.target = next;
+        return { status: "ok", detail: { op: TARGET.FROMBUF } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: TARGET.FROMBUF } };
+    }
+}
+
+/**
+ * target.toBuffer
+ * Writes current ticket.target into buffer.
+ */
+export async function targetToBuffer({ lib, ticket, buffer } = {}) {
+    try {
+        const cur = _cur({ lib, ticket });
+        buffer.set(cur);
+        return { status: "ok", detail: { op: TARGET.TOBUF } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: TARGET.TOBUF } };
+    }
+}
+
+/**
+ * target.closest
+ * Moves target to closest(selector).
+ * args: string selector OR { selector: string }
+ */
+export async function targetClosest({ lib, args, ticket } = {}) {
+    try {
+        const cur = _cur({ lib, ticket });
+        const selector = (typeof args === "string") ? args : args.selector;
+        const next = cur.closest(selector);
+        lib.dom.attempt(next, true);
+        ticket.target = next;
+        return { status: "ok", detail: { op: TARGET.CLOSEST, selector } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: TARGET.CLOSEST } };
+    }
+}
+
+/**
+ * target.find
+ * Moves target to querySelector(selector) within current target.
+ * args: string selector OR { selector: string }
+ */
+export async function targetFind({ lib, args, ticket } = {}) {
+    try {
+        const cur = _cur({ lib, ticket });
+        const selector = (typeof args === "string") ? args : args.selector;
+        const next = cur.querySelector(selector);
+        lib.dom.attempt(next, true);
+        ticket.target = next;
+        return { status: "ok", detail: { op: TARGET.FIND, selector } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: TARGET.FIND } };
+    }
+}
+
+/**
+ * target.parent
+ * Moves target to parentElement (or closest selector if provided).
+ * args: optional selector string or { selector }
+ */
+export async function targetParent({ lib, args, ticket } = {}) {
+    try {
+        const cur = _cur({ lib, ticket });
+        const selector = (typeof args === "string") ? args : args?.selector;
+
+        const next = selector ? cur.closest(selector)?.parentElement : cur.parentElement;
+        lib.dom.attempt(next, true);
+        ticket.target = next;
+
+        return { status: "ok", detail: { op: TARGET.PARENT, selector: selector || null } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: TARGET.PARENT } };
+    }
+}
+
+/**
+ * target.child
+ * Moves target to children[index] (default 0).
+ * args: number index OR { index }
+ */
+export async function targetChild({ lib, args, ticket } = {}) {
+    try {
+        const cur = _cur({ lib, ticket });
+        const index = (typeof args === "number") ? args : (args?.index ?? 0);
+        const next = cur.children[index];
+        lib.dom.attempt(next, true);
+        ticket.target = next;
+        return { status: "ok", detail: { op: TARGET.CHILD, index } };
+    } catch (err) {
+        return { status: "error", error: err, detail: { op: TARGET.CHILD } };
+    }
+}
+
+export default {
+    [TARGET.RESET]:   targetReset,
+    [TARGET.SET]:     targetSet,
+    [TARGET.FROMBUF]: targetFromBuffer,
+    [TARGET.TOBUF]:   targetToBuffer,
+    [TARGET.CLOSEST]: targetClosest,
+    [TARGET.FIND]:    targetFind,
+    [TARGET.PARENT]:  targetParent,
+    [TARGET.CHILD]:   targetChild,
+};
+
+export { TARGET };
+
+
+# --- end: builtins/target/index.js ---
+
+
+
+# --- begin: class/engine/Buffer.js ---
+
+//engine/Buffer.js
+export class Buffer {
+    #value = null;
+    #meta = {};
+
+    constructor(initial = null) {
+	this.#value = initial;
+    }
+
+    get() {
+	return this.#value;
+    }
+
+    set(v, meta) {
+	this.#value = v;
+	if (meta && typeof meta === "object") {
+	    Object.assign(this.#meta, meta);
+	}
+	return v;
+    }
+
+    clear() {
+	this.#value = null;
+	this.#meta = {};
+    }
+
+    meta() {
+	return this.#meta;
+    }
+
+     toJSON() {
+	return this.#value;
+    }
+}
+
+
+export default Buffer;
+
+
+# --- end: class/engine/Buffer.js ---
 
 
 
@@ -695,7 +1493,7 @@ export class EngineManager {
 	    st.alias.delete(pipelineKey); // stale alias
 	}
 
-	const ticket = helpers.makeRunTicket({ jobId, pipelineKey, inputs, priority, meta });
+	const ticket = helpers.makeRunTicket({job, pipelineKey, inputs, priority, meta });
 	//console.log(ticket);
 	this.engine.state.indexTicket(jobId, ticket);
 	this.engine.state.aliasSet(jobId, pipelineKey, ticket.id);
@@ -925,7 +1723,8 @@ export default EngineState;
 // -----------------------------------------------------------------------------
 // StageResult helpers
 // -----------------------------------------------------------------------------
-
+import Buffer from './Buffer.js';
+export const STAGE_STATUS_RANGE = ['ok','wait','error','complete']; 
 export const STAGE_STATUS = Object.freeze({
     OK: "ok",
     WAIT: "wait",
@@ -953,13 +1752,14 @@ export function SR_complete(detail) {
 // -----------------------------------------------------------------------------
 
 let _ticketCounter = 0;
-export function makeRunTicket({ jobId, pipelineKey, inputs, priority = 0, meta = {} } = {}) {
+export function makeRunTicket({ job, pipelineKey, inputs, priority = 0, meta = {} } = {}) {
     return {
         id: `rt_${++_ticketCounter}`,
-        jobId,
+        jobId: job.id,
         createdAt: Date.now(),
         priority,
-
+	buffer : new Buffer(),
+	target : job.e,
         // what to run (VM expects this)
         pipelineKey: String(pipelineKey || "default"),
 
@@ -979,6 +1779,7 @@ export function makeRunTicket({ jobId, pipelineKey, inputs, priority = 0, meta =
 }
 
 export default {
+    STAGE_STATUS_RANGE,
     STAGE_STATUS,
     PIPELINE_PHASE,
     SR_ok,
@@ -1193,10 +1994,11 @@ export class Tick {
         try {
             res = await this.engine.vm.step({ job: v.job, ticket: v.ticket, ctx: v.ctx});
         } catch (err) {
+	    console.warn('trap an error');
 	    res = helpers.SR_error(err, { pipelineKey: v.ticket?.pipelineKey || null });
             //res = { status: helpers.STAGE_STATUS.ERROR, error: err };
         }
-
+	console.log(res);
 	v.ticket.last = { at: Date.now(), res };
 	// build a non-terminal trace for stage events (even if it's a transition OK)
 	this._emitOnStage({v,res});
@@ -1573,7 +2375,11 @@ export class TickResponse {
 
 	return {
             phase: src.phase || ticket?.phase || null,
-            stageIndex: (typeof src.stageIndex === "number") ? src.stageIndex : null,
+            //stageIndex: (typeof src.stageIndex === "number") ? src.stageIndex : null,
+	    stageIndex:
+	    (typeof src.stageIndex === "number") ? src.stageIndex :
+		(typeof src?.step?.stageIndex === "number") ? src.step.stageIndex :
+		null,
             op: (src.op !== undefined) ? src.op : null,
             opLabel: (src.opLabel !== undefined) ? src.opLabel : null,
             step: (src.step !== undefined) ? src.step : null,
@@ -1744,13 +2550,25 @@ export class OP {
 	    );
 	}
 	
-
+	//console.log('normaled resp', res);
 	//base type will differentiate null, array, (object, hash) => object
 	if(this.lib.utils.baseType(res,'object')) {
-	    // Already a StageResult
-	    if (this.lib.bool.isIntent(res.status)) {
-		return res;
+	    // Already a StageResult ... return new object in order to minimize fuckery in user func.
+	    const status = res.status;
+	    // Coerce boolish legacy status FIRST 
+	    if (this.lib.bool.isIntent(status)) {
+		const coerced = this.lib.bool.yes(status)
+		      ? helpers.STAGE_STATUS.OK
+		      : helpers.STAGE_STATUS.ERROR;
+		return { ...res, status: coerced };
 	    }
+	    
+	    // Accept canonical StageResult statuses 
+	    if (helpers.STAGE_STATUS_RANGE.includes(status)) 
+		return {...res};
+
+	    
+	    console.log('invalid status... ', res.status);
 	    // Explicit legacy wait
 	    if (res.wait === true) {
 		return helpers.SR_wait({
@@ -1769,7 +2587,7 @@ export class OP {
         );
     }
     
-    _normalizeReturn(res, { pipelineKey, op } = {}) {
+    _oldnormalizeReturn(res, { pipelineKey, op } = {}) {
 
 	// Already a StageResult
 	if (res && typeof res === "object" && res.status) {
@@ -2015,6 +2833,85 @@ export class VM {
      * Returns StageResult-like: status ok|wait|error|complete
      */
     async step({ job, ticket, ctx }) {
+	const lib = this.lib;
+	this.validator._ensureTicketRuntime(ticket);
+
+	const v = this.validator._validateStep({ job, ticket });
+
+	const tagNoStage = (sr) => {
+	    if (!sr || typeof sr !== "object") return sr;
+	    if (!sr.detail || typeof sr.detail !== "object") sr.detail = {};
+	    sr.detail.noStage = true;
+	    return sr;
+	};
+
+	// always compute trigger + snapshot (even for validate errors)
+	const trigger =
+	      lib.hash.get(ticket, "inputs.trigger") ||
+	      lib.hash.get(job, "e") ||
+	      null;
+
+	const snapShot = this._snapShot({ v, ticket });
+
+	let res;
+
+	// ------------------------------------------------------------
+	// 1) Validate-time outcomes become normal "res" values
+	//    (NO early returns; must flow through handler dispatch)
+	// ------------------------------------------------------------
+	if (v.err) {
+	    res = tagNoStage(v.err);
+	} else if (v.done) {
+	    res = tagNoStage(v.res || v.err);
+	} else {
+	    // ------------------------------------------------------------
+	    // 2) Normal stage execution
+	    // ------------------------------------------------------------
+	    try {
+		res = await v.fn({
+		    job,
+		    lib,
+		    args: v.args,
+		    buffer : ticket.buffer,
+		    inputs: ticket.inputs,
+		    trigger,
+		    ticket,
+		    ctx,
+		    step: v.stepRec,
+		});
+	    } catch (err) {
+		res = helpers.SR_error(err, { pipelineKey: v.pipelineKey, op: v.op, step: v.stepRec });
+	    }
+
+	    // normalize only for real op execution
+	    res = this.op._normalizeReturn(res, { pipelineKey: v.pipelineKey, op: v.op });
+	}
+
+	// raw status MUST be captured BEFORE any handler transforms it (enter onError, etc.)
+	const return_status = res.status ?? null;
+
+	// finalizeResponse can attach stage metadata, etc. (keep as you have it)
+	res = this._finalizeResponse(res, snapShot);
+
+	const env = { job, ticket, ctx, v, res, return_status };
+
+	const disp = {
+	    [helpers.STAGE_STATUS.OK]:       this._responseOk,
+	    [helpers.STAGE_STATUS.WAIT]:     this._responseWait,
+	    [helpers.STAGE_STATUS.ERROR]:    this._responseError,   // <- critical: now runs for v.err too
+	    [helpers.STAGE_STATUS.COMPLETE]: this._responseComplete,
+	};
+
+	const handler = disp[res?.status] || this._responseUnknown;
+	const rv = handler.call(this, env);
+
+	// preserve your rule: return_status is raw, unmodified by handler transitions
+	rv.return_status = return_status;
+
+	return rv;
+    }
+    
+    async oldstep({ job, ticket, ctx }) {
 	const lib = this.lib;
 	this.validator._ensureTicketRuntime(ticket);
 

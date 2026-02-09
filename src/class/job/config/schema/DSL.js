@@ -17,7 +17,7 @@ export class DSL {
      */
     _compilePipelineDSL(report, output) {
 	const lib = this.lib;
-	console.log('here', lib.utils.deepCopy(output) );
+	//console.log('here', lib.utils.deepCopy(output) );
 	output = lib.hash.to(output);
 
 	const pipelines = lib.hash.get(output, "pipelines");
@@ -43,15 +43,14 @@ export class DSL {
     /**
      * Compile one pipeline item.
      *
-     * Stub for now:
-     * - In a later pass, this will parse `p.run` / `p.onError` entries from raw
-     *   strings into executable descriptors (AST), validate syntax (quotes closed,
-     *   etc.), and optionally validate callable names.
+     * Current behavior (v1):
+     * - Coerces `p.run` and `p.error` into canonical list form using `expr.parseList`.
+     * - Does not build AST descriptors yet.
      *
      * Expected future behavior:
-     * - p.runAst     = Array<Descriptor>
-     * - p.onErrorAst = Array<Descriptor>
-     * - keep p.run/p.onError as raw tokens for debugging/round-tripping
+     * - p.runAst   = Array<Descriptor>
+     * - p.errorAst = Array<Descriptor>
+     * - Optionally preserve raw user values for debugging/round-tripping.
      */
     _compilePipelineDSLItem(report, p, ctx = {}) {
 	const lib = this.lib;
@@ -59,10 +58,10 @@ export class DSL {
 	p = lib.hash.to(p);
 	ctx = lib.hash.to(ctx);
 
-	console.log(`scrubbing pipeline ${ctx.key}`);
+	//console.log(`scrubbing pipeline ${ctx.key}`);
 	
 	p.run     = this.expr.parseList(p.run);
-	p.onError = this.expr.parseList(p.onError);
+	p.error = this.expr.parseList(p.error);
 
 	return p;
     }

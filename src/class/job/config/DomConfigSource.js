@@ -39,7 +39,7 @@
 import Report from './Report.js';
 // leave all constants presently as local, have to decide where to organize them later. (there are 2 constants files at moment.
 import { ARR_TO_OPTS, DOM_ATTRS_RUNTIME_INPUTS, DOM_CONFIG_AT, MERGE_OPTS_V1 } from '../../../constants.js';
-
+const DEFAULT_EVAL_TYPE = "text/at-eval";
 export default class DomConfigSource {
     /**
      * @param {Object} args
@@ -51,19 +51,24 @@ export default class DomConfigSource {
      *     Optional expression/target resolver used to resolve config-at targets.
      *     (Injected to avoid circular dependencies with Job/ActiveTags.)
      */
-    constructor({ lib, env = {}, expr = null,strict = false } = {}) {
+    constructor({ lib, env = {}, expr = null,strict = false,job,evalEnabled = false, evalType = [DEFAULT_EVAL_TYPE] , importEnabled = false, importPath = [] } = {}) {
         if (!lib) throw new Error("DomConfigSource: missing lib");
 	if (!expr) throw new Error("DomConfigSource: missing expr");
         this.lib = lib;
         this.env = env;
         this.expr = expr;
 	this.strict = lib.utils.isEmpty(strict) ? false : strict;
+	this.job = job;
+	this.allowEvalConfig = lib.bool.yes(evalEnabled);
+	this.allowEvalTypes  = lib.bool.no(evalType) ? false : lib.array.to(evalType);
+	this.allowImportConfig = lib.bool.yes(importEnabled) ;
+	this.allowImportPath   = lib.array.to(importPath); 
     }
     static emptyReadShape(report){
 	report = (report)?report.export() :  Report.emptyExportShape();
 	return { report, dataSet:{}, attrs: {}, at : [], config: {}, output: {} };
     }
-    read(source,{config_at = DOM_CONFIG_AT, defaultConfig = {}} = {}){
+    async read(source,{config_at = DOM_CONFIG_AT, defaultConfig = {}} = {}){
 	const lib = this.lib;
 	const report = new Report({lib});
 	//will assume for now that report will set ok=false  if errors.
@@ -72,7 +77,7 @@ export default class DomConfigSource {
         const dataSet = this._readDataset({report, source});
         const attrs   = this._readAttrs({report,source});
 	const at      = this._getConfigAt({report, ds:dataSet, list:config_at});
-	const config  = this._resolveConfig({report, list:at,source});
+	const config  = await this._resolveConfig({report, list:at,source});
 	// attrs are runtime inputs, not config; intentionally not merged
 	const output  = lib.hash.mergeMany([defaultConfig, config, dataSet],MERGE_OPTS_V1);
 	return { report: report.export(), dataSet, attrs, at, config, output };
@@ -227,7 +232,7 @@ export default class DomConfigSource {
      * @returns {Object}
      *     Merged config hash snapshot.
      */
-    _resolveConfig({ report, list, source } = {}) {
+    async _resolveConfig({ report, list, source } = {}) {
 	const lib = this.lib;
 
 	// 1) Nothing to resolve
@@ -241,8 +246,7 @@ export default class DomConfigSource {
             const ref = lib.str.to(list[i], true).trim();
             if (!ref) continue;
 
-            const conf = this._resolveConfigTarget({ report, ref, source });
-
+            const conf = await this._resolveConfigTarget({ report, ref, source });
             if (!lib.hash.is(conf)) {
 		this._error(
                     report,
@@ -285,7 +289,7 @@ export default class DomConfigSource {
      * @returns {Object}
      *     Resolved config hash (plain object), or {} on error (non-strict).
      */
-    _resolveConfigTarget({ report, ref, source } = {}) {
+    async _resolveConfigTarget({ report, ref, source } = {}) {
 	const lib = this.lib;
 
 	ref = lib.str.to(ref, true).trim();
@@ -295,24 +299,49 @@ export default class DomConfigSource {
 	}
 
 	// Interpolate reference
-	const scheme = this.expr.interpScheme({ e: source }, undefined);
-	ref = lib.str.interp(ref, scheme);
 
+
+	//console.log('ref' , ref);
+	//const scheme = this.expr.interpScheme({ e: source }, undefined);
+	//ref = lib.str.interp(ref, scheme);
+	//console.log('after', ref);
 	// Parse the target expression
 	let info;
-	try {
-            info = this.expr.parseTarget({ e: source }, ref);
-	} catch (err) {
-            this._error(
-		report,
-		"configure",
-		"CONFIG_PARSE_TARGET_FAILED",
-		`Failed to parse config reference '${ref}'`,
-		{ error: err, ref }
-            );
-            return {};
-	}
+	//console.warn(ref);
+	let imp = null;
 
+	try {
+	    imp = this._maybeImport(ref);
+
+	    if (imp) {
+		info = await this._importConfig(imp);
+	    } else {
+		info = this.expr.eval({ job: this.job }, ref);
+	    }
+	} catch (err) {
+	    if (imp) {
+		// import path failed
+		this._error(
+		    report,
+		    "configure",
+		    "CONFIG_IMPORT_FAILED",
+		    `Failed to import config reference '${ref}'`,
+		    { error: err, ref, imp }
+		);
+	    } else {
+		// expression / local reference failed
+		this._error(
+		    report,
+		    "configure",
+		    "CONFIG_PARSE_TARGET_FAILED",
+		    `Failed to parse config reference '${ref}'`,
+		    { error: err, ref }
+		);
+	    }
+
+	    return {};
+	}
+	//console.warn(info);
 	// Evaluate into a value
 	let val = info;
 
@@ -326,11 +355,25 @@ export default class DomConfigSource {
 
 	// DOM source => parse JSON from text
 	if (lib.dom.is(val)) {
-            const text =
-		  lib.str.to(val.text, true) ||
-		  lib.str.to(val.textContent, true) ||
-		  lib.str.to(val.innerText, true) ||
-		  "";
+
+	    let text = "";
+
+	    // Prefer inline JSON if present
+	    const inline =
+		  lib.str.to(val.textContent, true).trim() ||
+		  lib.str.to(val.innerText, true).trim();
+	    text = inline;
+	    
+	    // If inline is empty, try external source
+	    if (lib.utils.isEmpty(inline)) {
+		const src = val.getAttribute("data-src") || val.src;
+		if (src) {
+		    text = await fetch(src).then(r => r.text());
+		}
+	    } else {
+		text = inline;
+	    }
+	    
 
             if (!text.trim()) {
 		this._error(
@@ -344,15 +387,21 @@ export default class DomConfigSource {
             }
 
             try {
-		val = JSON.parse(text);
+		//$FIXUP
+		val = this._resolveDomConfigNode(val, text, { source, ref });
+		//console.warn(val);
+		//val = JSON.parse(text);
             } catch (err) {
+		const msg = (err && err.message) ? String(err.message) : "Config parse failed";
+
 		this._error(
-                    report,
-                    "configure",
-                    "CONFIG_JSON_PARSE_FAILED",
-                    `Invalid JSON in config payload for '${ref}'`,
-                    { error: err, ref }
+		    report,
+		    "configure",
+		    "CONFIG_PAYLOAD_PARSE_FAILED",
+		    `Config payload failed for '${ref}': ${msg}`,
+		    { error: err, ref, type: val?.type, tagName: val?.tagName }
 		);
+
 		return {};
             }
 	}
@@ -372,6 +421,223 @@ export default class DomConfigSource {
 	return val;
     }
 
+
+    async _importConfig(imp) {
+	this._importCache ||= new Map();
+
+	// Resolve relative imports against the DOCUMENT, not the module file.
+	const docBase =
+              this.importBaseUrl ||
+              this.job?.e?.ownerDocument?.baseURI ||
+              (typeof document !== "undefined" ? document.baseURI : "");
+
+	const resolvedUrl = docBase
+              ? new URL(imp.url, docBase).href
+              : imp.url;
+
+	const key = `${resolvedUrl}#${imp.exportName || ""}`;
+	if (this._importCache.has(key)) return this._importCache.get(key);
+
+	const p = (async () => {
+            const mod = await import(/* @vite-ignore */ resolvedUrl);
+            return imp.exportName ? mod[imp.exportName] : (mod.default ?? mod);
+	})();
+
+	this._importCache.set(key, p);
+	return p;
+    }
+    
+    async d_importConfig(imp) {
+	this._importCache ||= new Map();
+
+	const key = `${imp.url}#${imp.exportName || ""}`;
+	if (this._importCache.has(key)) return this._importCache.get(key);
+
+	const p = (async () => {
+            const mod = await import(/* @vite-ignore */ imp.url);
+            return imp.exportName ? mod[imp.exportName] : (mod.default ?? mod);
+	})();
+
+	this._importCache.set(key, p);
+	return p;
+    }
+
+    _maybeImport(ref) {
+	const lib = this.lib;
+
+	// Gate: imports are privileged.
+	if (!this.allowImportConfig) {
+            throw Object.assign(
+		new Error(`Import config disabled for '${ref}'`),
+		{ code: "CONFIG_IMPORT_DISABLED" }
+            );
+	}
+
+	if (typeof ref !== "string") return null;
+
+	const m = ref.match(/^\s*import\s*:\s*(.+?)\s*$/i);
+	if (!m) return null;
+
+	const spec = m[1];
+	const [rawUrl, rawExport] = spec.split("#", 2);
+
+	const url = (rawUrl || "").trim();
+	const exportName = rawExport ? rawExport.trim() : null;
+
+	if (!url) {
+            throw Object.assign(
+		new Error(`Empty import specifier in '${ref}'`),
+		{ code: "CONFIG_IMPORT_EMPTY" }
+            );
+	}
+
+	// Classify URL-ish type
+	const t = lib.utils.linkType(url); // "pathAbs" | "pathRel" | "urlAbs" | "urlNet" | "resource" | ...
+
+	// Block special schemes by default (data:, blob:, file:, chrome-extension:, etc.)
+	if (t === "resource") {
+            throw Object.assign(
+		new Error(`Import blocked (resource scheme): '${url}'`),
+		{ code: "CONFIG_IMPORT_RESOURCE_BLOCKED", url, linkType: t }
+            );
+	}
+
+	// Normalize allow list (pathname prefixes)
+	const allowList = (lib.array.filterStrings
+			   ? lib.array.filterStrings(this.allowImportPath)
+			   : lib.array.to(this.allowImportPath).filter(s => typeof s === "string" && s.trim())
+			  ).map(s => String(s).trim()).filter(Boolean);
+
+	// No allow list => local-only (pathAbs/pathRel only)
+	if (!allowList.length) {
+            const isLocal = (t === "pathAbs" || t === "pathRel");
+            if (!isLocal) {
+		throw Object.assign(
+                    new Error(`Import blocked (local-only mode): '${url}'`),
+                    { code: "CONFIG_IMPORT_PATH_BLOCKED", url, linkType: t }
+		);
+            }
+            return { url, exportName };
+	}
+
+	// Allow local always
+	if (t === "pathAbs" || t === "pathRel") {
+            return { url, exportName };
+	}
+
+	// External (urlAbs/urlNet): require allowList pathname prefix match
+	const base = this.env?.baseURI || this.env?.document?.baseURI || "";
+
+	let resolved;
+	try {
+            resolved = new URL(url, base || undefined);
+	} catch (err) {
+            throw Object.assign(
+		new Error(`Invalid import URL '${url}' in '${ref}'`),
+		{ code: "CONFIG_IMPORT_URL_INVALID", url, error: err }
+            );
+	}
+
+	if (!allowList.some(prefix => resolved.pathname.startsWith(prefix))) {
+            throw Object.assign(
+		new Error(`Import blocked by importPath: '${resolved.pathname}'`),
+		{
+                    code: "CONFIG_IMPORT_PATH_BLOCKED",
+                    url,
+                    pathname: resolved.pathname,
+                    allowImportPath: allowList.slice(),
+                    linkType: t,
+		}
+            );
+	}
+
+	return { url, exportName };
+    }
+    
+    _oldmaybeImport(ref) {
+	// examples:
+	//   "import:./conf/jumjum.js"
+	//   "import:./conf/jumjum.js#default"
+	//   "import:./conf/jumjum.js#namedExport"
+
+	if (!this.allowImportConfig) {
+	    throw Object.assign(new Error(`Import config disabled for '${ref}'`), { code: "CONFIG_IMPORT_DISABLED" });
+	}
+
+	if (typeof ref !== "string") return null;
+
+	const m = ref.match(/^\s*import\s*:\s*(.+?)\s*$/i);
+	if (!m) return null;
+
+	const spec = m[1];
+	const [url, exportName] = spec.split("#", 2);
+
+	return {
+	    url: (url || "").trim(),
+	    exportName: exportName ? exportName.trim() : null,
+	};
+    }
+    
+    /**
+     * Resolve a DOM config source node into a config object.
+     * Supports JSON by default and gated eval for trusted SCRIPT sources.
+     *
+     * Assumes class properties:
+     *  - this.allowEvalConfig : boolean
+     *  - this.allowEvalTypes       : array of allowed script types (exact match)
+     */
+    _resolveDomConfigNode(val, text, ctx = {}) {
+	const lib = this.lib;
+	//console.warn(val,text,ctx);
+	// Default: JSON only
+	const parseJSON = () => lib.json
+              ? lib.json.parse(text)
+              : JSON.parse(text);
+
+	// Eval disabled → JSON only
+	if (!this.allowEvalConfig || !this.allowEvalTypes) {
+            return parseJSON();
+	}
+
+	// SCRIPT-only eval
+	if (!val || String(val.tagName).toUpperCase() !== "SCRIPT") {
+            return parseJSON();
+	}
+
+	// Exact type match (no substring hacks)
+	const allowedTypes =
+              lib.array.len(this.allowEvalTypes) 
+              ? this.allowEvalTypes
+              : [DEFAULT_EVAL_TYPE];
+
+	const type = lib.str.to(val.type ,true).trim();
+	if (!allowedTypes.includes(type)) {
+            return parseJSON();
+	}
+
+	// ---- EVAL PATH (explicit, gated, scoped) ----
+	// NOTE: requires CSP 'unsafe-eval'
+	const scope = {
+            lib,
+            job: this.job,
+            source: ctx.source,
+            ref: ctx.ref,
+	};
+
+	const fn = new Function(
+            "scope",
+            `"use strict"; return (${text});`
+	);
+
+	const out = fn(scope);
+
+	if (!out || typeof out !== "object") {
+            throw new Error("Eval config source must return an object");
+	}
+
+	return out;
+    }
+    
     /**
      * Create a structured Error with standard metadata.
      *

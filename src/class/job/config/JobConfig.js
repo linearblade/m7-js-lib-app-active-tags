@@ -114,7 +114,7 @@ export class JobConfig {
 	
 	const lib = opts.lib;
 	this.job = opts.job;
-	
+	this.env = opts.env; //root , document etc
 	// core deps (config needs these)
 	this.lib  = lib;
 	this.expr = opts.expr;
@@ -123,8 +123,9 @@ export class JobConfig {
 	this.e = opts.e;
 
 	// persistent per-job workspace root (config/runtime shared)
-	this.ws = lib.hash.to(opts.ws);
-
+	//this.ws = lib.hash.to(opts.ws);
+	//this.allowedEvalTypes = opts.allowedEvalTypes;
+	//this.allowEvalConfig  = opts.allowEvalConfig;
 	// ---- configuration artifacts (kept tight) ----
 
 	// snapshots from DOM/config resolution
@@ -134,15 +135,10 @@ export class JobConfig {
 	this.schemaReport = null; // exported Report
 	this.schema       = null; // exported groomed schema
 
-	// runner-facing buckets (mirrors schema.*)
-	this.requests  = {};
-	this.intervals = {};
-	this.pipelines = {};
 
 	// legacy compatibility (keep for now; can delete once runner is finalized)
-	this.stack = {};
-	this.artifacts = null;
-	this.artifactsBuilt = false;
+	//this.artifacts = null;
+	//this.artifactsBuilt = false;
 	this.error = null;
 	this.status = JOB_CONFIG_STATUS.INIT;
     }
@@ -203,13 +199,26 @@ export class JobConfig {
      *   - this.artifacts (via _deriveArtifacts)
      *   - this.status
      */    
-    build(opts = {}){
+    async build(opts = {}){
 	//---- read dom ----
-	const domService = new DomConfigSource({lib:this.lib,expr:this.expr});
-	const resp = domService.read(this.e);
+	opts = this.lib.hash.to(opts);
+
+	const domService = new DomConfigSource(
+	    {
+		...opts, env:this.env,
+		lib:this.lib,expr:this.expr,job:this.job,
+	    });
+	const resp = await domService.read(this.e);
 	this.inputs = resp;
-	if(!resp.report.ok) 
+	//immediately try to acquire a name
+	this.name = lib.hash.getUntilNotEmpty(resp, "output.name dataset.name");
+	if(!resp.report.ok) {
+	    this.error = resp.report;
+	    //console.error(this.error.errors[0]);
 	    return this.status = JOB_CONFIG_STATUS.ERROR_DOM;
+	}
+
+
 
 	// --- coerce a schema from it ----
 	const schemaService = new Schema({lib:this.lib,expr:this.expr});
@@ -217,12 +226,14 @@ export class JobConfig {
 	this.schemaReport = schemaResp.report;
 	this.schema   = schemaResp.schema;
 
-	if (!this.schemaReport.ok) 
+	if (!this.schemaReport.ok) {
+	    this.error = this.schemaReport;
+	    //console.error(this.error.errors[0]);
 	    return  this.status   = JOB_CONFIG_STATUS.ERROR_SCHEMA;
-
+	}
 	// ---- finalize ----
 	this.name     =  this.lib.utils.isEmpty(this.schema.name) ? 'unnamed job' : this.schema.name;
-	this._deriveArtifacts(opts);
+	//this._deriveArtifacts(opts);
 
 	return this.status   = JOB_CONFIG_STATUS.READY;	
     }

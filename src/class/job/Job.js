@@ -100,12 +100,14 @@ export default class Job {
  *     Optional initial lifecycle flags (merged onto defaults).
  */
     constructor(opts = {}) {
-	if (!opts.lib)  throw new Error("[Job] missing required option (opts.lib)");
+
+	if (!opts?.lib)  throw new Error("[Job] missing required option (opts.lib)");
 	if (!opts.e)    throw new Error("[Job] missing required option (opts.e)");
 	if (!opts.expr) throw new Error("[Job] missing required option (opts.expr)");
-
 	const lib = opts.lib;
+	opts = lib.hash.to(opts);
 
+	this.opts = opts;
 	// ---- core dependencies ----
 	this.lib  = lib;
 	this.expr = opts.expr;
@@ -124,7 +126,8 @@ export default class Job {
             lib,
             expr      : opts.expr,
             e         : opts.e,
-            job       : this
+            job       : this,
+	    env       : opts.env
 	});
 	
 	// ---- optional logical name (not guaranteed unique) ----
@@ -254,10 +257,16 @@ export default class Job {
  * @returns {Job}
  *     Returns `this` for chaining.
  */
-    configure(opts) {
-	this.config.build(opts);
+    async configure(opts) {
+	const cOpts = lib.hash.merge(lib.hash.to(this.opts.config) , lib.hash.to(opts) );
+	const status = await this.config.build({...cOpts});
+	if( status !== JOB_CONFIG_STATUS.READY){
+	    this.status = JOB_STATUS.ERROR;
+	    this.error  = status;
+	}
 	return this;
     }
+
     // ---- End Configuration Aliases ----
     
     //leave for running. not related to config

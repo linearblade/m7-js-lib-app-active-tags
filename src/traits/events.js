@@ -10,7 +10,7 @@ export const eventTraits = {
 	for (const job of jobs) {
 	    if (!job) continue;
 	    // enabled gate (matches schema shape)
-	    const enabled = lib.hash.get(job,"config.schema.enable.enabled");
+	    const enabled = lib.hash.get(job,"config.schema.enabled");
 	    if (lib.bool.no(enabled) ) continue;
 	    this.registerEvents(job);
 	    count++;

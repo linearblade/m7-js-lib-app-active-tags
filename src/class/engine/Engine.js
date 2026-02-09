@@ -13,7 +13,7 @@ import { VM }        from './vm/VM.js';
 import { Tick }      from './Tick.js';
 
 export class Engine {
-    constructor({ lib, jobRegistry, vm, scheduler, hooks = {}, builtins } = {}) {
+    constructor({ lib, jobRegistry, vm, scheduler, hooks = {}, builtins,expr } = {}) {
 	if (!lib) throw new Error("Engine requires lib");
 	this.lib = lib;
 
@@ -22,8 +22,8 @@ export class Engine {
 
 	// subsystems
 	this.state = new EngineState({ lib });
-	this.scheduler = scheduler || new Scheduler({ lib });
-	this.vm = vm || new VM({ lib, builtins });
+	this.scheduler = scheduler || new Scheduler({ lib,engine:this });
+	this.vm = vm || new VM({ lib, builtins,expr });
 
 	// hooks (optional)
 	this.hooks = {
@@ -34,7 +34,7 @@ export class Engine {
 	    onComplete: hooks.onComplete || null,
 	    onError: hooks.onError || null,
 	};
-	console.log('got hooks', this.hooks);
+	//console.log('got hooks', this.hooks);
 	// manager (policy + coordination)
 	this.manager = new EngineManager({ lib, engine: this });
 

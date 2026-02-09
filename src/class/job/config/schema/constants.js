@@ -52,14 +52,13 @@ export const DEFAULT_INTERVAL_SHAPE = {
     pipeline: "initial",// default pipeline name (resolved/validated later)
 
     // runtime behavior
-    onError: "stop",    // "stop" | "continue"
+    error: "stop",    // "stop" | "continue"
     allowOverlap: false // allow a new run while the previous is still running
 };
 
 export const DEFAULT_PIPELINE_SHAPE = {
-    confirm: { mode: "none" }, // normalized confirm object
     run: [],                   // ops list (string|array coerced later)
-    onError: []                // ops list (string|array coerced later)
+    error: []                // ops list (string|array coerced later)
 };
 
 export const DEFAULT_EVENT_SHAPE = {

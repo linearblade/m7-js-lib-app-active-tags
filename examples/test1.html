@@ -21,21 +21,68 @@
 	<script type="module"  src="/vendor/m7-js-lib-primitive-dom-eventdelegator/src/auto.js"></script>
 	<script type="module"  src="/vendor/m7-js-lib-primitive-dom-changeobserver/src/auto.js"></script>
 	<script type="module"  src="/vendor/m7-js-lib-site-form/src/auto.js"></script>
+
+	<script type="module">
+  import ActiveTags from '/vendor/m7-js-lib-active-tags/src/ActiveTags.js';
+  import testPipes from './testPipe.js';
+
+  window.testPipes = testPipes;
+  window.ActiveTags = ActiveTags;
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    const AT = new ActiveTags(lib, {
+      env: {
+        // optional — ActiveTags will derive these if omitted,
+        // but being explicit is fine
+        window,
+        document,
+        root: window,
+      },
+
+      // runtime/system toggles (keep yours here; names depend on your ActiveTags impl)
+      intervalOn: false,
+      eventOn: true,
+
+      // job-default config (this is what gets sliced + passed into Job.configure)
+      job: {
+        config: {
+          evalEnabled: true,
+          evalType: "text/at-eval",     // string or array ok
+            importEnabled: true,
+            importPath: ["/vendor/m7-js-lib-active-tags/examples/"], // optional allow-list
+        }
+      }
+    });
+
+    lib.service.set("activeTags", AT);
+    window.AT = AT;
+
+    await AT.start();
+  });
+</script>
+	<!--
 	<script type="module">
 	  import ActiveTags from '/vendor/m7-js-lib-active-tags/src/ActiveTags.js';
+	  import testPipes from './testPipe.js';
+	  window.testPipes = testPipes;
 	  window.ActiveTags = ActiveTags;
-	  lib.bool.xTrue = lib.bool.intentTrue;
-	  lib.bool.xFalse = lib.bool.intentFalse;
-	  lib.service.set('activeTags', new ActiveTags(lib,{intervalOn : false, eventOn:true}) );
+
+	  document.addEventListener("DOMContentLoaded", async () => {
+	      lib.service.set('activeTags', new ActiveTags(lib,{intervalOn : false, eventOn:true,allowEvalConfig:true,allowImportConfig:true}) );
 	  window.AT = lib.service.get('activeTags');
+	  await AT.start();
+	  });
 	</script>
+	-->
   </head>
   <body>
     <div style="display:flex; flex-direction:row; width:100%">
       begginning the long climb for AT remake
     </div>
 
-    <div data-activetag data-enable-enabled="no">
+    <div data-activetag data-name="jumjum" data-enable-enabled="yes" data-at="import:jumjum.import.js" ddata-at="find:.config" ddata-at="window:ws.conf.jumjum">
+      <script  type="text/at-eval" src="jumjum.js"  class="config"></script>
+      
       this is a test
     </div>
     <div data-somethingelse>
@@ -89,13 +136,11 @@
 	  data-flags-enabled="true">
       <script type="application/json" class="config">
 	{
-	    "name": "test-job",
-
-	    "enable": {
-		"enabled": true,
-		"autorun": true
-	    },
-
+	"name": "test-job",
+	"require" : "jumjum",
+	"enable" : true,
+	"autorun" : "funz",
+	
 
 	    "events": {
 		"hover:on" : {
@@ -151,23 +196,67 @@
 
 	    "pipeline": {
 		"run": "foo:1,2,3 bar:${a},${b} far",
-		"onError" : "errOutput:whoopsie"
+		"error" : "errOutput:whoopsie"
 	    },
 	    
 	"pipelines": {
+	"funz" : {
+	"run": [
+    "confirm",
+    "form.prepare",
+    "form.collect",
+
+    {
+        "op": "foo",
+        "args": {
+             "mode": "test",
+
+             "jobId": "${job:id}",
+
+             "label": "running job ${job:id}",
+	"rawTarget": "${target:}",          
+"rawMeta": "${buffer_meta:}"        ,
+"stringTarget": "t=${target:tagName}" ,
+             "meta": {
+                "pipeline": "${ticket:pipelineKey}",
+                "targetTag": "tag=${target:tagName}"
+            }
+        }
+    },
+
+    {
+        "op": "dom.patch",
+        "args": {
+            "style.font-weight": "bold",
+            "style.color": "red"
+        }
+    },
+
+    {
+        "op": "form.submit",
+        "args": {
+            "contentType": "json"
+        }
+    }
+],
+
+"error": [
+    { "op": "error.dump", "args": { "throw": true } }
+]
+	},
 	"patch" :{
 	"run": [ "confirm", "form.prepare", "form.collect", {"op": "dom.patch", "args" : {"style.font-weight": "bold",	"style.color"      : "red"} },
 	{"op": "form.submit", "args": {"contentType": "json"} } ],
-	"onError": [{"op": "error.dump", "args": {"throw":true} }]
+	"error": [{"op": "error.dump", "args": {"throw":true} }]
 	},
 		"hover_on": {
 		    "run": "hover_on hover_b",
-		    "onError": "errOutput"
+		    "error": "errOutput"
 		},
 		
 		"hover_off": {
 		    "run": "hover_off",
-		    "onError": "errOutput"
+		    "error": "errOutput"
 		}
 	    }
 	}

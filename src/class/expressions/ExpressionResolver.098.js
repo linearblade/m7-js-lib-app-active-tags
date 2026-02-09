@@ -80,7 +80,8 @@ this.expr = new ExpressionResolver({
   env: { window, document }
 });
  */
-import CONSTANTS from '../constants.js';
+import CONSTANTS from '../../constants.js';
+import  WALKER from './expParser.js';
 export class ExpressionResolver {
 
 
@@ -91,7 +92,7 @@ export class ExpressionResolver {
 	this.lib = lib;
 	this.toJob = opts.toJob || null;
 	this.logger = opts.logger || null;
-
+	this.walker = WALKER;
 	// Prefer explicit env injection, fallback to lib._env.root
 	const env = opts.env || {};
 
@@ -363,7 +364,10 @@ export class ExpressionResolver {
 	};
 
 	if (lib.hash.is(custom) && type in custom){
-	    return custom[type](loc);
+	    console.log(custom, type,loc,custom[type]);
+	    return lib.func.get(custom[type]) ?
+		custom[type](loc):
+		{src: custom[type],prop:loc};
 	}else {
 	    if (!(type in disp))type="inline";
 	    return disp[type]();
@@ -431,9 +435,11 @@ export class ExpressionResolver {
      */
     evalParse(parse){
 	const lib = this.lib;
-	//console.log('EP',parse);
+	console.log('EP',parse);
 	if(lib.utils.baseType(parse,'object') && parse.src && parse.prop) {
-	    return lib.dom.is(parse.src)?lib.dom.get(parse.src, parse.prop):lib.hash.get(parse.src,parse.prop);
+	    return lib.dom.is(parse.src) ?
+		lib.dom.get(parse.src, parse.prop):
+		lib.hash.get(parse.src,parse.prop);
 	}
 	return parse;
     }
@@ -483,6 +489,9 @@ export class ExpressionResolver {
         return output;
     }
     
+    walk(input){
+	return WALKER.parseExpressions(input);
+    }
 }
 
 export default ExpressionResolver;

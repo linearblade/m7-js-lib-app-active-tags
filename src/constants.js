@@ -58,6 +58,7 @@ export const JOB_STATUS = Object.freeze({
     RUNNING: "running",
     WAIT: "wait",
     ERROR: "error",
+    CONFIG_ERROR : "config_error",
     COMPLETE: "complete",
     DETACHED: "detached",
 });
@@ -108,6 +109,20 @@ export const SCHED_STATUS = Object.freeze({
 
 
 // ─────────────────────────────────────────
+// LOGGING
+// ─────────────────────────────────────────
+export const LOG_BUCKETS = {
+    ROOT:     "activetags",
+    CONFIG:   "activetags.config",
+    RUNTIME:  "activetags.runtime",
+    PIPELINE: "activetags.pipeline",
+};
+
+export const LOG_POLICY = {
+     console: "warn", // print warn+error, suppress log/info
+};
+
+// ─────────────────────────────────────────
 // Default export (convenience / introspection)
 // ─────────────────────────────────────────
 
@@ -126,5 +141,8 @@ export default {
     CORE_SERVICES,
     JOB_CONFIG_STATUS,JOB_STATUS, JOB_TYPE,
     ARR_TO_OPTS, DOM_ATTRS_RUNTIME_INPUTS, DOM_CONFIG_AT, MERGE_OPTS_V1,
-    SCHED_STATUS
+    SCHED_STATUS,
+    LOG_BUCKETS,
+    LOG_POLICY
+    
 };

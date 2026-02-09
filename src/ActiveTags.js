@@ -1,4 +1,3 @@
-
 import applyMixins from './helpers/applyMixins.js';
 //import requireLibs from './helpers/requireLibs.js';
 import trait_job  from './traits/job.js';
@@ -12,7 +11,7 @@ import trait_evt    from './traits/events.js';
 import trait_int    from './traits/intervals.js';
 import JobRegistry   from './class/job/Registry.js';
 import CONSTANTS   from './constants.js';
-import ExpressionResolver from './class/ExpressionResolver.js';
+import ExpressionResolver from './class/expressions/ExpressionResolver.js';
 import Engine from './class/engine/Engine.js';
 import testHooks from './class/engine/testHooks.js';
 import IntervalController from './class/interval/Controller.js';
@@ -42,25 +41,36 @@ class ActiveTags {
 	this.svc.interval        = svc[CONSTANTS.SERVICE_INTERVAL] || null;
 	this.svc.log             = svc[CONSTANTS.SERVICE_LOG] || null;
 	this.svc.domObserver     = svc[CONSTANTS.SERVICE_OBSERVER] || null;
+
+
+	if (this.svc.log) {
+	    for (const key in CONSTANTS.LOG_BUCKETS) {
+		this.svc.log.createBucket(CONSTANTS.LOG_BUCKETS[key], CONSTANTS.LOG_POLICY);
+	    }
+	}
 	/*
-	this.svc.interval.opts.onEvent = (ev) => {
-	    console.log("[IM]", ev.type, ev.name, ev.reason || "", ev.message || "");
-	};*/
+	  this.svc.interval.opts.onEvent = (ev) => {
+	  console.log("[IM]", ev.type, ev.name, ev.reason || "", ev.message || "");
+	  };*/
+	
+	this.env = this._makeEnv(conf.env);
+
+	
 	this.expr = new ExpressionResolver({
 	    lib: this.lib,
 	    toJob: (x) => this.toJob(x),
 	    logger: this.logger,
-	    env: { window, document }
+	    env: this.env
 	});
 
 	
 	// runtime state
 	this.jobCounter = 0;
-	this.jobsLegacy = {};
 
 	// workspace + scheduler
 	this.ws = new lib.primitive.workspace.WorkSpace();
-	this.jobs = new JobRegistry({ lib , prefix: 'at' });
+
+	this.jobs = new JobRegistry({ lib , prefix: 'at',...lib.hash.to(conf.job), env:this.env});
 
 	// options (delegated)
 	this.opts = this.getOpts(conf);
@@ -71,7 +81,8 @@ class ActiveTags {
 	    lib,
 	    jobRegistry: this.jobs,
 	    hooks:conf.testHooks?testHooks:{},
-	    builtins : builtins
+	    builtins : builtins,
+	    expr: this.expr
 	});
 
 	this.intervals = new IntervalController ({
@@ -89,26 +100,74 @@ class ActiveTags {
 	});
 
 	
-	const doc = lib.hash.get(lib, '_env.root.document');
-	if (doc && doc.body) {
-	    this.load();
-	    this.startObserver();
-	    this.intervals.registerAll();
-	    this.events.registerAll();
-	    //on by default, falsy to prevent.
-	    if(!lib.bool.no(conf.intervalOn))
-		this.intervals.on();
-	    if(!lib.bool.no(conf.eventOn))
-		this.events.on();
-	}
 	
     }
 
+
+    _makeEnv(inEnv = {}) {
+	const lib = this.lib;
+
+	// Normalize caller env
+	inEnv = lib && lib.hash && lib.hash.is(inEnv) ? inEnv : {};
+
+	// Pull lib env (legacy + modern)
+	const libEnv =
+              (lib && (lib._env || (lib.hash && lib.hash.get(lib, "_env")))) || {};
+
+	const libRoot =
+              libEnv.root ||
+              (lib && lib.hash && lib.hash.get(lib, "_env.root")) ||
+              null;
+
+	// Canonical derivation
+	const root =
+              inEnv.root ||
+              inEnv.window ||
+              libRoot ||
+              (typeof globalThis !== "undefined" ? globalThis : null);
+
+	const windowRef =
+              inEnv.window ||
+              (root && root.window) ||
+              root ||
+              null;
+
+	const documentRef =
+              inEnv.document ||
+              (windowRef && windowRef.document) ||
+              null;
+
+	const baseURI =
+              inEnv.baseURI ||
+              (documentRef && documentRef.baseURI) ||
+              null;
+
+	return {
+            root,          // globalThis / window / global
+            window: windowRef,
+            document: documentRef,
+            baseURI,
+	};
+    }
     
     
     //cycles the jobs. if one is found with a status ready to start runs it. otherwise skips
     //at this point, the job can be set to inflight and ignored. controller will be set to job on startup, and it cna notify it on completion
-    start(){ /*still undefined*/   }
+    async start(){
+	const doc = lib.hash.get(lib, '_env.root.document');
+	if (!doc && !doc.body)
+	    throw new Error("cannot start, active tags missing doc or doc body");
+	
+	await this.load();
+	this.startObserver();
+	this.intervals.registerAll();
+	this.events.registerAll();
+	//on by default, falsy to prevent.
+	if(!lib.bool.no(this.conf.intervalOn))
+	    this.intervals.on();
+	if(!lib.bool.no(this.conf.eventOn))
+	    this.events.on();
+    }
     
     //employed by interval manager to periodically pickup new jobs automatically. may alternately utilize a dom observer to notice changes.
     sniffer(){

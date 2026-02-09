@@ -24,20 +24,13 @@
  *   to safe defaults and recorded as warnings where appropriate.
  *
  * Normalization strategy (v1):
- * - Basics: `name`, `require`, `enabled`, `autorun`, `env`
- *   (Behavioral concerns such as confirmation are expressed explicitly via
- *   pipeline operations, not top-level schema keys.)
- *
+ * - Basics: `name`, `require`, `enable`, `confirm`, `env`
  * - Buckets: normalize 3 "block" families using a shared procedure:
  *     - Requests:  `request` + `requests` + `request_shape`  -> `requests` bucket
- *         - NOTE: the `requests` bucket is reserved for upcoming transport /
- *           request-layer expansion and is minimally normalized in v1.
  *     - Intervals: `interval` + `intervals` + `interval_shape` -> `intervals` bucket
  *     - Pipelines: `pipeline` + `pipelines` + `pipeline_shape` -> `pipelines` bucket
- *
- * - Each bucket item is produced as:
- *     `effectiveItem = merge(shape, item)`
- *   and then passed through an item normalizer.
+ * - Each bucket item is produced as: `effectiveItem = merge(shape, item)` and then
+ *   passed through an item normalizer.
  *
  * LLM integration notes (reset-proofing):
  * - Do NOT read or depend on internal workspace artifacts (e.g. `_effective*`)
@@ -51,6 +44,7 @@
  * Versioning:
  * - This module defines Schema Compiler behavior for ActiveTags v1.
  */
+
 import CONSTANTS from './constants.js';
 import Report    from '../Report.js';
 import DSL       from './DSL.js';
@@ -59,7 +53,7 @@ export default class Master {
      * Create a Master schema compiler workspace.
      *
      * Notes:
-     * - This constructor does NOT compile, normalize, or validate user input.
+     * - This constructor does NOT compile or normalize anything.
      * - Master instances are lightweight and intended to be short-lived.
      * - All meaningful work happens in `compile(input)`.
      *
@@ -71,11 +65,9 @@ export default class Master {
      *     Absence of `lib` is considered a programmer error.
      *
      * @param {Object} [args.env]
-     *     Optional root environment context.
-     *     Typically represents the document or root execution environment
-     *     (e.g. `{ document, window, root }`), but is not required to be browser-bound.
+     *     Optional runtime environment/context.
      *     Reserved for future use (feature flags, document hooks, runtime bridges).
-     *     Not currently consumed by the schema compiler in v1.
+     *     Not currently used during normalization.
      *
      * @throws {Error}
      *     If `args.lib` is not provided.
@@ -101,7 +93,7 @@ export default class Master {
      * Semantics:
      * - Input is coerced to a hash before processing.
      * - Normalization proceeds in deterministic phases:
-     *     1) Basics (name, require, enabled, autorun, env)
+     *     1) Basics (name, require, enable, confirm, env)
      *     2) Block normalization (requests, intervals, pipelines)
      * - All intermediate artifacts remain internal and are not exposed.
      *
@@ -122,8 +114,6 @@ export default class Master {
      *
      * Notes:
      * - Consumers MUST treat the returned schema as read-only.
-     * - Behavioral concerns (e.g. confirmation) are expressed via pipelines,
-     *   not top-level schema keys.
      * - Validation beyond basic normalization may occur in later phases.
      */
     compile(input){
@@ -140,6 +130,7 @@ export default class Master {
 
 	this.DSL._compilePipelineDSL(report, normalized);
         const rv =  {report:report.export(), schema: normalized };
+	console.log(rv);
 	return rv;
 	
     }
@@ -148,16 +139,16 @@ export default class Master {
      * Produce the final exported runtime schema.
      *
      * Internal:
-     * - Selects and grooms only consumer-relevant fields from the internal
-     *   normalization workspace.
-     * - Excludes intermediate and construction-only artifacts (raw input, shapes,
-     *   temporary buckets, reports, etc.).
+     * - This method selects and grooms only consumer-relevant fields from the
+     *   internal normalization workspace.
+     * - All intermediate and construction-only artifacts (raw input, shapes,
+     *   temporary buckets, reports, etc.) are intentionally excluded.
      *
      * Semantics:
-     * - Buckets (`requests`, `intervals`, `pipelines`, `events`) are taken from their
+     * - Buckets (`requests`, `intervals`, `pipelines`) are taken from their
      *   `_effective*` counterparts produced during normalization.
-     * - Missing buckets are normalized to empty hashes (plain objects).
-     * - Returned object is the canonical runtime schema for downstream consumers.
+     * - Missing buckets are normalized to empty hashes.
+     * - Returned object is considered the canonical runtime schema.
      *
      * Invariants:
      * - The returned schema is structurally stable and JSON-safe.
@@ -180,13 +171,13 @@ export default class Master {
 
             enabled   : s.enabled,
 	    autorun   : s.autorun,
-	    
+            //confirm   : s.confirm,
             env       : s.env,
 
-            requests  : lib.hash.to(s._effectiveRequests),
-            intervals : lib.hash.to(s._effectiveIntervals),
-	    pipelines : lib.hash.to(s._effectivePipelines),
-	    events    : lib.hash.to(s._effectiveEvents)
+            requests  : s._effectiveRequests  || {},
+            intervals : s._effectiveIntervals || {},
+	    pipelines : s._effectivePipelines || {},
+	    events    : s._effectiveEvents || {}
         };
 
 	return out;
@@ -204,11 +195,13 @@ export default class Master {
      * - Never throws for user configuration errors.
      *
      * Fields normalized here:
-     * - `require` : string|array → array of tokens (split + trimmed)
-     * - `name`    : coerced string (convenience identifier only)
-     * - `enabled` : boolish → boolean (defaults true unless explicit "no" intent)
-     * - `autorun` : canonical autorun selector list
-     * - `env`     : object(hash) reserved for runtime user-space / root context
+     * - `require`  : string|array → array of tokens (split + trimmed)
+     * - `name`     : coerced string (convenience identifier only)
+     * - `enable`   : object(hash) with defaults applied
+     *   - `enable.enabled` : defaults to true unless explicit "no" intent
+     *   - `enable.autorun` : canonical autorun selector list
+     * - `confirm`  : canonical confirm descriptor
+     * - `env`      : object(hash) reserved for runtime user-space
      *
      * Diagnostics:
      * - Invalid types are coerced to safe defaults.
@@ -216,9 +209,10 @@ export default class Master {
      *
      * Invariants after normalization:
      * - `s.require` is always an array
-     * - `s.name` is always a string
-     * - `s.enabled` is boolean
-     * - `s.autorun` is an array
+     * - `s.enable` is always a hash
+     * - `s.enable.enabled` is boolean
+     * - `s.enable.autorun` is an array
+     * - `s.confirm` is a canonical confirm object
      * - `s.env` is always a hash
      *
      * @param {Report} report
@@ -246,8 +240,23 @@ export default class Master {
 	if (!lib.bool.ish(s.enabled)  && !lib.utils.isEmpty(s.enabled)) {
             report.warn("W102_ENABLE_INVALID", "enabled", "enabled should be boolish or undefined");
         }
-	s.enabled = !lib.bool.no(s.enabled) ;
+	s.enabled = lib.bool.no(s.enabled) ? false:true;
 	s.autorun = this._normalizeAutorunSelector(report, s.autorun);
+	/*
+        if (!lib.hash.is(s.enable) && !lib.utils.isEmpty(s.enable)) {
+            report.warn("W102_ENABLE_INVALID", "enable", "enable should be object(hash)");
+        }
+        s.enable = lib.hash.to(s.enable);
+	*/
+	
+        // enable.enabled: default true unless explicit "no" intent
+        //s.enable.enabled = lib.bool.no(s.enable.enabled) ? false : true;
+
+        // enable.autorun: canonical selector list
+        //s.enable.autorun = this._normalizeAutorunSelector(report, s.enable.autorun);
+
+        // confirm: canonical confirm shape
+        //s.confirm = this._normalizeConfirm(report,s.confirm);
 
         // env: hash coercion
         if (!lib.hash.is(s.env) && !lib.utils.isEmpty(s.env)) {
@@ -258,12 +267,6 @@ export default class Master {
     
     /**
      * Normalize a confirm descriptor into canonical form.
-     *
-     * Status:
-     * - This helper is currently **not used** by the schema compiler.
-     * - Confirm behavior in v1 is expressed explicitly via pipeline operations
-     *   (e.g. `run: ["confirm", ...]`), not via top-level schema fields.
-     * - This function is retained for potential future schema sugar or presets.
      *
      * Internal:
      * - Confirms are treated as a *policy hint*, not a strict validation target.
@@ -344,7 +347,7 @@ export default class Master {
      *
      * Diagnostics:
      * - Unsupported types are coerced to default autorun behavior
-     *   (`["__DEFAULT__"]`) and recorded as a warning.
+     *   and recorded as a warning.
      *
      * Invariants after normalization:
      * - Always returns an array
@@ -356,7 +359,7 @@ export default class Master {
      * @param {*} v
      *     Raw autorun selector value supplied by the user.
      *
-     * @param {string} [path="autorun"]
+     * @param {string} [path="enable.autorun"]
      *     Schema path associated with the autorun selector.
      *
      * @returns {Array<string>}
@@ -494,44 +497,45 @@ export default class Master {
      *
      * @private
      */
-    // -----------------------------------------------------------------------------
-    // Maintenance Notes / Invariants
-    // -----------------------------------------------------------------------------
-    // This function implements a generic, coercive normalization pattern used by
-    // multiple block families (requests, intervals, pipelines).
-    //
-    // Design intent:
-    // - This is NOT a validator. It normalizes shape and structure only.
-    // - Coercion is preferred over rejection; invalid or empty-ish inputs are
-    //   silently dropped unless a handler emits warnings.
-    //
-    // Key invariants (do not change lightly):
-    // - `default_shape` is always the base layer for all effective items.
-    // - `user_shape` may be:
-    //     - a hash (used directly), or
-    //     - a string key referencing a hash on the schema object.
-    // - Empty hashes `{}` are valid and meaningful override values.
-    //   Do NOT treat them as “trash” or auto-remove them.
-    // - Empty-ish scalars (undefined, null, "", false) are treated as absent.
-    //
-    // Merge behavior:
-    // - Uses `lib.hash.merge(left, right, CONSTANTS.MERGE_OPTS_V1)`.
-    // - Merge is non-destructive (deep-copies inputs).
-    // - Array semantics are overridden to REPLACE (not concat/push).
-    //
-    // Handler contract:
-    // - If provided, `handler` is resolved via `lib.func.get`.
-    // - Handler is invoked AFTER merge and may further normalize the item.
-    // - Handler receives a stable `ctx` object including `report` for diagnostics.
-    //
-    // Warning / diagnostics policy:
-    // - This function itself does not emit warnings.
-    // - All diagnostics must be emitted by handlers or downstream normalizers.
-    //
-    // IMPORTANT:
-    // - Block-specific policies (e.g. inheritance rules, validation requirements)
-    //   belong in the block’s item normalizer or constants, NOT here.
-    // -----------------------------------------------------------------------------
+    /**
+     * Maintenance Notes / Invariants
+     * ------------------------------
+     * This function implements a generic, coercive normalization pattern used by
+     * multiple block families (requests, intervals, pipelines).
+     *
+     * Design intent:
+     * - This is NOT a validator. It normalizes shape and structure only.
+     * - Coercion is preferred over rejection; invalid or empty-ish inputs are
+     *   silently dropped unless a handler emits warnings.
+     *
+     * Key invariants (do not change lightly):
+     * - `default_shape` is always the base layer for all effective items.
+     * - `user_shape` may be:
+     *     - a hash (used directly), or
+     *     - a string key referencing a hash on the schema object.
+     * - Empty hashes `{}` are valid and meaningful override values.
+     *   Do NOT treat them as “trash” or auto-remove them.
+     * - Empty-ish scalars (undefined, null, "", false) are treated as absent.
+     *
+     * Merge behavior:
+     * - Uses `lib.hash.merge(left, right, CONSTANTS.MERGE_OPTS_V1)`.
+     * - Merge is non-destructive (deep-copies inputs).
+     * - Array semantics are overridden to REPLACE (not concat/push).
+     *
+     * Handler contract:
+     * - If provided, `handler` is resolved via `lib.func.get`.
+     * - Handler is invoked AFTER merge and may further normalize the item.
+     * - Handler receives a stable `ctx` object including `report` for diagnostics.
+     *
+     * Warning / diagnostics policy:
+     * - This function itself does not emit warnings.
+     * - All diagnostics must be emitted by handlers or downstream normalizers.
+     *
+     * IMPORTANT:
+     * - Block-specific policies (e.g. inheritance rules, validation requirements)
+     *   belong in the block’s item normalizer or constants, NOT here.
+     */
+
     
 
     _normalizeBlock(report, s, { single, plural, default_shape, user_shape, hotkey, handler, outKey }) {
@@ -606,23 +610,26 @@ export default class Master {
      * - Coerce the interval definition into hash form.
      * - Apply defaults and normalize boolean intent fields.
      * - Normalize autorun selectors using canonical rules.
-     * - Coerce numeric repeat controls into a safe range.
+     * - Clamp error-handling policy to a supported range.
      *
      * Normalization rules:
      * - Input is coerced via `lib.hash.to(interval)`.
      * - `enabled` defaults to true unless explicit "no" intent.
      * - `autorun` is normalized via `_normalizeAutorunSelector`.
+     * - `onError` is lowercased and clamped to
+     *   `CONSTANTS.INTERVAL.RANGE_ERROR`, defaulting to
+     *   `CONSTANTS.INTERVAL.RANGE_DEFAULT`.
      * - `allowOverlap` is true only on explicit "yes" intent.
-     * - `repeat` is coerced to int and clamped to `>= 0` (null max).
      *
      * Diagnostics:
      * - Invalid autorun values are recorded as warnings via Report.
+     * - Invalid `onError` values degrade silently to defaults.
      *
      * Invariants after normalization:
      * - Returned value is always a hash.
      * - `enabled` and `allowOverlap` are booleans.
      * - `autorun` is always an array.
-     * - `repeat` is always a number (integer) `>= 0`.
+     * - `onError` is a valid, lowercased policy string.
      *
      * @param {Object} interval
      *     Raw interval definition.
@@ -640,15 +647,23 @@ export default class Master {
      * @private
      */
     _normalizeIntervalItem(interval,ctx) {
-        const lib             = this.lib;
+        const lib = this.lib;
 
-        interval              = lib.hash.to(interval);
+        interval = lib.hash.to(interval);
 
 	//default to true, but ignore legacy.
-        interval.enabled      = !lib.bool.no(interval.enabled);
-	interval.autorun      = this._normalizeAutorunSelector( ctx.report, interval.autorun, `${ctx.key}.${ctx.name}.autorun`);
-        interval.allowOverlap = lib.bool.yes(interval.allowOverlap) ;
-	interval.repeat       = lib.number.clamp ( lib.number.toInt(interval.repeat),0,null);
+        interval.enabled = !lib.bool.no(interval.enabled);
+
+	interval.autorun = this._normalizeAutorunSelector( ctx.report, interval.autorun, `${ctx.key}.${ctx.name}.autorun`);
+	/*
+	interval.onError = lib.utils.clamp(
+	    CONSTANTS.INTERVAL.RANGE_ERROR,
+	    lib.str.to(interval.onError, true).trim().toLowerCase(),
+	    CONSTANTS.INTERVAL.RANGE_DEFAULT
+	).toLowerCase();
+	*/
+        interval.allowOverlap =lib.bool.yes(interval.allowOverlap) ;
+	interval.repeat = lib.number.clamp ( lib.number.toInt(interval.repeat),0,null);
         return interval;
     }
 
@@ -672,9 +687,8 @@ export default class Master {
      * - Input is coerced via `lib.hash.to(req, ctx.hotkey)`.
      * - `method` is uppercased and clamped to `CONSTANTS.REQUEST.METHODS`;
      *   invalid values fall back to `METHOD_DEFAULT`.
-     * - `credentials` is true only on explicit "yes" intent.
-     * - `timeoutMs` is coerced to a number, defaulting to
-     *   `CONSTANTS.REQUEST.TIMEOUT_DEFAULT`.
+     * - `credentials` defaults to false unless explicit "yes" intent.
+     * - `timeoutMs` is coerced to a number (or defaulted).
      * - `headers` and `flags` are always hashes.
      *
      * Diagnostics:
@@ -686,7 +700,6 @@ export default class Master {
      * - Returned value is always a hash.
      * - `method` is always an upper-case string.
      * - `credentials` is boolean.
-     * - `timeoutMs` is always a number.
      * - `headers` and `flags` are hashes.
      *
      * @param {Object} req
@@ -730,32 +743,31 @@ export default class Master {
         return req;
     }
 
+
     /**
      * Normalize a single pipeline definition.
      *
      * Internal:
      * - Pipelines represent ordered execution chains.
-     * - This phase performs only *structural normalization* and light intent coercion.
+     * - This phase performs only *structural normalization*, not semantic validation.
      * - Detailed parsing and execution semantics are handled in later phases.
      *
      * Responsibilities:
-     * - Ensure presence of `run` and `error` keys.
-     * - Normalize `enabled` (boolish intent) with safe defaults.
+     * - Normalize pipeline-level `confirm` using canonical confirm rules.
+     * - Ensure presence of `run` and `onError` keys.
      * - Leave operation contents untouched for phase2 parsing.
      *
      * Normalization rules:
-     * - Input is coerced via `lib.hash.to(p)`.
-     * - Missing `run`   → empty array.
-     * - Missing `error` → empty array.
-     * - `enabled` defaults to true unless explicit "no" intent.
+     * - `confirm` is coerced into canonical confirm shape.
+     * - Missing `run` → empty array.
+     * - Missing `onError` → empty array.
      *
      * Diagnostics:
-     * - Non-boolish `enabled` values are recorded as warnings via Report.
+     * - Invalid `confirm` values are recorded as warnings via Report.
      *
      * Invariants after normalization:
      * - Returned object is always a hash.
-     * - `run` and `error` keys always exist and are arrays.
-     * - `enabled` is boolean.
+     * - `run` and `onError` keys always exist.
      * - No validation or mutation of individual operations occurs here.
      *
      * @param {Object} p
@@ -777,64 +789,38 @@ export default class Master {
         const lib = this.lib;
 
         p = lib.hash.to(p);
+	//console.log(lib.utils.deepCopy(p) );
+        // confirm canonical (pipeline-level)
+	/*
+	  //confirms are currently relegated to pipeline  builtins
+        p.confirm = this._normalizeConfirm(
+            ctx.report,
+            p.confirm,
+            "W302_PIPELINE_CONFIRM_INVALID",
+            `${ctx.key}.${ctx.name}.confirm`
+        );
+	*/
+        // run/onError: leave as-is for phase2 parsing, but ensure keys exist
+	//p.run = lib.array.to(p.run, CONSTANTS.ARR_TO_OPTS);
+	//console.log(p.run);
+	//p.onError = lib.array.to(p.onError, CONSTANTS.ARR_TO_OPTS);
+	//console.log(lib.utils.deepCopy(p));
         if (!('run' in p)) p.run = [];
         if (!('error' in p)) p.error = [];
 	if (!lib.bool.ish(p.enabled)  && !lib.utils.isEmpty(p.enabled)) {
-            ctx.report.warn("W102_ENABLE_INVALID", "enabled", `enabled should be boolish or undefined for ${ctx.name}.enabled (default true)`);
+            ctx.report.warn("W102_ENABLE_INVALID", "enabled", `enabled should be boolish or undefined for ${ctx.name} (default true)`);
         }
         p.enabled = lib.bool.no(p.enabled) ? false:true;
+	/*
+	if (!lib.bool.ish(p.confirm)  && !lib.utils.isEmpty(p.confirm)) {
+            ctx.report.warn("W302_ENABLE_INVALID", "confirm", `confirm should be boolish or undefined for ${ctx.name} (default false)`);
+        }
+	p.confirm = lib.bool.yes(p.confirm) ;
+	*/
         return p;
     }
 
-    /**
-     * Normalize a single event binding definition.
-     *
-     * Internal:
-     * - Events describe declarative bindings between DOM (or env) events and pipelines.
-     * - This phase performs structural normalization and light intent coercion only.
-     * - Event dispatch semantics and listener lifecycle are handled at runtime.
-     *
-     * Responsibilities:
-     * - Coerce the event definition into hash form.
-     * - Normalize basic intent fields (`enabled`, `event`, `pipeline`).
-     * - Apply safe defaults for selector targeting.
-     * - Normalize addEventListener-style options.
-     *
-     * Normalization rules:
-     * - Input is coerced via `lib.hash.to(ev)`.
-     * - `enabled` defaults to true unless explicit "no" intent.
-     * - `event` is coerced to a lower-case string.
-     * - `pipeline` is coerced to a string identifier.
-     * - `selector` is kept as a string; empty values default to `"__SELF__"`.
-     *   (Sentinel value interpreted by the ActiveTags runtime, not a CSS selector.)
-     * - `options` is coerced to a hash and normalized as addEventListener flags:
-     *     - `capture`, `passive`, `once` are true only on explicit "yes" intent.
-     *
-     * Diagnostics:
-     * - No hard validation is performed here.
-     * - Invalid or missing values degrade to safe defaults without warnings.
-     *
-     * Invariants after normalization:
-     * - Returned value is always a hash.
-     * - `enabled` is boolean.
-     * - `event`, `pipeline`, and `selector` are non-empty strings.
-     * - `options` is always a hash with boolean flags.
-     *
-     * @param {Object} ev
-     *     Raw event definition.
-     *
-     * @param {Object} ctx
-     *     Normalization context supplied by `_normalizeBlock`.
-     *     Includes:
-     *     - `ctx.report` : Report instance (not currently used here)
-     *     - `ctx.name`   : event name
-     *     - `ctx.key`    : schema key path (e.g. "events")
-     *
-     * @returns {Object}
-     *     Normalized event definition.
-     *
-     * @private
-     */
+
     _normalizeEventItem(ev, ctx) {
 	const lib = this.lib;
 
@@ -870,20 +856,15 @@ export default class Master {
 
 /**
  * @typedef {Object} CompileResult
- * @property {CompileReport} report
+ * @property {Object} report
  *     Exported compilation report.
+ *     Shape: `{ ok:boolean, errors:Array, warnings:Array }`
  *
  * @property {Object} schema
  *     Normalized, groomed runtime schema.
  *     Safe for consumers to read, store, and pass to runtime systems.
  */
 
-/**
- * @typedef {Object} CompileReport
- * @property {boolean} ok
- * @property {Array<Object>} errors
- * @property {Array<Object>} warnings
- */
 
 /**
  * @typedef {Object} BlockNormalizerSpec
@@ -892,11 +873,11 @@ export default class Master {
  *
  * @property {string} single
  *     Key on the schema object representing the “lazy button” single entry
- *     (e.g. `"request"`, `"interval"`, `"pipeline"`, `"event"`).
+ *     (e.g. `"request"`, `"interval"`, `"pipeline"`).
  *
  * @property {string} plural
  *     Key on the schema object representing the named-entry map
- *     (e.g. `"requests"`, `"intervals"`, `"pipelines"`, `"events"`).
+ *     (e.g. `"requests"`, `"intervals"`, `"pipelines"`).
  *
  * @property {Object} default_shape
  *     Engine baseline shape for items in this block family.
@@ -907,11 +888,11 @@ export default class Master {
  *       - a hash, or
  *       - a string key referencing a hash on the schema object.
  *
- * @property {string} [hotkey]
+ * @property {string|null} [hotkey]
  *     Optional hotkey used by `lib.hash.to(value, hotkey)` to coerce
  *     scalar entries into hashes.
  *
- * @property {Function|string} [handler]
+ * @property {Function|string|null} [handler]
  *     Optional item normalizer applied after merge.
  *     May be a function reference or the name of a method on `Master`.
  *
@@ -919,6 +900,7 @@ export default class Master {
  *     Target key on the schema object where the effective bucket
  *     will be written (e.g. `"_effectiveRequests"`).
  */
+
 
 /**
  * @typedef {Object} BlockItemContext
@@ -933,7 +915,7 @@ export default class Master {
  *     Indicates whether the item originated from the single or plural source.
  *
  * @property {string} key
- *     Source schema key for this item (either `spec.single` or `spec.plural`).
+ *     Schema key associated with this item (`single` or `plural`).
  *
  * @property {string} single
  *     Name of the single-entry key for this block family.
@@ -941,7 +923,7 @@ export default class Master {
  * @property {string} plural
  *     Name of the plural-entry key for this block family.
  *
- * @property {string} [hotkey]
+ * @property {string|null} hotkey
  *     Hotkey used for scalar coercion, if any.
  *
  * @property {string} outKey

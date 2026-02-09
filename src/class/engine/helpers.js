@@ -9,8 +9,10 @@ export const STAGE_STATUS = Object.freeze({
     ERROR: "error",
     COMPLETE: "complete",
 });
-export const PIPELINE_PHASE = Object.freeze(["run","onError"]);
 
+export const PIPELINE_PHASE_RUN    = "run";
+export const PIPELINE_PHASE_ERROR  = "error";
+export const PIPELINE_PHASE        = Object.freeze([PIPELINE_PHASE_RUN,PIPELINE_PHASE_ERROR]);
 
 export function SR_ok(detail) {
     return { status: STAGE_STATUS.OK, detail };
@@ -31,6 +33,7 @@ export function SR_complete(detail) {
 
 let _ticketCounter = 0;
 export function makeRunTicket({ job, pipelineKey, inputs, priority = 0, meta = {} } = {}) {
+    const require = job.lib.hash.get(job, "config.schema.require",[]);
     return {
         id: `rt_${++_ticketCounter}`,
         jobId: job.id,
@@ -40,7 +43,7 @@ export function makeRunTicket({ job, pipelineKey, inputs, priority = 0, meta = {
 	target : job.e,
         // what to run (VM expects this)
         pipelineKey: String(pipelineKey || "default"),
-
+	require ,
         // cursor: where we are in the pipeline
         cursor: { stage: 0 },
 
@@ -60,6 +63,8 @@ export default {
     STAGE_STATUS_RANGE,
     STAGE_STATUS,
     PIPELINE_PHASE,
+    PIPELINE_PHASE_RUN,
+    PIPELINE_PHASE_ERROR,
     SR_ok,
     SR_wait,
     SR_error,
