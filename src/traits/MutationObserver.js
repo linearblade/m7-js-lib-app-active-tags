@@ -12,7 +12,7 @@ export const trait_mutation_observer = {
 
 	
 	const lib = this.lib;
-	const observe = lib.hash.get(this,'opts.observe',{});
+	const observe = this.conf.observe; //lib.hash.get(this,'conf.observe',{});
 	const selectors = lib.array.filterStrings( lib.hash.getUntilNotEmpty(observe, "selectors selector", CONSTANTS.DEFAULT_SELECTOR) );
 
 	if (!lib.array.len(selectors)) {
@@ -43,108 +43,6 @@ export const trait_mutation_observer = {
 
     },
     
-    old2startObserver() {
-	if (!this.lib) return;
-	if (this.svc.domObserver) return;
-
-	const lib = this.lib;
-	const observe = (this.opts && this.opts.observe) ? this.opts.observe : {};
-
-	const selectors = lib.array.filterStrings(
-            observe.selectors ??
-		observe.selector ??
-		CONSTANTS.DEFAULT_SELECTOR
-	);
-
-	if (!lib.array.len(selectors)) {
-            throw new Error("[ActiveTags] empty selector list on observer");
-	}
-
-	const root =
-              observe.root ||
-              lib.hash.get(lib, "_env.root.document.body");
-
-	if (!root) {
-            throw new Error("[ActiveTags] Cannot start observer: no document.body");
-	}
-
-	const attributeFilter = lib.array.to(CONSTANTS.DEFAULT_ATTRIBUTE_SELECTOR, /\s+/);
-	if (!lib.array.len(attributeFilter)) {
-            throw new Error("[ActiveTags] empty attribute filter list on observer");
-	}
-
-	const obs = lib.service.get("primitive.dom.changeobserver");
-	if (!obs) {
-            throw new Error("[ActiveTags] DomChangeObserver service not found: primitive.dom.changeobserver");
-	}
-
-	// keep a local ref (so your other methods can use this.domObserver if they do)
-	this.svc.domObserver = obs;
-
-	// Apply configuration (service instance is shared; be explicit)
-	// Root is frozen SOT but changeable via setRoot()
-	obs.setRoot(root);
-
-	// debounce + onChange live on opts (not per-selector)
-	obs.opts.debounceMs = observe.debounceMs || 0;
-	obs.opts.onChange = (batch) => this._onDomChanges(batch);
-
-	// Selector specs: make per-selector options explicit and stable
-	const selectorSpecs = selectors.map((selector) => ({
-            selector,
-            includeSubtreeMatches: true,
-            observeAttributes: true,
-            attributeFilter,
-            // onEvent: optional per-selector event handler if you ever want it
-	}));
-
-	obs.setSelectors(selectorSpecs);
-
-	// Start observing
-	obs.start();
-    },
-    oldstartObserver() {
-	if (!this.lib) return;
-	if (this.svc.domObserver) return;
-
-	const lib = this.lib;
-	const observe = (this.opts && this.opts.observe) ? this.opts.observe : {};
-
-	const selectors = lib.array.filterStrings(
-            observe.selectors ??
-		observe.selector ??
-		CONSTANTS.DEFAULT_SELECTOR
-	);
-
-	if (!lib.array.len(selectors)) {
-            throw new Error("[ActiveTags] empty selector list on observer");
-	}
-
-	const root =
-              observe.root ||
-              lib.hash.get(lib, "_env.root.document.body");
-
-	if (!root) {
-            throw new Error("[ActiveTags] Cannot start observer: no document.body");
-	}
-
-	const attributeFilter = lib.array.to(CONSTANTS.DEFAULT_ATTRIBUTE_SELECTOR, /\s+/);
-	if (!lib.array.len(attributeFilter)) {
-            throw new Error("[ActiveTags] empty attribute filter list on observer");
-	}
-	
-	this.svc.domObserver = new DomChangeObserver({
-            root,
-            selectors,
-            includeSubtreeMatches: true,
-            observeAttributes: true,
-            attributeFilter,
-            debounceMs: observe.debounceMs || 0,
-            onChange: (batch) => this._onDomChanges(batch),
-	});
-
-	this.svc.domObserver.start();
-    },
 
     /**
      * Collect matching elements (roots + descendants) from a DomChangeObserver record list.

@@ -234,7 +234,9 @@ export class VM {
 	}
 
 	//array len checks arbitrary vals. no need to use defensively.
-	const hasOnError = this.lib.array.len(v.pipelineDef[helpers.PIPELINE_PHASE_ERROR]) > 0;
+	//console.warn(v);
+	
+	const hasOnError = v.pipelineDef && this.lib.array.len(v.pipelineDef[helpers.PIPELINE_PHASE_ERROR]) > 0;
 	if (hasOnError) {
             const from = {
 		pipelineKey: v.pipelineKey,

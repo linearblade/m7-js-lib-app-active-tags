@@ -6,9 +6,8 @@
  * - Intended for "build once, read many" structures.
  *
  * Semantics:
- * - Recursively freezes all own enumerable properties.
- * - Handles arrays and plain objects.
- * - Scalars and non-objects are returned unchanged.
+ * - Recursively freezes arrays and plain objects.
+ * - Scalars and non-plain objects are frozen shallowly or ignored.
  *
  * Notes:
  * - This mutates the input object by freezing it.
@@ -19,11 +18,19 @@
  */
 function freezeDeep(value) {
     if (!value || typeof value !== "object") return value;
+    if (Object.isFrozen(value)) return value;
 
+    // Array
     if (Array.isArray(value)) {
         for (let i = 0; i < value.length; i++) {
             freezeDeep(value[i]);
         }
+        return Object.freeze(value);
+    }
+
+    // Plain object only
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
         return Object.freeze(value);
     }
 

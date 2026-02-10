@@ -2,7 +2,6 @@
 
 # --- begin: ActiveTags.js ---
 
-
 import applyMixins from './helpers/applyMixins.js';
 //import requireLibs from './helpers/requireLibs.js';
 import trait_job  from './traits/job.js';
@@ -16,7 +15,7 @@ import trait_evt    from './traits/events.js';
 import trait_int    from './traits/intervals.js';
 import JobRegistry   from './class/job/Registry.js';
 import CONSTANTS   from './constants.js';
-import ExpressionResolver from './class/ExpressionResolver.js';
+import ExpressionResolver from './class/expressions/ExpressionResolver.js';
 import Engine from './class/engine/Engine.js';
 import testHooks from './class/engine/testHooks.js';
 import IntervalController from './class/interval/Controller.js';
@@ -46,25 +45,36 @@ class ActiveTags {
 	this.svc.interval        = svc[CONSTANTS.SERVICE_INTERVAL] || null;
 	this.svc.log             = svc[CONSTANTS.SERVICE_LOG] || null;
 	this.svc.domObserver     = svc[CONSTANTS.SERVICE_OBSERVER] || null;
+
+
+	if (this.svc.log) {
+	    for (const key in CONSTANTS.LOG_BUCKETS) {
+		this.svc.log.createBucket(CONSTANTS.LOG_BUCKETS[key], CONSTANTS.LOG_POLICY);
+	    }
+	}
 	/*
-	this.svc.interval.opts.onEvent = (ev) => {
-	    console.log("[IM]", ev.type, ev.name, ev.reason || "", ev.message || "");
-	};*/
+	  this.svc.interval.opts.onEvent = (ev) => {
+	  console.log("[IM]", ev.type, ev.name, ev.reason || "", ev.message || "");
+	  };*/
+	
+	this.env = this._makeEnv(conf.env);
+
+	
 	this.expr = new ExpressionResolver({
 	    lib: this.lib,
 	    toJob: (x) => this.toJob(x),
 	    logger: this.logger,
-	    env: { window, document }
+	    env: this.env
 	});
 
 	
 	// runtime state
 	this.jobCounter = 0;
-	this.jobsLegacy = {};
 
 	// workspace + scheduler
 	this.ws = new lib.primitive.workspace.WorkSpace();
-	this.jobs = new JobRegistry({ lib , prefix: 'at' });
+
+	this.jobs = new JobRegistry({ lib , prefix: 'at',...lib.hash.to(conf.job), env:this.env});
 
 	// options (delegated)
 	this.opts = this.getOpts(conf);
@@ -75,7 +85,8 @@ class ActiveTags {
 	    lib,
 	    jobRegistry: this.jobs,
 	    hooks:conf.testHooks?testHooks:{},
-	    builtins : builtins
+	    builtins : builtins,
+	    expr: this.expr
 	});
 
 	this.intervals = new IntervalController ({
@@ -93,26 +104,74 @@ class ActiveTags {
 	});
 
 	
-	const doc = lib.hash.get(lib, '_env.root.document');
-	if (doc && doc.body) {
-	    this.load();
-	    this.startObserver();
-	    this.intervals.registerAll();
-	    this.events.registerAll();
-	    //on by default, falsy to prevent.
-	    if(!lib.bool.no(conf.intervalOn))
-		this.intervals.on();
-	    if(!lib.bool.no(conf.eventOn))
-		this.events.on();
-	}
 	
     }
 
+
+    _makeEnv(inEnv = {}) {
+	const lib = this.lib;
+
+	// Normalize caller env
+	inEnv = lib && lib.hash && lib.hash.is(inEnv) ? inEnv : {};
+
+	// Pull lib env (legacy + modern)
+	const libEnv =
+              (lib && (lib._env || (lib.hash && lib.hash.get(lib, "_env")))) || {};
+
+	const libRoot =
+              libEnv.root ||
+              (lib && lib.hash && lib.hash.get(lib, "_env.root")) ||
+              null;
+
+	// Canonical derivation
+	const root =
+              inEnv.root ||
+              inEnv.window ||
+              libRoot ||
+              (typeof globalThis !== "undefined" ? globalThis : null);
+
+	const windowRef =
+              inEnv.window ||
+              (root && root.window) ||
+              root ||
+              null;
+
+	const documentRef =
+              inEnv.document ||
+              (windowRef && windowRef.document) ||
+              null;
+
+	const baseURI =
+              inEnv.baseURI ||
+              (documentRef && documentRef.baseURI) ||
+              null;
+
+	return {
+            root,          // globalThis / window / global
+            window: windowRef,
+            document: documentRef,
+            baseURI,
+	};
+    }
     
     
     //cycles the jobs. if one is found with a status ready to start runs it. otherwise skips
     //at this point, the job can be set to inflight and ignored. controller will be set to job on startup, and it cna notify it on completion
-    start(){ /*still undefined*/   }
+    async start(){
+	const doc = lib.hash.get(lib, '_env.root.document');
+	if (!doc && !doc.body)
+	    throw new Error("cannot start, active tags missing doc or doc body");
+	
+	await this.load();
+	this.startObserver();
+	this.intervals.registerAll();
+	this.events.registerAll();
+	//on by default, falsy to prevent.
+	if(!lib.bool.no(this.conf.intervalOn))
+	    this.intervals.on();
+	if(!lib.bool.no(this.conf.eventOn))
+	    this.events.on();
+    }
     
     //employed by interval manager to periodically pickup new jobs automatically. may alternately utilize a dom observer to notice changes.
     sniffer(){
@@ -502,7 +561,7 @@ export default {
 
 
 
-# --- begin: builtins/errorDump.js ---
+# --- begin: builtins/error/errorDump.js ---
 
 export default async function errorDump({ job, lib, args, trigger, ticket, inputs, ctx, step } = {}) {
   try {
@@ -566,7 +625,28 @@ export default async function errorDump({ job, lib, args, trigger, ticket, input
 }
 
 
-# --- end: builtins/errorDump.js ---
+# --- end: builtins/error/errorDump.js ---
+
+
+
+# --- begin: builtins/error/index.js ---
+
+import  errorDump  from './errorDump.js';
+
+export  { errorDump };
+
+export  function errorFail(){
+    return false;
+}
+export const ERROR = {
+    dump : errorDump,
+    fail :  errorFail
+};
+
+export default ERROR;
+
+
+# --- end: builtins/error/index.js ---
 
 
 
@@ -1029,15 +1109,16 @@ import  dom          from './dom/index.js';
 import  form         from './form/index.js';
 import  httpSend     from './httpSend.js';
 import  confirm      from './confirm.js';
-import  errorDump    from './errorDump.js';
+import  error        from './error/index.js';
 import  buffer       from './buffer/index.js';
 import  target       from './target/index.js';
+
 export { dom };
 export { form};
 export { httpSend };
-export { errorDump };
 export { buffer };
 export { target };
+export { error } ;
 
 export default {
     confirm,
@@ -1046,12 +1127,12 @@ export default {
     http: {
 	send: httpSend
     },
-    error: {
-	dump: errorDump
-    },
+    error,
     buffer,
     target
 };
+
+
 
 
 # --- end: builtins/index.js ---
@@ -1307,7 +1388,7 @@ import { VM }        from './vm/VM.js';
 import { Tick }      from './Tick.js';
 
 export class Engine {
-    constructor({ lib, jobRegistry, vm, scheduler, hooks = {}, builtins } = {}) {
+    constructor({ lib, jobRegistry, vm, scheduler, hooks = {}, builtins,expr } = {}) {
 	if (!lib) throw new Error("Engine requires lib");
 	this.lib = lib;
 
@@ -1316,8 +1397,8 @@ export class Engine {
 
 	// subsystems
 	this.state = new EngineState({ lib });
-	this.scheduler = scheduler || new Scheduler({ lib });
-	this.vm = vm || new VM({ lib, builtins });
+	this.scheduler = scheduler || new Scheduler({ lib,engine:this });
+	this.vm = vm || new VM({ lib, builtins,expr });
 
 	// hooks (optional)
 	this.hooks = {
@@ -1328,7 +1409,7 @@ export class Engine {
 	    onComplete: hooks.onComplete || null,
 	    onError: hooks.onError || null,
 	};
-	console.log('got hooks', this.hooks);
+	//console.log('got hooks', this.hooks);
 	// manager (policy + coordination)
 	this.manager = new EngineManager({ lib, engine: this });
 
@@ -1731,8 +1812,10 @@ export const STAGE_STATUS = Object.freeze({
     ERROR: "error",
     COMPLETE: "complete",
 });
-export const PIPELINE_PHASE = Object.freeze(["run","onError"]);
 
+export const PIPELINE_PHASE_RUN    = "run";
+export const PIPELINE_PHASE_ERROR  = "error";
+export const PIPELINE_PHASE        = Object.freeze([PIPELINE_PHASE_RUN,PIPELINE_PHASE_ERROR]);
 
 export function SR_ok(detail) {
     return { status: STAGE_STATUS.OK, detail };
@@ -1753,6 +1836,7 @@ export function SR_complete(detail) {
 
 let _ticketCounter = 0;
 export function makeRunTicket({ job, pipelineKey, inputs, priority = 0, meta = {} } = {}) {
+    const require = job.lib.hash.get(job, "config.schema.require",[]);
     return {
         id: `rt_${++_ticketCounter}`,
         jobId: job.id,
@@ -1762,7 +1846,7 @@ export function makeRunTicket({ job, pipelineKey, inputs, priority = 0, meta = {
 	target : job.e,
         // what to run (VM expects this)
         pipelineKey: String(pipelineKey || "default"),
-
+	require ,
         // cursor: where we are in the pipeline
         cursor: { stage: 0 },
 
@@ -1782,6 +1866,8 @@ export default {
     STAGE_STATUS_RANGE,
     STAGE_STATUS,
     PIPELINE_PHASE,
+    PIPELINE_PHASE_RUN,
+    PIPELINE_PHASE_ERROR,
     SR_ok,
     SR_wait,
     SR_error,
@@ -1822,32 +1908,94 @@ export default {
 // -----------------------------------------------------------------------------
 
 export class Scheduler {
-  constructor({ lib } = {}) {
-    this.lib = lib || null;
-    this._ready = [];      // FIFO queue of jobIds
-    this._present = new Set(); // prevent duplicates in _ready
-  }
-
-  markRunnable(jobId) {
-    if (!jobId) return;
-    if (this._present.has(jobId)) return;
-    this._present.add(jobId);
-    this._ready.push(jobId);
-  }
-
-  nextRunnable() {
-    while (this._ready.length) {
-      const jobId = this._ready.shift();
-      this._present.delete(jobId);
-      if (jobId) return jobId;
+    constructor({ lib, engine } = {}) {
+	this.lib = lib || null;
+	this._ready = [];      // FIFO queue of jobIds
+	this._present = new Set(); // prevent duplicates in _ready
+	this.engine = engine;
+	if(!lib || !engine) {
+	    throw new Error("scheduler requires lib and engine");
+	}
     }
-    return null;
-  }
 
-  clear(jobId) {
-    // cheap clear: let it drain naturally; remove presence so it can be re-enqueued
-    if (jobId) this._present.delete(jobId);
-  }
+    markRunnable(jobId) {
+	if (!jobId) return;
+	if (this._present.has(jobId)) return;
+	this._present.add(jobId);
+	this._ready.push(jobId);
+    }
+
+    nextRunnable() {
+	const engine = this.engine;
+	const registry = engine.jobRegistry;
+
+	for (let i = 0; i < this._ready.length; i++) {
+            const jobId = this._ready[i];
+            if (!jobId) continue;
+
+            // live resolve (jobs may unload)
+            const job = registry.resolve(jobId);
+            if (!job) {
+		// job no longer exists — remove from scheduler
+		this._ready.splice(i, 1);
+		this._present.delete(jobId);
+		i--;
+		continue;
+            }
+
+	    const st = engine.state.jobState(jobId);
+
+	    // Ticket selection for gating:
+	    // - prefer active (already running)
+	    // - else peek head of queue (not yet activated)
+	    const ticket = st.active || (st.queue && st.queue.length ? st.queue[0] : null);
+
+	    if (!ticket) {
+		// nothing to run; jobId should not be in scheduler
+		this._ready.splice(i, 1);
+		this._present.delete(jobId);
+		i--;
+		continue;
+	    }
+	    
+            // REQUIRE GATE (live, no global registry)
+            if (ticket.require && ticket.require.length) {
+		let ok = true;
+
+		for (const reqJobLike of ticket.require) {
+                    const dep = registry.resolve(reqJobLike);
+                    if (!dep || !dep.flags || dep.flags.hasRun !== true) {
+			ok = false;
+			break;
+                    }
+		}
+
+		if (!ok) continue; // cock blocked (requirements not met)
+            }
+
+            // Runnable — remove from queue and return
+            this._ready.splice(i, 1);
+            this._present.delete(jobId);
+            return jobId;
+	}
+
+	return null;
+    }
+    
+    //preserve incase the cock blocker fails to function
+    basic_nextRunnable() {
+	while (this._ready.length) {
+	    const jobId = this._ready.shift();
+	    this._present.delete(jobId);
+	    if (jobId) return jobId;
+	}
+	return null;
+    }
+
+    clear(jobId) {
+	// cheap clear: let it drain naturally; remove presence so it can be re-enqueued
+	if (jobId) this._present.delete(jobId);
+    }
 }
 
 
@@ -2308,7 +2456,7 @@ export class Tick {
             jobId, job, ticket, res, summary,
             flags: { didWork: true, terminal: true, complete: true }
 	});
-
+	this.lib.hash.set(job,"flags.hasRun", true);
 	// uniform terminal hooks (same payload)
 	this._emitHook("onComplete", trace);
 	this._emitHook("onTicketDone", trace);
@@ -2651,10 +2799,10 @@ export class Validate {
 	if (!ticket.cursor || typeof ticket.cursor !== "object") ticket.cursor = {};
 	if (typeof ticket.cursor.stage !== "number") ticket.cursor.stage = 0;
 
-	// phase: "run" or "onError"
+	// phase: "run" or "error"
 	if (!ticket.phase) ticket.phase = "run";
 
-	// keep original error when transitioning into onError
+	// keep original error when transitioning into error
 	if (!ticket.errorInfo) ticket.errorInfo = null;
     }
 
@@ -2664,7 +2812,7 @@ export class Validate {
      * Resolve the pipeline definition by key from the job.
      *
      * Supported shapes (v1 target):
-     *   job.pipelines = { default:{run:[...], onError:[...]}, initial:{...} }
+     *   job.pipelines = { default:{run:[...], error:[...]}, initial:{...} }
      *
      * Back-compat (legacy-ish / transitional):
      *   job.pipeline = { run:[...] }  -> treated as default
@@ -2689,7 +2837,7 @@ export class Validate {
 	const allowed = lib.utils.clamp(helpers.PIPELINE_PHASE, phase, null);
 	if (!allowed) return null;
 
-	// `allowed` is "run" or "onError"
+	// `allowed` is "run" or "error"
 	return lib.hash.get(pipelineDef, allowed, null);
     }
 
@@ -2734,14 +2882,14 @@ export class Validate {
 	//console.log(`stage is ${ticket.cursor.stage}`);
 	// End-of-phase
 	if (!stepRec) {
-	    // If we've exhausted the onError track, we treat this as a *handled* completion.
-	    if (ticket.phase === "onError") {
+	    // If we've exhausted the error track, we treat this as a *handled* completion.
+	    if (ticket.phase === helpers.PIPELINE_PHASE_ERROR) {
 		return {
 		    done: true,
 		    complete: true,
 		    res: helpers.SR_complete({
 			pipelineKey,
-			phase: "onError",
+			phase: helpers.PIPELINE_PHASE_ERROR,
 			handled: true,
 			original: ticket.errorInfo || null,
 		    }),
@@ -2820,12 +2968,13 @@ import Validate from './Validate.js';
 import OP       from './OP.js';
 
 export class VM {
-    constructor({ lib, builtins } = {}) {
+    constructor({ lib, builtins,expr } = {}) {
 	if(!lib)       throw new Error("PASS lib :) ");
 	this.lib       = lib ;
 	this.builtins  = builtins || {}; //this is unnecessary but the AI bitches when I lint, b/c it seems to have trouble reading my libs.
 	this.validator = new Validate({lib,builtins});
 	this.op        = new OP({lib});
+	this.expr      = expr;
     }
 
     /**
@@ -2868,10 +3017,11 @@ export class VM {
 	    // 2) Normal stage execution
 	    // ------------------------------------------------------------
 	    try {
+		const args = this.expr.materialize({ticket,job},v.args);
 		res = await v.fn({
 		    job,
 		    lib,
-		    args: v.args,
+		    args: args,
 		    buffer : ticket.buffer,
 		    inputs: ticket.inputs,
 		    trigger,
@@ -2887,7 +3037,7 @@ export class VM {
 	    res = this.op._normalizeReturn(res, { pipelineKey: v.pipelineKey, op: v.op });
 	}
 
-	// raw status MUST be captured BEFORE any handler transforms it (enter onError, etc.)
+	// raw status MUST be captured BEFORE any handler transforms it (enter PIPELINE_PHASE_ERROR, etc.)
 	const return_status = res.status ?? null;
 
 	// finalizeResponse can attach stage metadata, etc. (keep as you have it)
@@ -2992,25 +3142,25 @@ export class VM {
      * Handle a stage error and apply pipeline error-handling semantics.
      *
      * This method is responsible for deciding whether a stage error:
-     *   1) Transitions execution into the `onError` pipeline, or
+     *   1) Transitions execution into the `PIPELINE_PHASE_ERROR` pipeline, or
      *   2) Terminates execution with a final error.
      *
      * Behavior:
-     * - If the current ticket is already in the `onError` phase, a failing
+     * - If the current ticket is already in the `PIPELINE_PHASE_ERROR` phase, a failing
      *   stage is treated as a terminal error. The original error context is
      *   preserved and annotated to indicate error-handler failure.
      *
-     * - If the ticket is not in `onError` and the pipeline defines an
-     *   `onError` handler, execution transitions into the `onError` phase.
+     * - If the ticket is not in `PIPELINE_PHASE_ERROR` and the pipeline defines an
+     *   `PIPELINE_PHASE_ERROR` handler, execution transitions into the `PIPELINE_PHASE_ERROR` phase.
      *   The ticket cursor is reset and the original error context is stored
      *   on the ticket for later inspection.
      *
-     * - If no `onError` handler exists, the original StageResult is returned
+     * - If no `PIPELINE_PHASE_ERROR` handler exists, the original StageResult is returned
      *   unchanged and will be treated as a terminal error by the caller.
      *
      * Invariants:
      * - This method mutates ticket execution state (`phase`, `cursor`,
-     *   `errorInfo`) when transitioning into `onError`.
+     *   `errorInfo`) when transitioning into `PIPELINE_PHASE_ERROR`.
      * - This method does NOT finalize tickets or manage scheduling.
      *
      * @param {Object} env
@@ -3024,15 +3174,15 @@ export class VM {
      *
      * @returns {Object}
      *     A StageResult:
-     *     - `SR_ok` when transitioning into `onError`
+     *     - `SR_ok` when transitioning into `PIPELINE_PHASE_ERROR`
      *     - `SR_error` when the error is terminal
      *     - or the original `res` when no error handling is defined.
      */
     _responseError({ ticket, v, res }) {
 
-	// If the error handler itself fails (we are already in onError),
-	// do NOT re-enter onError. Surface handler failure and preserve original.
-	if (ticket.phase === "onError") {
+	// If the error handler itself fails (we are already in PIPELINE_PHASE_ERROR),
+	// do NOT re-enter PIPELINE_PHASE_ERROR. Surface handler failure and preserve original.
+	if (ticket.phase === helpers.PIPELINE_PHASE_ERROR) {
 	    const detail = this.lib.hash.to(res.detail);
 
 	    if (!detail.original) 
@@ -3044,9 +3194,9 @@ export class VM {
 
 	    return helpers.SR_error(res.error, detail);
 	}
-	//const hasOnError = Array.isArray(v.pipelineDef.onError) && v.pipelineDef.onError.length > 0;
+
 	//array len checks arbitrary vals. no need to use defensively.
-	const hasOnError = this.lib.array.len(v.pipelineDef.onError) > 0;
+	const hasOnError = this.lib.array.len(v.pipelineDef[helpers.PIPELINE_PHASE_ERROR]) > 0;
 	if (hasOnError) {
             const from = {
 		pipelineKey: v.pipelineKey,
@@ -3063,12 +3213,12 @@ export class VM {
 		...from,
             };
 
-            ticket.phase = "onError";
+            ticket.phase = helpers.PIPELINE_PHASE_ERROR;
             ticket.cursor.stage = 0;
 
             return helpers.SR_ok({
 		pipelineKey: v.pipelineKey,
-		reason: "enter onError",
+		reason: `enter ${helpers.PIPELINE_PHASE_ERROR}`,
 		from,
 		original: ticket.errorInfo || null,
             });
@@ -3084,10 +3234,10 @@ export class VM {
 	});
     }
 
-    //Snapshot stage identity BEFORE execution/handlers mutate ticket (e.g., run -> onError).
+    //Snapshot stage identity BEFORE execution/handlers mutate ticket (e.g., run -> PIPELINE_PHASE_ERROR).
     _snapShot({ticket,v}){
 	const exec = {
-	    phase: ticket.phase,                 // "run" | "onError"
+	    phase: ticket.phase,                 // "run" | PIPELINE_PHASE_ERROR
 	    stageIndex: ticket.cursor?.stage ?? 0,
 	    pipelineKey: v.pipelineKey,
 	    op: v.op,                            // may be string, function, etc
@@ -3126,7 +3276,7 @@ export default VM;
 
    // execution context (if a stage was involved)
    stage: {
-   phase,        // "run" | "onError"
+   phase,        // "run" | "PIPELINE_PHASE_ERROR"
    stageIndex,   // number | null
    op,           // raw op (string | fn | object | null)
    opLabel,      // string (always safe)
@@ -3883,7 +4033,183 @@ export function normalizeEventType(eventType) {
 
 
 
-# --- begin: class/ExpressionResolver.js ---
+# --- begin: class/expressions/dispatch.js ---
+
+// expr/dispatch.js
+// Build the parseTarget dispatch table for ExpressionResolver.parse(ctx, target)
+//
+// Contract:
+//  - returns an object map: type -> () => TargetRef|value|Element|undefined
+//  - each handler closes over ctx + resolver + loc
+//  - no fallback / magic coercion happens here (caller decides)
+
+export default function buildDispatch(resolver, ctx, loc) {
+    const lib = resolver.lib;
+
+    // normalize ctx (defensive)
+    ctx = lib.hash.to(ctx) || {};
+
+    const job    = resolver._asJob ? resolver._asJob(ctx.job) : ctx.job;
+    const ticket = ctx.ticket || null;
+
+    // env (resolver already seeded these from m7-lib _env.root)
+    const thisWindow   = lib.hash.get(ctx, "env.window")   || resolver.window;
+    const thisDocument = lib.hash.get(ctx, "env.document") || resolver.document;
+
+    // v1 runtime anchors
+    const e      = lib.hash.get(job, "e");
+    const tgt    = lib.hash.get(ticket, "target");
+    const buffer = lib.hash.get(ticket, "buffer");
+
+    // helpers
+    const hasLoc = !(loc == null || loc === "");
+
+    return {
+        // ---------------------------------------------------------------------
+        // Core sources
+        // ---------------------------------------------------------------------
+        job: () => {
+            if (!job) return undefined;
+            return hasLoc ? { src: job, prop: loc } : job;
+        },
+
+        ticket: () => {
+            if (!ticket) return undefined;
+            return hasLoc ? { src: ticket, prop: loc } : ticket;
+        },
+
+        config: () => {
+            const schema = lib.hash.get(job, "config.schema");
+            if (!schema) return undefined;
+            return hasLoc ? { src: schema, prop: loc } : schema;
+        },
+
+        trans: () => {
+            const tx = lib.hash.get(job, "transactions");
+            if (!tx) return undefined;
+            return hasLoc ? { src: tx, prop: loc } : tx;
+        },
+
+        ws: () => {
+            const ws = lib.hash.get(job, "ws");
+            if (!ws) return undefined;
+            return { src: ws, prop: loc };
+        },
+
+        // ---------------------------------------------------------------------
+        // Buffer (v1)
+        // ---------------------------------------------------------------------
+        buffer: () => {
+            if (!buffer) return undefined;
+            const v = buffer.get();
+            return hasLoc ? { src: v, prop: loc } : v;
+        },
+
+        buffer_meta: () => {
+            if (!buffer) return undefined;
+            const m = buffer.meta();
+            return hasLoc ? { src: m, prop: loc } : m;
+        },
+
+        // ---------------------------------------------------------------------
+        // Environment
+        // ---------------------------------------------------------------------
+        window: () => {
+            if (!thisWindow) return undefined;
+            return { src: thisWindow, prop: loc };
+        },
+
+        // ---------------------------------------------------------------------
+        // DOM anchors
+        // ---------------------------------------------------------------------
+        this: () => {
+            if (!e) return undefined;
+            return { src: e, prop: loc };
+        },
+
+        target: () => {
+            if (!tgt) return undefined;
+            return { src: tgt, prop: loc };
+        },
+
+        // ---------------------------------------------------------------------
+        // DOM navigation helpers (return DOM element)
+        // ---------------------------------------------------------------------
+        doc: () => {
+            if (!thisDocument) return undefined;
+            try {
+                const found = thisDocument.querySelector(loc);
+                if (!found) resolver.warn && resolver.warn(`couldnt find element with document.querySelector('${loc}')`, ctx);
+                return found;
+            } catch (err) {
+                resolver.warn && resolver.warn(`error with document.querySelector('${loc}')`, ctx);
+                return undefined;
+            }
+        },
+
+        find: () => {
+            const base = tgt || e;
+            if (!base) return undefined;
+
+            try {
+                let result = base.querySelector(loc);
+                if (!result && base.matches && base.matches(loc)) result = base;
+                if (!result) resolver.warn && resolver.warn(`couldnt find element with e.querySelector('${loc}')`, ctx);
+                return result;
+            } catch (err) {
+                resolver.warn && resolver.warn(`couldnt find element with querySelector('${loc}')`, ctx);
+                return undefined;
+            }
+        },
+
+        closest: () => {
+            const base = tgt || e;
+            if (!base) return undefined;
+
+            try {
+                return base.closest(loc);
+            } catch (err) {
+                resolver.warn && resolver.warn(`couldnt find element with closest('${loc}')`, ctx);
+                return undefined;
+            }
+        },
+
+        // ---------------------------------------------------------------------
+        // Form value lookup (legacy helper, but wired to v1 collect)
+        // ---------------------------------------------------------------------
+        form: () => {
+            const base = tgt || e;
+            if (!base) return undefined;
+
+            const collect = lib.hash.get(lib, "site.form.collect");
+            if (!collect) return undefined;
+
+            const out = collect(base);
+            const parms = out && out.parms;
+            if (!parms) return undefined;
+
+            for (let row of parms) {
+                if (row[0] == loc) return row[1];
+            }
+            return undefined;
+        },
+
+        // ---------------------------------------------------------------------
+        // Legacy inline (keep only if you still depend on it)
+        // ---------------------------------------------------------------------
+        inline: () => {
+            if (!e) return undefined;
+            return { src: e, prop: "innerHTML", special: loc };
+        },
+    };
+}
+
+
+# --- end: class/expressions/dispatch.js ---
+
+
+
+# --- begin: class/expressions/ExpressionResolver.098.js ---
 
 /**
  * Expressions / Interpolation Trait
@@ -3967,7 +4293,8 @@ this.expr = new ExpressionResolver({
   env: { window, document }
 });
  */
-import CONSTANTS from '../constants.js';
+import CONSTANTS from '../../constants.js';
+import  WALKER from './expParser.js';
 export class ExpressionResolver {
 
 
@@ -3978,7 +4305,7 @@ export class ExpressionResolver {
 	this.lib = lib;
 	this.toJob = opts.toJob || null;
 	this.logger = opts.logger || null;
-
+	this.walker = WALKER;
 	// Prefer explicit env injection, fallback to lib._env.root
 	const env = opts.env || {};
 
@@ -4250,7 +4577,10 @@ export class ExpressionResolver {
 	};
 
 	if (lib.hash.is(custom) && type in custom){
-	    return custom[type](loc);
+	    console.log(custom, type,loc,custom[type]);
+	    return lib.func.get(custom[type]) ?
+		custom[type](loc):
+		{src: custom[type],prop:loc};
 	}else {
 	    if (!(type in disp))type="inline";
 	    return disp[type]();
@@ -4318,9 +4648,11 @@ export class ExpressionResolver {
      */
     evalParse(parse){
 	const lib = this.lib;
-	//console.log('EP',parse);
+	console.log('EP',parse);
 	if(lib.utils.baseType(parse,'object') && parse.src && parse.prop) {
-	    return lib.dom.is(parse.src)?lib.dom.get(parse.src, parse.prop):lib.hash.get(parse.src,parse.prop);
+	    return lib.dom.is(parse.src) ?
+		lib.dom.get(parse.src, parse.prop):
+		lib.hash.get(parse.src,parse.prop);
 	}
 	return parse;
     }
@@ -4370,12 +4702,733 @@ export class ExpressionResolver {
         return output;
     }
     
+    walk(input){
+	return WALKER.parseExpressions(input);
+    }
 }
 
 export default ExpressionResolver;
 
 
-# --- end: class/ExpressionResolver.js ---
+# --- end: class/expressions/ExpressionResolver.098.js ---
+
+
+
+# --- begin: class/expressions/ExpressionResolver.js ---
+
+/**
+ * Expressions / Interpolation Class
+ * --------------------------------
+ *
+ * This trait implements Active Tags’ **expression resolution and interpolation
+ * system**. It is responsible for resolving symbolic target expressions
+ * (e.g. `job:id`, `config:confirm.text`, `target:innerHTML`, `find:.title`)
+ * into live runtime values using a provided execution context.
+ *
+ * Core responsibilities:
+ * - Parse target expressions of the form `type:locator`
+ * - Resolve those expressions against a runtime context (`ctx`)
+ *   that may include:
+ *     - job
+ *     - ticket
+ *     - buffer / buffer metadata
+ *     - DOM elements (this / target / document queries)
+ *     - configuration schema
+ *     - transaction records
+ * - Provide a single evaluation entry point (`eval(ctx, target)`)
+ * - Support higher-level interpolation via a separate walker/compiler
+ *
+ * What this trait does NOT do:
+ * - It does NOT execute jobs, stacks, or pipelines
+ * - It does NOT schedule, queue, or control execution flow
+ * - It does NOT mutate job or ticket state
+ * - It does NOT manage data lifecycles or persistence
+ * - It does NOT assume global state (all resolution is context-driven)
+ *
+ * Architectural role:
+ * - Acts as the symbolic “glue” between declarative configuration and
+ *   imperative runtime state
+ * - Enables late binding: values are resolved at evaluation time, not
+ *   at configuration or compile time
+ * - Centralizes all dynamic lookup logic so no other subsystem performs
+ *   ad-hoc expression parsing
+ *
+ * Resolution model:
+ * - Target strings are first *parsed* into references or direct values
+ * - Parsed targets are then *evaluated* to produce a final value
+ * - Parsing and evaluation are intentionally separate concerns
+ * - Unknown or unsupported targets resolve to `undefined` (no magic fallbacks)
+ *
+ * Extensibility:
+ * - Target resolution is driven by a dispatcher that may evolve over time
+ * - New target types (e.g. `inputs:`, `vars:`, `stage:`) can be added
+ *   without changing the public API
+ * - Custom resolution behavior may be injected via the evaluation context
+ *
+ * Security & discipline notes:
+ * - DOM-based resolution (e.g. `find`, `closest`, `this`, `target`) is powerful
+ *   and must only be used with trusted configuration
+ * - This trait should remain deterministic, explicit, and boring
+ *
+ * This trait must remain:
+ * - Context-driven (never global)
+ * - Side-effect free
+ * - Centrally authoritative for expression resolution
+ */
+
+
+/**
+   this.expr = new ExpressionResolver({
+   lib: this.lib,
+   toJob: (x) => this.toJob(x),
+   logger: this.logger,
+   env: { window, document }
+   });
+*/
+import CONSTANTS    from '../../constants.js';
+import Interpolator from './interpolator.js';
+import buildDispatch from './dispatch.js';
+export class ExpressionResolver {
+
+    /**
+     * Create a new ExpressionResolver instance.
+     *
+     * The resolver is responsible for parsing and evaluating symbolic target
+     * expressions (e.g. `job:id`, `buffer_meta:headers.Authorization`,
+     * `find:.title`) against a provided execution context.
+     *
+     * This constructor wires the resolver to:
+     * - the Active Tags `lib` (required)
+     * - an optional job normalization adapter (`toJob`)
+     * - an optional logger
+     * - an execution environment (`env`)
+     *
+     * Environment resolution:
+     * - If `opts.env` is provided, it is treated as the authoritative environment
+     *   for this resolver instance.
+     * - Otherwise, the resolver falls back to the environment installed on `lib`
+     *   (via `lib._env`, typically created by `lib/_env` boot).
+     * - The resolved environment is used to derive canonical `window` and
+     *   `document` references without directly probing globals.
+     *
+     * The resolver itself is:
+     * - context-driven (no implicit global state)
+     * - side-effect free
+     * - safe to reuse across jobs and tickets
+     *
+     * @param {Object} opts
+     * @param {Object} opts.lib
+     *   The m7 lib instance. Required.
+     *
+     * @param {Function} [opts.toJob]
+     *   Optional adapter used to normalize or coerce values into Job instances
+     *   before resolution. If omitted, the resolver will use the provided value
+     *   as-is.
+     *
+     * @param {Object} [opts.logger]
+     *   Optional logger implementation used for warnings or diagnostics.
+     *
+     * @param {Object} [opts.env]
+     *   Optional explicit environment injection.
+     *   When provided, this environment takes precedence over `lib._env`.
+     *   Typical shape:
+     *     {
+     *       root: <global root>,
+     *       window: <window/global>,
+     *       document: <document>
+     *     }
+     *
+     * @throws {Error}
+     *   If `opts.lib` is not provided.
+     */
+    constructor(opts = {}) {
+	const lib = opts.lib;
+	if (!lib) throw new Error("[ExpressionResolver] lib is required");
+
+	this.lib = lib;
+
+	// adapters / utilities
+	this.toJob  = opts.toJob || null;
+	this.logger = opts.logger || null;
+	this.interp = Interpolator;
+
+	// ---------------------------------------------------------------------
+	// Environment (m7-lib native)
+	//  - Prefer caller-provided opts.env (explicit injection)
+	//  - Else prefer lib._env (installed by lib/_env boot)
+	//  - Else fallback to lib.hash.get(lib,"_env") / lib.hash.get(lib,"_env.root")
+	// ---------------------------------------------------------------------
+
+	// 1) explicit env injection (may be empty object)
+	const env = lib.hash.is(opts.env) ? opts.env : {};
+
+	// 2) lib env (preferred fallback)
+	const libEnv  = lib._env || lib.hash.get(lib, "_env") || null;
+	const root    = env.root || (libEnv && libEnv.root) || lib.hash.get(lib, "_env.root") || null;
+
+	// keep env for callers
+	// if caller didn’t provide env, we still expose the derived lib env shape
+	this.env = env.root || env.window || env.document
+            ? env
+            : (libEnv || { root });
+
+	// canonical window/document references
+	// window => root (globalThis/window/global)
+	// document => root.document (browser only)
+	this.window   = env.window   || root || null;
+	this.document = env.document || (root && root.document ? root.document : null);
+    }
+
+    /**
+     * Emit a non-fatal warning during expression parsing or evaluation.
+     *
+     * This method is intentionally conservative:
+     * - It never throws
+     * - It never assumes a logger is present
+     * - It performs no formatting or interpolation
+     *
+     * Warnings are routed to the injected logger (if provided), allowing
+     * higher-level systems to decide how diagnostics are surfaced
+     * (console, telemetry, devtools, etc.).
+     *
+     * This method exists so the expression resolver can report:
+     * - invalid selectors
+     * - missing targets
+     * - unsafe or unsupported expressions
+     *
+     * without disrupting execution flow.
+     *
+     * @param {string} msg
+     *   Human-readable warning message.
+     *
+     * @param {Object} [ctx]
+     *   Optional execution context associated with the warning.
+     *   This is passed through verbatim to the logger for debugging
+     *   or diagnostic correlation.
+     */
+
+    warn(msg, ctx) {
+	// Soft warning channel: no throw, no assumptions
+	if (this.logger && typeof this.logger.warn === "function") {
+            this.logger.warn(msg, ctx);
+	}
+    }
+
+
+    /**
+     * Normalize a job-like value into a Job instance (if possible).
+     *
+     * This helper exists to decouple the expression resolver from any
+     * specific Job implementation. If a `toJob` adapter was provided at
+     * construction time, it will be used to coerce or normalize the input.
+     *
+     * If no adapter is provided, the input value is returned as-is.
+     *
+     * This allows the resolver to:
+     * - accept real Job instances
+     * - accept job-like objects during testing or debugging
+     * - avoid hard dependencies on Job internals
+     *
+     * @param {*} job
+     *   A Job instance, job-like object, or arbitrary value.
+     *
+     * @returns {*}
+     *   The normalized Job instance if an adapter is available,
+     *   otherwise the original value.
+     */
+    _asJob(job) {
+	if (this.lib.utils.baseType(this.toJob, "function")) {
+            return this.toJob(job);
+	}
+	return job;
+    }
+
+    /**
+     * Parse a target expression into a resolvable reference.
+     *
+     * A target expression has the general form:
+     *
+     *   "type:locator"
+     *
+     * Examples:
+     *   "job:id"
+     *   "config:confirm.text"
+     *   "this:innerHTML"
+     *   "target:value"
+     *   "window:location.href"
+     *   "doc:#id"
+     *   "find:.title"
+     *
+     * This method performs **parsing only**. It does not evaluate or resolve
+     * the expression to a concrete value.
+     *
+     * Resolution strategy:
+     * - The target string is split on the first `:`
+     * - A dispatcher is built using the provided execution context (`ctx`)
+     * - If a built-in dispatcher exists for `type`, it is invoked
+     * - Otherwise, the context itself may provide an override handler
+     * - Unknown target types resolve to `undefined` (no implicit fallbacks)
+     *
+     * The returned value is one of:
+     * - a target reference object `{ src, prop }`
+     * - a DOM element
+     * - a direct value
+     * - `undefined` if the target cannot be resolved
+     *
+     * The execution context (`ctx`) is free-form and may contain any data
+     * required by target resolvers. Commonly used slots include:
+     *   - job
+     *   - ticket
+     *   - buffer
+     *   - env
+     *   - trigger
+     *
+     * @param {Object} ctx
+     *   Free-form execution context used to build the target dispatcher.
+     *
+     * @param {string} target
+     *   Target expression string to parse.
+     *
+     * @returns {*}
+     *   A parsed target reference, direct value, DOM element, or `undefined`.
+     */
+    parse(ctx, target) {
+	const lib = this.lib;
+
+	ctx = lib.hash.to(ctx) || {};
+	if (!target) return undefined;
+
+	// split only on first colon
+	target = lib.utils.toString(target, 1);
+	const pos = target.indexOf(":");
+	const typeRaw = (pos < 0) ? target : target.slice(0, pos);
+	const loc = (pos < 0) ? undefined : target.slice(pos + 1);
+
+	if (!typeRaw) return undefined;
+
+	const type = String(typeRaw).toLowerCase().trim();
+
+	const disp = buildDispatch(this, ctx, loc);
+
+	// 1) Prefer built-in dispatch if it exists
+	// Note: dispatcher closures already capture ctx + loc
+	if (Object.prototype.hasOwnProperty.call(disp, type)) {
+            return disp[type]();
+	}
+
+	// 2) Otherwise allow ctx override (greater ctx)
+	// ctx[type] may be a function (or function reference) or a value
+	if (lib.hash.is(ctx) && type in ctx) {
+            const custom = ctx[type];
+            const fn = lib.func.get(custom);
+            if (fn) return fn(loc);
+            return { src: custom, prop: loc };
+	}
+
+	// 3) Unknown target type => undefined (no magic)
+	return undefined;
+    }
+    
+    /**
+     * Evaluate a target expression and return its resolved value.
+     *
+     * This method is a convenience wrapper that combines:
+     * - `parse(ctx, target)` to interpret a symbolic target expression, and
+     * - `evalParse(parse)` to extract the concrete value from the parsed result.
+     *
+     * It is intended for one-off or immediate resolution of target expressions.
+     * For advanced use cases (e.g. deferred evaluation or inspection of parsed
+     * targets), callers may invoke `parse()` and `evalParse()` separately.
+     *
+     * Evaluation behavior:
+     * - If the target resolves to a `{ src, prop }` reference, the property is
+     *   retrieved using `lib.hash.get()` or `lib.dom.get()`.
+     * - If the target resolves directly to a value or DOM element, it is returned
+     *   as-is.
+     * - Unknown or unsupported targets resolve to `undefined`.
+     *
+     * @param {Object} ctx
+     *   Free-form execution context used for resolution.
+     *   Common fields include:
+     *     - job
+     *     - ticket
+     *     - buffer
+     *     - env
+     *
+     * @param {string} target
+     *   Target expression string to evaluate (e.g. `"job:id"`, `"config:name"`,
+     *   `"find:.title"`).
+     *
+     * @returns {*}
+     *   The resolved value of the target expression, or `undefined` if the target
+     *   cannot be resolved.
+     */
+    eval(ctx, target) {
+	const parse = this.parse(ctx, target);
+	return this.evalParse(parse);
+    }
+    
+
+    /**
+     * Evaluate a parsed target result into a concrete runtime value.
+     *
+     * `evalParse` takes the output of `parse(ctx, target)` and resolves it to
+     * its final value.
+     *
+     * Evaluation rules:
+     * - If the input is a target reference object of the form `{ src, prop }`:
+     *     - If `src` is a DOM element, the value is resolved via
+     *       `lib.dom.get(src, prop)`
+     *     - Otherwise, the value is resolved via `lib.hash.get(src, prop)`
+     * - If the input is a DOM element, it is returned as-is
+     * - If the input is a scalar value, it is returned unchanged
+     * - If the input is `undefined` or `null`, `undefined` is returned
+     *
+     * This method performs no parsing and no validation. It assumes the parsed
+     * input is well-formed and deterministic.
+     *
+     * @param {*} parse
+     *   Parsed target returned from `parse(ctx, target)`. This may be:
+     *     - a target reference object `{ src, prop }`
+     *     - a DOM element
+     *     - a scalar value
+     *     - `undefined`
+     *
+     * @returns {*}
+     *   The resolved runtime value, or the original input if no evaluation
+     *   is required.
+     */
+    evalParse(parse) {
+	const lib = this.lib;
+
+	if (parse == null) return undefined;
+	if (!lib.utils.baseType(parse, "object")) return parse;
+	if (lib.dom.is(parse)) return parse;
+
+	const src  = lib.hash.get(parse, "src");
+	const prop = lib.hash.get(parse, "prop");
+
+	// Not a TargetRef → return as-is
+	if (src === undefined || src === null) return parse;
+
+	// No property specified → return source
+	if (prop == null || prop === "") return src;
+
+	return lib.dom.is(src)
+            ? lib.dom.get(src, prop)
+            : lib.hash.get(src, prop);
+    }
+
+    /**
+     * Parse a compact v098-style op list into normalized op records.
+     *
+     * Supported input items:
+     * - Object: passed through unchanged (assumed already normalized)
+     * - String:
+     *    - "op"           -> { op:"op", args:[], raw:"op" }
+     *    - "op:a,b,c"     -> { op:"op", args:["a","b","c"], raw:"op:a,b,c" }
+     *
+     * Notes:
+     * - This is a compatibility parser intended for v1 bridging.
+     * - Malformed items are ignored unless an `err` handler is provided.
+     * - This function does NOT evaluate expressions; it only tokenizes.
+     *
+     * @param {*} input
+     *   Array-like, string, or mixed list of entries.
+     *
+     * @param {Function} [err]
+     *   Optional error callback invoked as err(reason, { item, index }).
+     *
+     * @returns {Array<Object>}
+     *   Normalized list of op records / objects.
+     */
+    parseList(input, err) {
+	const lib = this.lib;
+
+	// copy + normalize to array
+	const src = lib.array.to(lib.utils.deepCopy(input), CONSTANTS.ARR_TO_OPTS);
+	const out = [];
+
+	const onErr = lib.func.get(err);
+
+	for (let i = 0; i < src.length; i++) {
+            const item = src[i];
+
+            // pass-through object (already normalized)
+            if (lib.hash.is(item)) {
+		out.push(item);
+		continue;
+            }
+
+            // string shorthand: "op" or "op:a,b,c"
+            if (lib.str.is(item)) {
+		const raw = item;
+
+		const idx = raw.indexOf(":");
+		if (idx === -1) {
+                    out.push({ op: raw, args: [], raw });
+                    continue;
+		}
+
+		const op = raw.substr(0, idx);
+		const rem = raw.substr(idx + 1);
+
+		const args = lib.array.to(rem, { split: /,/, trim: true });
+		out.push({ op, args, raw });
+		continue;
+            }
+
+            // unknown item type
+            if (onErr) onErr("invalid_item", { item, index: i });
+	}
+
+	return out;
+    }
+
+    
+    /**
+     * Materialize interpolations within an arbitrary value using the provided context.
+     *
+     * This is a convenience wrapper that:
+     *  1) parses `${...}` tokens within strings (deep scan), and
+     *  2) evaluates them against `ctx` using this resolver’s target evaluation (`eval`).
+     *
+     * Encapsulated expressions like `"${job:id}"` materialize to the raw underlying value.
+     * Template expressions like `"id=${job:id}"` materialize to strings.
+     *
+     * @param {Object} ctx
+     *   Free-form execution context used for evaluation (job, ticket, env, etc).
+     *
+     * @param {*} value
+     *   Any value (object/array/string/scalar) that may contain `${...}` tokens.
+     *
+     * @returns {*}
+     *   A structurally equivalent value with all `${...}` expressions materialized.
+     */
+    materialize(ctx, value) {
+	const parsed = this.interp.parseExpressions(value);
+
+	return this.interp.evalCompiled(parsed, (expr) => {
+            // `expr` is the inner string from `${...}` without the braces
+            return this.eval(ctx, expr);
+	});
+    }
+}
+
+export default ExpressionResolver;
+
+
+# --- end: class/expressions/ExpressionResolver.js ---
+
+
+
+# --- begin: class/expressions/Interpolator.js ---
+
+
+/**
+ * Deep-parses an arbitrary value and precompiles interpolatable expressions.
+ *
+ * This function walks any JavaScript value (object, array, or scalar) and
+ * detects strings containing `${...}` expression tokens. It does NOT resolve
+ * expressions; it only classifies and prepares them for later evaluation.
+ *
+ * The scan is deep and structural:
+ * - Objects are traversed by key
+ * - Arrays are traversed by index
+ * - Non-string scalars are returned unchanged
+ *
+ * Expression rules:
+ * 1) Encapsulated expression
+ *    A string that consists of exactly ONE expression token and nothing else:
+ *
+ *      "${foo}"
+ *
+ *    This is treated as a *value expression*.
+ *    At runtime, evaluation MUST return the raw resolved value
+ *    (number, object, DOM node, etc.), NOT a string.
+ *
+ * 2) Template expression
+ *    A string that contains one or more expression tokens mixed with
+ *    surrounding text:
+ *
+ *      "${foo} - ${bar}"
+ *      "hello ${name}"
+ *
+ *    This is treated as a *template expression*.
+ *    At runtime, evaluation MUST return a string produced by interpolation.
+ *
+ * 3) Non-expression string
+ *    Strings with no `${...}` tokens are returned unchanged.
+ *
+ * Output contract:
+ * - The returned structure mirrors the input structure exactly.
+ * - Parsed expressions may be replaced with a compiled descriptor object
+ *   suitable for fast runtime evaluation.
+ * - No resolution, evaluation, or side effects occur during parsing.
+ *
+ * Purpose:
+ * - Allow expressions to be parsed once at job/config creation time
+ * - Avoid repeated token scanning during execution
+ * - Preserve correct value vs string semantics at runtime
+ *
+ * @param {*} input
+ *   Any JavaScript value: object, array, string, number, boolean, null, etc.
+ *
+ * @returns {*}
+ *   A deep-cloned or structurally equivalent value with interpolatable
+ *   expressions precompiled. Non-expression values are returned as-is.
+ */
+
+
+const EXPR_RE = /\$\{([^}]+)\}/g;
+const FULL_EXPR_RE = /^\$\{([^}]+)\}$/;
+
+
+/**
+ * Deep-parse interpolatable expressions inside an arbitrary value.
+ *
+ * @param {*} input
+ * @returns {*}
+ */
+export function parseExpressions(input) {
+    // fast exits
+    if (input == null) return input;
+
+    const t = typeof input;
+
+    if (t === "string") {
+        return parseStringExpr(input);
+    }
+
+    if (Array.isArray(input)) {
+        let out = new Array(input.length);
+        for (let i = 0; i < input.length; i++) {
+	    out[i] = parseExpressions(input[i]);
+        }
+        return out;
+    }
+
+    if (t === "object") {
+        let out = {};
+        for (const k in input) {
+	    if (!Object.prototype.hasOwnProperty.call(input, k)) continue;
+	    out[k] = parseExpressions(input[k]);
+        }
+        return out;
+    }
+
+    // number, boolean, function, symbol, etc
+    return input;
+}
+
+/**
+ * Parse a single string and detect expression semantics.
+ *
+ * @param {string} str
+ * @returns {string|object}
+ */
+function parseStringExpr(str) {
+    // quick reject
+    if (str.indexOf("${") === -1) {
+        return str;
+    }
+
+    // case 1: fully encapsulated value expression
+    const full = FULL_EXPR_RE.exec(str);
+    if (full) {
+        return {
+	    __expr: true,
+	    kind: "value",
+	    raw: str,
+	    parts: [
+                { expr: full[1].trim() }
+	    ]
+        };
+    }
+
+    // case 2: template expression
+    let parts = [];
+    let lastIndex = 0;
+    let match;
+
+    EXPR_RE.lastIndex = 0;
+
+    while ((match = EXPR_RE.exec(str))) {
+        const idx = match.index;
+
+        if (idx > lastIndex) {
+	    parts.push(str.slice(lastIndex, idx));
+        }
+
+        parts.push({ expr: match[1].trim() });
+        lastIndex = EXPR_RE.lastIndex;
+    }
+
+    if (lastIndex < str.length) {
+        parts.push(str.slice(lastIndex));
+    }
+
+    return {
+        __expr: true,
+        kind: "template",
+        raw: str,
+        parts
+    };
+}
+
+
+export function evalCompiled(node, resolveExpr) {
+  if (node == null) return node;
+
+  // expression descriptor
+  if (node && typeof node === "object" && node.__expr === true) {
+    if (node.kind === "value") {
+      // raw value return (not string)
+      return resolveExpr(node.parts[0].expr);
+    }
+    // template => string
+    return node.parts.map(p => (
+      typeof p === "string" ? p : String(resolveExpr(p.expr))
+    )).join("");
+  }
+
+  if (Array.isArray(node)) return node.map(x => evalCompiled(x, resolveExpr));
+
+  if (typeof node === "object") {
+    const out = {};
+    for (const k in node) {
+      if (!Object.prototype.hasOwnProperty.call(node, k)) continue;
+      out[k] = evalCompiled(node[k], resolveExpr);
+    }
+    return out;
+  }
+
+  return node;
+}
+/*
+// inside VM step, before calling the op
+const resolvedArgs = evalCompiled(v.args, (expr) => {
+  // this is where ExpressionResolver does the real work
+  return at.expr.eval(expr, { job, ticket, inputs, ctx, trigger });
+});
+
+// then call builtin
+res = await builtin({
+  job,
+  args: resolvedArgs,
+  ticket,
+  inputs,
+  ctx,
+  trigger,
+  step: v.stepRec,
+});
+*/
+export const WALKER = {parseExpressions, evalCompiled} ;
+
+export default WALKER;
+
+
+# --- end: class/expressions/Interpolator.js ---
 
 
 
@@ -4902,7 +5955,7 @@ export default Controller;
 import Report from './Report.js';
 // leave all constants presently as local, have to decide where to organize them later. (there are 2 constants files at moment.
 import { ARR_TO_OPTS, DOM_ATTRS_RUNTIME_INPUTS, DOM_CONFIG_AT, MERGE_OPTS_V1 } from '../../../constants.js';
-
+const DEFAULT_EVAL_TYPE = "text/at-eval";
 export default class DomConfigSource {
     /**
      * @param {Object} args
@@ -4914,19 +5967,24 @@ export default class DomConfigSource {
      *     Optional expression/target resolver used to resolve config-at targets.
      *     (Injected to avoid circular dependencies with Job/ActiveTags.)
      */
-    constructor({ lib, env = {}, expr = null,strict = false } = {}) {
+    constructor({ lib, env = {}, expr = null,strict = false,job,evalEnabled = false, evalType = [DEFAULT_EVAL_TYPE] , importEnabled = false, importPath = [] } = {}) {
         if (!lib) throw new Error("DomConfigSource: missing lib");
 	if (!expr) throw new Error("DomConfigSource: missing expr");
         this.lib = lib;
         this.env = env;
         this.expr = expr;
 	this.strict = lib.utils.isEmpty(strict) ? false : strict;
+	this.job = job;
+	this.allowEvalConfig = lib.bool.yes(evalEnabled);
+	this.allowEvalTypes  = lib.bool.no(evalType) ? false : lib.array.to(evalType);
+	this.allowImportConfig = lib.bool.yes(importEnabled) ;
+	this.allowImportPath   = lib.array.to(importPath); 
     }
     static emptyReadShape(report){
 	report = (report)?report.export() :  Report.emptyExportShape();
 	return { report, dataSet:{}, attrs: {}, at : [], config: {}, output: {} };
     }
-    read(source,{config_at = DOM_CONFIG_AT, defaultConfig = {}} = {}){
+    async read(source,{config_at = DOM_CONFIG_AT, defaultConfig = {}} = {}){
 	const lib = this.lib;
 	const report = new Report({lib});
 	//will assume for now that report will set ok=false  if errors.
@@ -4935,7 +5993,7 @@ export default class DomConfigSource {
         const dataSet = this._readDataset({report, source});
         const attrs   = this._readAttrs({report,source});
 	const at      = this._getConfigAt({report, ds:dataSet, list:config_at});
-	const config  = this._resolveConfig({report, list:at,source});
+	const config  = await this._resolveConfig({report, list:at,source});
 	// attrs are runtime inputs, not config; intentionally not merged
 	const output  = lib.hash.mergeMany([defaultConfig, config, dataSet],MERGE_OPTS_V1);
 	return { report: report.export(), dataSet, attrs, at, config, output };
@@ -5090,7 +6148,7 @@ export default class DomConfigSource {
      * @returns {Object}
      *     Merged config hash snapshot.
      */
-    _resolveConfig({ report, list, source } = {}) {
+    async _resolveConfig({ report, list, source } = {}) {
 	const lib = this.lib;
 
 	// 1) Nothing to resolve
@@ -5104,8 +6162,7 @@ export default class DomConfigSource {
             const ref = lib.str.to(list[i], true).trim();
             if (!ref) continue;
 
-            const conf = this._resolveConfigTarget({ report, ref, source });
-
+            const conf = await this._resolveConfigTarget({ report, ref, source });
             if (!lib.hash.is(conf)) {
 		this._error(
                     report,
@@ -5148,7 +6205,7 @@ export default class DomConfigSource {
      * @returns {Object}
      *     Resolved config hash (plain object), or {} on error (non-strict).
      */
-    _resolveConfigTarget({ report, ref, source } = {}) {
+    async _resolveConfigTarget({ report, ref, source } = {}) {
 	const lib = this.lib;
 
 	ref = lib.str.to(ref, true).trim();
@@ -5158,24 +6215,49 @@ export default class DomConfigSource {
 	}
 
 	// Interpolate reference
-	const scheme = this.expr.interpScheme({ e: source }, undefined);
-	ref = lib.str.interp(ref, scheme);
 
+
+	//console.log('ref' , ref);
+	//const scheme = this.expr.interpScheme({ e: source }, undefined);
+	//ref = lib.str.interp(ref, scheme);
+	//console.log('after', ref);
 	// Parse the target expression
 	let info;
-	try {
-            info = this.expr.parseTarget({ e: source }, ref);
-	} catch (err) {
-            this._error(
-		report,
-		"configure",
-		"CONFIG_PARSE_TARGET_FAILED",
-		`Failed to parse config reference '${ref}'`,
-		{ error: err, ref }
-            );
-            return {};
-	}
+	//console.warn(ref);
+	let imp = null;
 
+	try {
+	    imp = this._maybeImport(ref);
+
+	    if (imp) {
+		info = await this._importConfig(imp);
+	    } else {
+		info = this.expr.eval({ job: this.job }, ref);
+	    }
+	} catch (err) {
+	    if (imp) {
+		// import path failed
+		this._error(
+		    report,
+		    "configure",
+		    "CONFIG_IMPORT_FAILED",
+		    `Failed to import config reference '${ref}'`,
+		    { error: err, ref, imp }
+		);
+	    } else {
+		// expression / local reference failed
+		this._error(
+		    report,
+		    "configure",
+		    "CONFIG_PARSE_TARGET_FAILED",
+		    `Failed to parse config reference '${ref}'`,
+		    { error: err, ref }
+		);
+	    }
+
+	    return {};
+	}
+	//console.warn(info);
 	// Evaluate into a value
 	let val = info;
 
@@ -5189,11 +6271,25 @@ export default class DomConfigSource {
 
 	// DOM source => parse JSON from text
 	if (lib.dom.is(val)) {
-            const text =
-		  lib.str.to(val.text, true) ||
-		  lib.str.to(val.textContent, true) ||
-		  lib.str.to(val.innerText, true) ||
-		  "";
+
+	    let text = "";
+
+	    // Prefer inline JSON if present
+	    const inline =
+		  lib.str.to(val.textContent, true).trim() ||
+		  lib.str.to(val.innerText, true).trim();
+	    text = inline;
+	    
+	    // If inline is empty, try external source
+	    if (lib.utils.isEmpty(inline)) {
+		const src = val.getAttribute("data-src") || val.src;
+		if (src) {
+		    text = await fetch(src).then(r => r.text());
+		}
+	    } else {
+		text = inline;
+	    }
+	    
 
             if (!text.trim()) {
 		this._error(
@@ -5207,15 +6303,21 @@ export default class DomConfigSource {
             }
 
             try {
-		val = JSON.parse(text);
+		//$FIXUP
+		val = this._resolveDomConfigNode(val, text, { source, ref });
+		//console.warn(val);
+		//val = JSON.parse(text);
             } catch (err) {
+		const msg = (err && err.message) ? String(err.message) : "Config parse failed";
+
 		this._error(
-                    report,
-                    "configure",
-                    "CONFIG_JSON_PARSE_FAILED",
-                    `Invalid JSON in config payload for '${ref}'`,
-                    { error: err, ref }
+		    report,
+		    "configure",
+		    "CONFIG_PAYLOAD_PARSE_FAILED",
+		    `Config payload failed for '${ref}': ${msg}`,
+		    { error: err, ref, type: val?.type, tagName: val?.tagName }
 		);
+
 		return {};
             }
 	}
@@ -5235,6 +6337,223 @@ export default class DomConfigSource {
 	return val;
     }
 
+
+    async _importConfig(imp) {
+	this._importCache ||= new Map();
+
+	// Resolve relative imports against the DOCUMENT, not the module file.
+	const docBase =
+              this.importBaseUrl ||
+              this.job?.e?.ownerDocument?.baseURI ||
+              (typeof document !== "undefined" ? document.baseURI : "");
+
+	const resolvedUrl = docBase
+              ? new URL(imp.url, docBase).href
+              : imp.url;
+
+	const key = `${resolvedUrl}#${imp.exportName || ""}`;
+	if (this._importCache.has(key)) return this._importCache.get(key);
+
+	const p = (async () => {
+            const mod = await import(/* @vite-ignore */ resolvedUrl);
+            return imp.exportName ? mod[imp.exportName] : (mod.default ?? mod);
+	})();
+
+	this._importCache.set(key, p);
+	return p;
+    }
+    
+    async d_importConfig(imp) {
+	this._importCache ||= new Map();
+
+	const key = `${imp.url}#${imp.exportName || ""}`;
+	if (this._importCache.has(key)) return this._importCache.get(key);
+
+	const p = (async () => {
+            const mod = await import(/* @vite-ignore */ imp.url);
+            return imp.exportName ? mod[imp.exportName] : (mod.default ?? mod);
+	})();
+
+	this._importCache.set(key, p);
+	return p;
+    }
+
+    _maybeImport(ref) {
+	const lib = this.lib;
+
+	// Gate: imports are privileged.
+	if (!this.allowImportConfig) {
+            throw Object.assign(
+		new Error(`Import config disabled for '${ref}'`),
+		{ code: "CONFIG_IMPORT_DISABLED" }
+            );
+	}
+
+	if (typeof ref !== "string") return null;
+
+	const m = ref.match(/^\s*import\s*:\s*(.+?)\s*$/i);
+	if (!m) return null;
+
+	const spec = m[1];
+	const [rawUrl, rawExport] = spec.split("#", 2);
+
+	const url = (rawUrl || "").trim();
+	const exportName = rawExport ? rawExport.trim() : null;
+
+	if (!url) {
+            throw Object.assign(
+		new Error(`Empty import specifier in '${ref}'`),
+		{ code: "CONFIG_IMPORT_EMPTY" }
+            );
+	}
+
+	// Classify URL-ish type
+	const t = lib.utils.linkType(url); // "pathAbs" | "pathRel" | "urlAbs" | "urlNet" | "resource" | ...
+
+	// Block special schemes by default (data:, blob:, file:, chrome-extension:, etc.)
+	if (t === "resource") {
+            throw Object.assign(
+		new Error(`Import blocked (resource scheme): '${url}'`),
+		{ code: "CONFIG_IMPORT_RESOURCE_BLOCKED", url, linkType: t }
+            );
+	}
+
+	// Normalize allow list (pathname prefixes)
+	const allowList = (lib.array.filterStrings
+			   ? lib.array.filterStrings(this.allowImportPath)
+			   : lib.array.to(this.allowImportPath).filter(s => typeof s === "string" && s.trim())
+			  ).map(s => String(s).trim()).filter(Boolean);
+
+	// No allow list => local-only (pathAbs/pathRel only)
+	if (!allowList.length) {
+            const isLocal = (t === "pathAbs" || t === "pathRel");
+            if (!isLocal) {
+		throw Object.assign(
+                    new Error(`Import blocked (local-only mode): '${url}'`),
+                    { code: "CONFIG_IMPORT_PATH_BLOCKED", url, linkType: t }
+		);
+            }
+            return { url, exportName };
+	}
+
+	// Allow local always
+	if (t === "pathAbs" || t === "pathRel") {
+            return { url, exportName };
+	}
+
+	// External (urlAbs/urlNet): require allowList pathname prefix match
+	const base = this.env?.baseURI || this.env?.document?.baseURI || "";
+
+	let resolved;
+	try {
+            resolved = new URL(url, base || undefined);
+	} catch (err) {
+            throw Object.assign(
+		new Error(`Invalid import URL '${url}' in '${ref}'`),
+		{ code: "CONFIG_IMPORT_URL_INVALID", url, error: err }
+            );
+	}
+
+	if (!allowList.some(prefix => resolved.pathname.startsWith(prefix))) {
+            throw Object.assign(
+		new Error(`Import blocked by importPath: '${resolved.pathname}'`),
+		{
+                    code: "CONFIG_IMPORT_PATH_BLOCKED",
+                    url,
+                    pathname: resolved.pathname,
+                    allowImportPath: allowList.slice(),
+                    linkType: t,
+		}
+            );
+	}
+
+	return { url, exportName };
+    }
+    
+    _oldmaybeImport(ref) {
+	// examples:
+	//   "import:./conf/jumjum.js"
+	//   "import:./conf/jumjum.js#default"
+	//   "import:./conf/jumjum.js#namedExport"
+
+	if (!this.allowImportConfig) {
+	    throw Object.assign(new Error(`Import config disabled for '${ref}'`), { code: "CONFIG_IMPORT_DISABLED" });
+	}
+
+	if (typeof ref !== "string") return null;
+
+	const m = ref.match(/^\s*import\s*:\s*(.+?)\s*$/i);
+	if (!m) return null;
+
+	const spec = m[1];
+	const [url, exportName] = spec.split("#", 2);
+
+	return {
+	    url: (url || "").trim(),
+	    exportName: exportName ? exportName.trim() : null,
+	};
+    }
+    
+    /**
+     * Resolve a DOM config source node into a config object.
+     * Supports JSON by default and gated eval for trusted SCRIPT sources.
+     *
+     * Assumes class properties:
+     *  - this.allowEvalConfig : boolean
+     *  - this.allowEvalTypes       : array of allowed script types (exact match)
+     */
+    _resolveDomConfigNode(val, text, ctx = {}) {
+	const lib = this.lib;
+	//console.warn(val,text,ctx);
+	// Default: JSON only
+	const parseJSON = () => lib.json
+              ? lib.json.parse(text)
+              : JSON.parse(text);
+
+	// Eval disabled → JSON only
+	if (!this.allowEvalConfig || !this.allowEvalTypes) {
+            return parseJSON();
+	}
+
+	// SCRIPT-only eval
+	if (!val || String(val.tagName).toUpperCase() !== "SCRIPT") {
+            return parseJSON();
+	}
+
+	// Exact type match (no substring hacks)
+	const allowedTypes =
+              lib.array.len(this.allowEvalTypes) 
+              ? this.allowEvalTypes
+              : [DEFAULT_EVAL_TYPE];
+
+	const type = lib.str.to(val.type ,true).trim();
+	if (!allowedTypes.includes(type)) {
+            return parseJSON();
+	}
+
+	// ---- EVAL PATH (explicit, gated, scoped) ----
+	// NOTE: requires CSP 'unsafe-eval'
+	const scope = {
+            lib,
+            job: this.job,
+            source: ctx.source,
+            ref: ctx.ref,
+	};
+
+	const fn = new Function(
+            "scope",
+            `"use strict"; return (${text});`
+	);
+
+	const out = fn(scope);
+
+	if (!out || typeof out !== "object") {
+            throw new Error("Eval config source must return an object");
+	}
+
+	return out;
+    }
+    
     /**
      * Create a structured Error with standard metadata.
      *
@@ -5462,7 +6781,7 @@ export class JobConfig {
 	
 	const lib = opts.lib;
 	this.job = opts.job;
-	
+	this.env = opts.env; //root , document etc
 	// core deps (config needs these)
 	this.lib  = lib;
 	this.expr = opts.expr;
@@ -5471,8 +6790,9 @@ export class JobConfig {
 	this.e = opts.e;
 
 	// persistent per-job workspace root (config/runtime shared)
-	this.ws = lib.hash.to(opts.ws);
-
+	//this.ws = lib.hash.to(opts.ws);
+	//this.allowedEvalTypes = opts.allowedEvalTypes;
+	//this.allowEvalConfig  = opts.allowEvalConfig;
 	// ---- configuration artifacts (kept tight) ----
 
 	// snapshots from DOM/config resolution
@@ -5482,15 +6802,10 @@ export class JobConfig {
 	this.schemaReport = null; // exported Report
 	this.schema       = null; // exported groomed schema
 
-	// runner-facing buckets (mirrors schema.*)
-	this.requests  = {};
-	this.intervals = {};
-	this.pipelines = {};
 
 	// legacy compatibility (keep for now; can delete once runner is finalized)
-	this.stack = {};
-	this.artifacts = null;
-	this.artifactsBuilt = false;
+	//this.artifacts = null;
+	//this.artifactsBuilt = false;
 	this.error = null;
 	this.status = JOB_CONFIG_STATUS.INIT;
     }
@@ -5551,13 +6866,26 @@ export class JobConfig {
      *   - this.artifacts (via _deriveArtifacts)
      *   - this.status
      */    
-    build(opts = {}){
+    async build(opts = {}){
 	//---- read dom ----
-	const domService = new DomConfigSource({lib:this.lib,expr:this.expr});
-	const resp = domService.read(this.e);
+	opts = this.lib.hash.to(opts);
+
+	const domService = new DomConfigSource(
+	    {
+		...opts, env:this.env,
+		lib:this.lib,expr:this.expr,job:this.job,
+	    });
+	const resp = await domService.read(this.e);
 	this.inputs = resp;
-	if(!resp.report.ok) 
+	//immediately try to acquire a name
+	this.name = lib.hash.getUntilNotEmpty(resp, "output.name dataset.name");
+	if(!resp.report.ok) {
+	    this.error = resp.report;
+	    //console.error(this.error.errors[0]);
 	    return this.status = JOB_CONFIG_STATUS.ERROR_DOM;
+	}
+
+
 
 	// --- coerce a schema from it ----
 	const schemaService = new Schema({lib:this.lib,expr:this.expr});
@@ -5565,12 +6893,14 @@ export class JobConfig {
 	this.schemaReport = schemaResp.report;
 	this.schema   = schemaResp.schema;
 
-	if (!this.schemaReport.ok) 
+	if (!this.schemaReport.ok) {
+	    this.error = this.schemaReport;
+	    //console.error(this.error.errors[0]);
 	    return  this.status   = JOB_CONFIG_STATUS.ERROR_SCHEMA;
-
+	}
 	// ---- finalize ----
 	this.name     =  this.lib.utils.isEmpty(this.schema.name) ? 'unnamed job' : this.schema.name;
-	this._deriveArtifacts(opts);
+	//this._deriveArtifacts(opts);
 
 	return this.status   = JOB_CONFIG_STATUS.READY;	
     }
@@ -5926,14 +7256,13 @@ export const DEFAULT_INTERVAL_SHAPE = {
     pipeline: "initial",// default pipeline name (resolved/validated later)
 
     // runtime behavior
-    onError: "stop",    // "stop" | "continue"
+    error: "stop",    // "stop" | "continue"
     allowOverlap: false // allow a new run while the previous is still running
 };
 
 export const DEFAULT_PIPELINE_SHAPE = {
-    confirm: { mode: "none" }, // normalized confirm object
     run: [],                   // ops list (string|array coerced later)
-    onError: []                // ops list (string|array coerced later)
+    error: []                // ops list (string|array coerced later)
 };
 
 export const DEFAULT_EVENT_SHAPE = {
@@ -6037,7 +7366,7 @@ export class DSL {
      */
     _compilePipelineDSL(report, output) {
 	const lib = this.lib;
-	console.log('here', lib.utils.deepCopy(output) );
+	//console.log('here', lib.utils.deepCopy(output) );
 	output = lib.hash.to(output);
 
 	const pipelines = lib.hash.get(output, "pipelines");
@@ -6063,15 +7392,14 @@ export class DSL {
     /**
      * Compile one pipeline item.
      *
-     * Stub for now:
-     * - In a later pass, this will parse `p.run` / `p.onError` entries from raw
-     *   strings into executable descriptors (AST), validate syntax (quotes closed,
-     *   etc.), and optionally validate callable names.
+     * Current behavior (v1):
+     * - Coerces `p.run` and `p.error` into canonical list form using `expr.parseList`.
+     * - Does not build AST descriptors yet.
      *
      * Expected future behavior:
-     * - p.runAst     = Array<Descriptor>
-     * - p.onErrorAst = Array<Descriptor>
-     * - keep p.run/p.onError as raw tokens for debugging/round-tripping
+     * - p.runAst   = Array<Descriptor>
+     * - p.errorAst = Array<Descriptor>
+     * - Optionally preserve raw user values for debugging/round-tripping.
      */
     _compilePipelineDSLItem(report, p, ctx = {}) {
 	const lib = this.lib;
@@ -6079,10 +7407,10 @@ export class DSL {
 	p = lib.hash.to(p);
 	ctx = lib.hash.to(ctx);
 
-	console.log(`scrubbing pipeline ${ctx.key}`);
+	//console.log(`scrubbing pipeline ${ctx.key}`);
 	
 	p.run     = this.expr.parseList(p.run);
-	p.onError = this.expr.parseList(p.onError);
+	p.error = this.expr.parseList(p.error);
 
 	return p;
     }
@@ -6097,6 +7425,966 @@ export default DSL;
 
 
 # --- begin: class/job/config/schema/Master.js ---
+
+// class/schema/Master.js
+/**
+ * Master (Schema Compiler Workspace)
+ * ---------------------------------
+ * Schema compiler for ActiveTags configuration.
+ *
+ * Purpose:
+ * - Accept an arbitrary "raw" ActiveTags config object (often derived from JSON,
+ *   data-* attributes, and external merges).
+ * - Coerce and normalize it into a groomed, runtime-ready schema.
+ * - Emit a structured compilation report (warnings/errors) without throwing for
+ *   user config mistakes.
+ *
+ * Public API:
+ * - `compile(input) -> { report, schema }`
+ *     - `report` is a JSON-safe object: `{ ok:boolean, errors:Array, warnings:Array }`
+ *     - `schema` is the groomed runtime schema (safe for consumers to read and store).
+ *
+ * Design posture:
+ * - Master is a *compiler workspace*, not a long-lived state container.
+ * - Internal normalization may freely create intermediate artifacts on the
+ *   local workspace object, but the exported schema is groomed and stable.
+ * - Coercion is preferred over rejection: invalid/unknown values are normalized
+ *   to safe defaults and recorded as warnings where appropriate.
+ *
+ * Normalization strategy (v1):
+ * - Basics: `name`, `require`, `enabled`, `autorun`, `env`
+ *   (Behavioral concerns such as confirmation are expressed explicitly via
+ *   pipeline operations, not top-level schema keys.)
+ *
+ * - Buckets: normalize 3 "block" families using a shared procedure:
+ *     - Requests:  `request` + `requests` + `request_shape`  -> `requests` bucket
+ *         - NOTE: the `requests` bucket is reserved for upcoming transport /
+ *           request-layer expansion and is minimally normalized in v1.
+ *     - Intervals: `interval` + `intervals` + `interval_shape` -> `intervals` bucket
+ *     - Pipelines: `pipeline` + `pipelines` + `pipeline_shape` -> `pipelines` bucket
+ *
+ * - Each bucket item is produced as:
+ *     `effectiveItem = merge(shape, item)`
+ *   and then passed through an item normalizer.
+ *
+ * LLM integration notes (reset-proofing):
+ * - Do NOT read or depend on internal workspace artifacts (e.g. `_effective*`)
+ *   outside of this module. Only the returned `{ schema, report }` is stable.
+ * - Diagnostics must be written to the provided Report instance; do not throw
+ *   for user-config errors except for missing `lib` (programmer error).
+ * - All coercion helpers are lib-native:
+ *     - `lib.hash.to`, `lib.hash.merge`, `lib.hash.keys`
+ *     - `lib.array.to`, `lib.bool.yes/no`, `lib.utils.baseType/isEmpty`
+ *
+ * Versioning:
+ * - This module defines Schema Compiler behavior for ActiveTags v1.
+ */
+import CONSTANTS from './constants.js';
+import Report    from '../Report.js';
+import DSL       from './DSL.js';
+export default class Master {
+    /**
+     * Create a Master schema compiler workspace.
+     *
+     * Notes:
+     * - This constructor does NOT compile, normalize, or validate user input.
+     * - Master instances are lightweight and intended to be short-lived.
+     * - All meaningful work happens in `compile(input)`.
+     *
+     * @param {Object} args
+     *     Construction arguments.
+     *
+     * @param {Object} args.lib
+     *     Required m7 lib instance providing hash/array/bool/utils helpers.
+     *     Absence of `lib` is considered a programmer error.
+     *
+     * @param {Object} [args.env]
+     *     Optional root environment context.
+     *     Typically represents the document or root execution environment
+     *     (e.g. `{ document, window, root }`), but is not required to be browser-bound.
+     *     Reserved for future use (feature flags, document hooks, runtime bridges).
+     *     Not currently consumed by the schema compiler in v1.
+     *
+     * @throws {Error}
+     *     If `args.lib` is not provided.
+     */
+    constructor({ lib,  expr, env = {} }) {
+	if (!lib) throw new Error("Master: missing lib");
+	if(!expr) throw new Error("Master: missing expr");
+	this.lib = lib;
+	this.env = env;
+	this.expr = expr;
+	this.DSL = new DSL({lib,expr});
+    }
+
+    // ---------- public API ----------
+    /**
+     * Compile a raw ActiveTags configuration into a normalized runtime schema.
+     *
+     * Contract:
+     * - This is the primary public entry point of the Master compiler.
+     * - The function NEVER throws for user configuration errors.
+     * - All diagnostics are recorded in the returned report object.
+     *
+     * Semantics:
+     * - Input is coerced to a hash before processing.
+     * - Normalization proceeds in deterministic phases:
+     *     1) Basics (name, require, enabled, autorun, env)
+     *     2) Block normalization (requests, intervals, pipelines)
+     * - All intermediate artifacts remain internal and are not exposed.
+     *
+     * @param {*} input
+     *     Raw user configuration.
+     *     Typically derived from JSON, data-* attributes, or merged sources.
+     *
+     * @returns {Object}
+     *     Compilation result.
+     *
+     * @returns {Object} return.report
+     *     Exported compilation report:
+     *     `{ ok:boolean, errors:Array, warnings:Array }`
+     *
+     * @returns {Object} return.schema
+     *     Normalized, groomed runtime schema.
+     *     Safe for consumers to read, store, and pass to runtime systems.
+     *
+     * Notes:
+     * - Consumers MUST treat the returned schema as read-only.
+     * - Behavioral concerns (e.g. confirmation) are expressed via pipelines,
+     *   not top-level schema keys.
+     * - Validation beyond basic normalization may occur in later phases.
+     */
+    compile(input){
+        const output = this.lib.hash.to(input);
+	const report = new Report({ lib: this.lib });
+        this._normalizeBasics(report, output);    // name, selector, require, enable.autorun, confirm, etc.
+        this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.REQUEST);
+	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.INTERVAL);
+	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.PIPELINE);
+	this._normalizeBlock(report, output, CONSTANTS.BLOCK_NORMALIZERS.EVENT);
+
+	//work on the final shape rather than futz with artifacts
+	const normalized =  this._exportShape(output);
+
+	this.DSL._compilePipelineDSL(report, normalized);
+        const rv =  {report:report.export(), schema: normalized };
+	return rv;
+	
+    }
+
+    /**
+     * Produce the final exported runtime schema.
+     *
+     * Internal:
+     * - Selects and grooms only consumer-relevant fields from the internal
+     *   normalization workspace.
+     * - Excludes intermediate and construction-only artifacts (raw input, shapes,
+     *   temporary buckets, reports, etc.).
+     *
+     * Semantics:
+     * - Buckets (`requests`, `intervals`, `pipelines`, `events`) are taken from their
+     *   `_effective*` counterparts produced during normalization.
+     * - Missing buckets are normalized to empty hashes (plain objects).
+     * - Returned object is the canonical runtime schema for downstream consumers.
+     *
+     * Invariants:
+     * - The returned schema is structurally stable and JSON-safe.
+     * - Consumers must treat the schema as read-only.
+     *
+     * @param {Object} s
+     *     Internal normalization workspace object.
+     *
+     * @returns {Object}
+     *     Groomed runtime schema.
+     *
+     * @private
+     */
+    _exportShape(s) {
+        const lib = this.lib;
+
+        const out = {
+            name      : s.name,
+            require   : s.require,
+
+            enabled   : s.enabled,
+	    autorun   : s.autorun,
+	    
+            env       : s.env,
+
+            requests  : lib.hash.to(s._effectiveRequests),
+            intervals : lib.hash.to(s._effectiveIntervals),
+	    pipelines : lib.hash.to(s._effectivePipelines),
+	    events    : lib.hash.to(s._effectiveEvents)
+        };
+
+	return out;
+    }
+
+    
+    // ---------- phase 1: normalize ----------
+    /**
+     * Normalize top-level, non-bucket schema fields.
+     *
+     * Internal:
+     * - Handles scalar and small structural fields that do not participate
+     *   in block/bucket normalization.
+     * - Performs coercion-first normalization with warning-based diagnostics.
+     * - Never throws for user configuration errors.
+     *
+     * Fields normalized here:
+     * - `require` : string|array → array of tokens (split + trimmed)
+     * - `name`    : coerced string (convenience identifier only)
+     * - `enabled` : boolish → boolean (defaults true unless explicit "no" intent)
+     * - `autorun` : canonical autorun selector list
+     * - `env`     : object(hash) reserved for runtime user-space / root context
+     *
+     * Diagnostics:
+     * - Invalid types are coerced to safe defaults.
+     * - Non-fatal issues are recorded as warnings on the provided Report.
+     *
+     * Invariants after normalization:
+     * - `s.require` is always an array
+     * - `s.name` is always a string
+     * - `s.enabled` is boolean
+     * - `s.autorun` is an array
+     * - `s.env` is always a hash
+     *
+     * @param {Report} report
+     *     Compilation report used to record warnings.
+     *
+     * @param {Object} s
+     *     Internal normalization workspace object (mutated in place).
+     *
+     * @private
+     */
+    _normalizeBasics(report, s) {
+        const lib = this.lib;
+
+        // require: string|array -> array (split+trim)
+        if (!lib.utils.baseType(s.require, "string array") && !lib.utils.isEmpty(s.require)) {
+            report.warn("W101_REQUIRE_INVALID", "require", "require should be string|array");
+        }
+        s.require = lib.utils.baseType(s.require, "string array")
+            ? lib.array.to(s.require, { split: /\s+/, trim: true })
+            : [];
+
+        // name: string coercion
+        s.name = lib.str.to(s.name, true);
+        // enable: hash coercion
+	if (!lib.bool.ish(s.enabled)  && !lib.utils.isEmpty(s.enabled)) {
+            report.warn("W102_ENABLE_INVALID", "enabled", "enabled should be boolish or undefined");
+        }
+	s.enabled = !lib.bool.no(s.enabled) ;
+	s.autorun = this._normalizeAutorunSelector(report, s.autorun);
+
+        // env: hash coercion
+        if (!lib.hash.is(s.env) && !lib.utils.isEmpty(s.env)) {
+            report.warn("W103_ENV_INVALID", "env", "env should be object(hash)");
+        }
+        s.env = lib.hash.to(s.env);
+    }
+    
+    /**
+     * Normalize a confirm descriptor into canonical form.
+     *
+     * Status:
+     * - This helper is currently **not used** by the schema compiler.
+     * - Confirm behavior in v1 is expressed explicitly via pipeline operations
+     *   (e.g. `run: ["confirm", ...]`), not via top-level schema fields.
+     * - This function is retained for potential future schema sugar or presets.
+     *
+     * Internal:
+     * - Confirms are treated as a *policy hint*, not a strict validation target.
+     * - Most inputs originate from inline attributes and are therefore strings.
+     * - Coercion is preferred over rejection; invalid values degrade safely.
+     *
+     * Normalization rules:
+     * - `null`, `undefined`, empty values → `{ mode: 'none' }`
+     * - Boolean intent (including string intent):
+     *     - yes  → `{ mode: 'default' }`
+     *     - no   → `{ mode: 'none' }`
+     * - Non-empty string → `{ mode: 'text', message: <string> }`
+     * - Hash/object → merged with default confirm shape
+     *
+     * Diagnostics:
+     * - Unsupported types are coerced to `{ mode: 'none' }`
+     *   and recorded as a warning.
+     *
+     * Invariants after normalization:
+     * - Always returns an object
+     * - Returned object always has a `mode` field
+     * - `message` is present only for text/advanced modes
+     *
+     * @param {Report} report
+     *     Compilation report used to record warnings.
+     *
+     * @param {*} val
+     *     Raw confirm value supplied by the user.
+     *
+     * @param {string} [code="W301_CONFIRM_INVALID"]
+     *     Warning code used when the value is invalid.
+     *
+     * @param {string} [path="confirm"]
+     *     Schema path associated with the confirm value.
+     *
+     * @returns {Object}
+     *     Canonical confirm descriptor.
+     *
+     * @private
+     */
+    _normalizeConfirm(report, val, code = "W301_CONFIRM_INVALID", path = "confirm") {
+        const lib = this.lib;
+
+        // null, undefined, empty, or whitespace-only strings → no confirm
+        if (lib.utils.isEmpty(val) || (lib.str.is(val) && !val.trim()))
+            return { mode: 'none' };
+
+        // boolean intent (strings included)
+        if (lib.bool.no(val))  return { mode: 'none' };
+        if (lib.bool.yes(val)) return { mode: 'default' };
+
+        // non-empty string → literal confirm message (unadulterated)
+        if (lib.str.is(val)) {
+            return { mode: "text", message: val };
+        }
+
+        // advanced / future form
+        if (lib.hash.is(val))
+            return lib.hash.merge({ mode: 'none', message: 'default message' }, val);
+
+        report.warn(code, path, "confirm should be boolean|string|object(hash)");
+        return { mode: 'none' };
+    }
+
+    /**
+     * Normalize an autorun selector into canonical list form.
+     *
+     * Internal:
+     * - Autorun selectors control which pipelines/stacks are triggered automatically.
+     * - Inputs commonly originate from inline attributes and are therefore strings.
+     * - Coercion is preferred over rejection; invalid values degrade safely.
+     *
+     * Normalization rules:
+     * - Explicit "no" intent, `null`, empty, or whitespace-only strings → `[]` (no autorun)
+     * - Explicit "yes" intent or `undefined` → `["__DEFAULT__"]`
+     * - String or array → split (if string), trim, and filter into a token list
+     * - Empty token list → `[]`
+     *
+     * Diagnostics:
+     * - Unsupported types are coerced to default autorun behavior
+     *   (`["__DEFAULT__"]`) and recorded as a warning.
+     *
+     * Invariants after normalization:
+     * - Always returns an array
+     * - Returned array contains only non-empty strings
+     *
+     * @param {Report} report
+     *     Compilation report used to record warnings.
+     *
+     * @param {*} v
+     *     Raw autorun selector value supplied by the user.
+     *
+     * @param {string} [path="autorun"]
+     *     Schema path associated with the autorun selector.
+     *
+     * @returns {Array<string>}
+     *     Canonical autorun selector list.
+     *
+     * @private
+     */
+    _normalizeAutorunSelector(report, v, path = "autorun") {
+        const lib = this.lib;
+
+        // none
+        if (lib.bool.no(v) || v === null || (lib.str.is(v) && !v.trim()))
+            return [];
+
+        // default set
+        if (lib.bool.yes(v) || v === undefined)
+            return ["__DEFAULT__"];
+
+        // string|array -> list
+        if (lib.utils.baseType(v, "string array")) {
+            v = lib.array.to(v, { split: /\s+/, trim: true });
+            v = v.filter(Boolean);
+            if (v.length) return v;
+
+            // empty result counts as none
+            return [];
+        }
+
+        // invalid type -> warn + default
+        report.warn("W201_AUTORUN_INVALID", path, "autorun should be boolean|string|array");
+        return ["__DEFAULT__"];
+    }
+
+    /**
+     * Normalize a block family (single + plural + shape) into an effective bucket.
+     *
+     * Purpose:
+     * - Provide a single, reusable normalization procedure for all “bucket blocks”:
+     *   requests, intervals, pipelines (and future block families).
+     * - Resolve three layers into a canonical effective map:
+     *   1) engine default shape (`default_shape`)
+     *   2) consumer overlay shape (`user_shape`)
+     *   3) per-entry user values (`single` and `plural` entries)
+     *
+     * Inputs:
+     * - `s[single]`:
+     *     Optional “lazy button” entry used to create `effective.default` only.
+     *     If present and coercible, produces:
+     *       effective.default = merge(blockShape, one, MERGE_OPTS_V1)
+     *
+     * - `s[plural]`:
+     *     Optional hash of named entries.
+     *     Each coercible entry produces:
+     *       effective[name] = merge(blockShape, item, MERGE_OPTS_V1)
+     *
+     * - `default_shape`:
+     *     Engine baseline contract for items in this block family.
+     *     Must be a hash.
+     *
+     * - `user_shape`:
+     *     Either:
+     *       - a hash (used directly), OR
+     *       - a string key to look up on `s` (e.g. "request_shape")
+     *     If present, blockShape becomes:
+     *       blockShape = merge(default_shape, user_shape, MERGE_OPTS_V1)
+     *
+     * - `hotkey`:
+     *     Optional `lib.hash.to(x, hotkey)` hotkey for coercing scalar values
+     *     into hashes (e.g. request url shorthand via hotkey "url").
+     *
+     * - `handler`:
+     *     Optional item normalizer applied after merge.
+     *     Resolved via `lib.func.get(handler, { root: this })` and called as:
+     *       handler(mergedItem, ctx) -> normalizedItem
+     *
+     * Output:
+     * - Writes `s[outKey]` as the canonical effective bucket map.
+     *   Example keys:
+     *     `_effectiveRequests`, `_effectiveIntervals`, `_effectivePipelines`
+     *
+     * Merge semantics:
+     * - Uses `lib.hash.merge(left, right, CONSTANTS.MERGE_OPTS_V1)`.
+     * - Merge is non-destructive (deep copies inputs).
+     * - MERGE_OPTS_V1 overrides array behavior to replace (not concat).
+     *
+     * Context (`ctx`) passed to handlers:
+     * - A stable context object is created for each item with:
+     *     - `ctx.name`   : "default" or the named entry key
+     *     - `ctx.kind`   : "default" | "named"
+     *     - `ctx.key`    : `single` for default entries, `plural` for named entries
+     *     - `ctx.single` / `ctx.plural` / `ctx.hotkey` / `ctx.outKey`
+     *     - `ctx.report` : Report instance for warnings
+     *
+     * Notes:
+     * - This function is intentionally coercive; it is not a strict validator.
+     * - Empty hashes are allowed as valid items.
+     * - Empty-ish strings (common from data-*) are treated as absent.
+     * - Policy decisions about inheritance (e.g. whether named entries inherit the
+     *   single/default entry) are made by the caller via shapes, not by this function.
+     *
+     * Side effects:
+     * - Mutates `s` by writing `s[outKey]`.
+     *
+     * @param {Report} report
+     *     Compilation report used to record warnings (threaded into ctx).
+     *
+     * @param {Object} s
+     *     Internal normalization workspace object (mutated in place).
+     *
+     * @param {Object} spec
+     *     Block normalization specification.
+     *
+     * @param {string} spec.single
+     *     Name of the “lazy button” single entry key on `s` (e.g. "request").
+     *
+     * @param {string} spec.plural
+     *     Name of the named-entry map key on `s` (e.g. "requests").
+     *
+     * @param {Object} spec.default_shape
+     *     Engine default item shape for this block family.
+     *
+     * @param {Object|string} [spec.user_shape]
+     *     User overlay shape, or a string key on `s` pointing to it.
+     *
+     * @param {string|null} [spec.hotkey]
+     *     Optional hotkey for `lib.hash.to` coercion of scalar entries.
+     *
+     * @param {Function|string|null} [spec.handler]
+     *     Optional item normalizer function (or method name on this instance).
+     *
+     * @param {string} spec.outKey
+     *     Target key on `s` where the effective bucket will be stored.
+     *
+     * @returns {void}
+     *
+     * @private
+     */
+    // -----------------------------------------------------------------------------
+    // Maintenance Notes / Invariants
+    // -----------------------------------------------------------------------------
+    // This function implements a generic, coercive normalization pattern used by
+    // multiple block families (requests, intervals, pipelines).
+    //
+    // Design intent:
+    // - This is NOT a validator. It normalizes shape and structure only.
+    // - Coercion is preferred over rejection; invalid or empty-ish inputs are
+    //   silently dropped unless a handler emits warnings.
+    //
+    // Key invariants (do not change lightly):
+    // - `default_shape` is always the base layer for all effective items.
+    // - `user_shape` may be:
+    //     - a hash (used directly), or
+    //     - a string key referencing a hash on the schema object.
+    // - Empty hashes `{}` are valid and meaningful override values.
+    //   Do NOT treat them as “trash” or auto-remove them.
+    // - Empty-ish scalars (undefined, null, "", false) are treated as absent.
+    //
+    // Merge behavior:
+    // - Uses `lib.hash.merge(left, right, CONSTANTS.MERGE_OPTS_V1)`.
+    // - Merge is non-destructive (deep-copies inputs).
+    // - Array semantics are overridden to REPLACE (not concat/push).
+    //
+    // Handler contract:
+    // - If provided, `handler` is resolved via `lib.func.get`.
+    // - Handler is invoked AFTER merge and may further normalize the item.
+    // - Handler receives a stable `ctx` object including `report` for diagnostics.
+    //
+    // Warning / diagnostics policy:
+    // - This function itself does not emit warnings.
+    // - All diagnostics must be emitted by handlers or downstream normalizers.
+    //
+    // IMPORTANT:
+    // - Block-specific policies (e.g. inheritance rules, validation requirements)
+    //   belong in the block’s item normalizer or constants, NOT here.
+    // -----------------------------------------------------------------------------
+    
+
+    _normalizeBlock(report, s, { single, plural, default_shape, user_shape, hotkey, handler, outKey }) {
+        const lib = this.lib;
+
+	const userShapeRef = lib.hash.is(user_shape)?user_shape : lib.hash.get(s,user_shape);
+        const blockShape = lib.hash.is(userShapeRef)
+              ? lib.hash.merge(default_shape, userShapeRef, CONSTANTS.MERGE_OPTS_V1)
+              : default_shape;
+
+	handler = lib.func.get(handler, {root:this});
+        // single: lazy-button default only
+        const one = lib.utils.baseType(s[single], hotkey ? "string object" : "object") && !lib.utils.isEmpty(s[single])
+              ? lib.hash.to(s[single], hotkey)
+              : null;
+
+        const names = lib.hash.keys(s[plural]);
+
+	const makeCtx = ({ name, kind, key }) => ({
+	    name,
+	    kind,
+	    key,
+	    single,
+	    plural,
+	    hotkey,
+	    outKey,
+	    report
+	});
+	
+        const effective = {};
+
+        // effective.default = shape + single
+        if (lib.hash.is(one)) {
+	    const ctx = makeCtx( { name: "default", kind: "default", key: single } );
+
+            let v = lib.hash.merge(blockShape, one, CONSTANTS.MERGE_OPTS_V1);
+            if (handler) v = handler.call(this, v, ctx);
+            effective.default = v;
+        }
+
+        // effective[name] = shape + plural[name]
+        for (let i = 0; i < names.length; i++) {
+            const name = names[i];
+            const raw = s[plural][name];
+
+            const item = lib.utils.baseType(raw, hotkey ? "string object" : "object") && !lib.utils.isEmpty(raw)
+                  ? lib.hash.to(raw, hotkey)
+                  : null;
+
+            if (!lib.hash.is(item)) continue;
+
+	    const ctx = makeCtx( { name, kind: "named",key: plural } );
+            let v = lib.hash.merge(blockShape, item, CONSTANTS.MERGE_OPTS_V1);
+            if (handler) v = handler.call(this, v, ctx);
+            effective[name] = v;
+        }
+
+        s[outKey] = effective;
+    }
+
+
+    /**
+     * Normalize a single interval definition.
+     *
+     * Internal:
+     * - Intervals describe scheduled or repeating execution behavior.
+     * - This phase performs structural normalization and intent coercion only.
+     * - Scheduling semantics (timers, overlap behavior, lifecycle) are handled
+     *   later by the scheduler/runtime.
+     *
+     * Responsibilities:
+     * - Coerce the interval definition into hash form.
+     * - Apply defaults and normalize boolean intent fields.
+     * - Normalize autorun selectors using canonical rules.
+     * - Coerce numeric repeat controls into a safe range.
+     *
+     * Normalization rules:
+     * - Input is coerced via `lib.hash.to(interval)`.
+     * - `enabled` defaults to true unless explicit "no" intent.
+     * - `autorun` is normalized via `_normalizeAutorunSelector`.
+     * - `allowOverlap` is true only on explicit "yes" intent.
+     * - `repeat` is coerced to int and clamped to `>= 0` (null max).
+     *
+     * Diagnostics:
+     * - Invalid autorun values are recorded as warnings via Report.
+     *
+     * Invariants after normalization:
+     * - Returned value is always a hash.
+     * - `enabled` and `allowOverlap` are booleans.
+     * - `autorun` is always an array.
+     * - `repeat` is always a number (integer) `>= 0`.
+     *
+     * @param {Object} interval
+     *     Raw interval definition.
+     *
+     * @param {Object} ctx
+     *     Normalization context supplied by `_normalizeBlock`.
+     *     Includes:
+     *     - `ctx.report` : Report instance
+     *     - `ctx.name`   : interval name
+     *     - `ctx.key`    : schema key path (e.g. "intervals")
+     *
+     * @returns {Object}
+     *     Normalized interval definition.
+     *
+     * @private
+     */
+    _normalizeIntervalItem(interval,ctx) {
+        const lib             = this.lib;
+
+        interval              = lib.hash.to(interval);
+
+	//default to true, but ignore legacy.
+        interval.enabled      = !lib.bool.no(interval.enabled);
+	interval.autorun      = this._normalizeAutorunSelector( ctx.report, interval.autorun, `${ctx.key}.${ctx.name}.autorun`);
+        interval.allowOverlap = lib.bool.yes(interval.allowOverlap) ;
+	interval.repeat       = lib.number.clamp ( lib.number.toInt(interval.repeat),0,null);
+        return interval;
+    }
+
+
+    /**
+     * Normalize a single request definition.
+     *
+     * Internal:
+     * - Requests describe outbound I/O intent (HTTP or transport-like).
+     * - This phase performs structural normalization and light coercion only.
+     * - Transport semantics, body serialization, and execution behavior are
+     *   handled later by the runtime/request layer.
+     *
+     * Responsibilities:
+     * - Coerce the request into hash form using the configured hotkey.
+     * - Normalize and clamp the HTTP method to an allowed set.
+     * - Apply safe defaults for common request options.
+     * - Coerce bag-style fields (`headers`, `flags`) into hashes.
+     *
+     * Normalization rules:
+     * - Input is coerced via `lib.hash.to(req, ctx.hotkey)`.
+     * - `method` is uppercased and clamped to `CONSTANTS.REQUEST.METHODS`;
+     *   invalid values fall back to `METHOD_DEFAULT`.
+     * - `credentials` is true only on explicit "yes" intent.
+     * - `timeoutMs` is coerced to a number, defaulting to
+     *   `CONSTANTS.REQUEST.TIMEOUT_DEFAULT`.
+     * - `headers` and `flags` are always hashes.
+     *
+     * Diagnostics:
+     * - No hard validation is performed here.
+     * - Invalid values degrade to safe defaults without warnings
+     *   (method clamping is intentional and silent).
+     *
+     * Invariants after normalization:
+     * - Returned value is always a hash.
+     * - `method` is always an upper-case string.
+     * - `credentials` is boolean.
+     * - `timeoutMs` is always a number.
+     * - `headers` and `flags` are hashes.
+     *
+     * @param {Object} req
+     *     Raw request definition.
+     *
+     * @param {Object} ctx
+     *     Normalization context supplied by `_normalizeBlock`.
+     *     Includes:
+     *     - `ctx.hotkey` : key used to coerce scalar request definitions
+     *     - `ctx.name`   : request name
+     *     - `ctx.key`    : schema key path (e.g. "requests")
+     *
+     * @returns {Object}
+     *     Normalized request definition.
+     *
+     * @private
+     */
+    _normalizeRequestItem(req,ctx) {
+        const lib = this.lib;
+
+        req = lib.hash.to(req, ctx.hotkey);
+
+	// normalize + clamp HTTP method
+	req.method = lib.utils.clamp(
+	    CONSTANTS.REQUEST.METHODS,
+	    lib.str.to(req.method, true).trim().toUpperCase(),
+	    CONSTANTS.REQUEST.METHOD_DEFAULT
+	).toUpperCase();
+
+        // encoding/transport are free-form for now (future transports)
+        // credentials: default false unless yes-intent
+        req.credentials = lib.bool.yes(req.credentials);
+
+        // timeoutMs: keep numeric if provided, else undefined
+        req.timeoutMs = lib.utils.toNumber(req.timeoutMs,CONSTANTS.REQUEST.TIMEOUT_DEFAULT);
+
+        // headers/flags/env-ish bags: coerce to hash
+        req.headers = lib.hash.to(req.headers);
+        req.flags = lib.hash.to(req.flags);
+
+        return req;
+    }
+
+    /**
+     * Normalize a single pipeline definition.
+     *
+     * Internal:
+     * - Pipelines represent ordered execution chains.
+     * - This phase performs only *structural normalization* and light intent coercion.
+     * - Detailed parsing and execution semantics are handled in later phases.
+     *
+     * Responsibilities:
+     * - Ensure presence of `run` and `error` keys.
+     * - Normalize `enabled` (boolish intent) with safe defaults.
+     * - Leave operation contents untouched for phase2 parsing.
+     *
+     * Normalization rules:
+     * - Input is coerced via `lib.hash.to(p)`.
+     * - Missing `run`   → empty array.
+     * - Missing `error` → empty array.
+     * - `enabled` defaults to true unless explicit "no" intent.
+     *
+     * Diagnostics:
+     * - Non-boolish `enabled` values are recorded as warnings via Report.
+     *
+     * Invariants after normalization:
+     * - Returned object is always a hash.
+     * - `run` and `error` keys always exist and are arrays.
+     * - `enabled` is boolean.
+     * - No validation or mutation of individual operations occurs here.
+     *
+     * @param {Object} p
+     *     Raw pipeline definition.
+     *
+     * @param {Object} ctx
+     *     Normalization context supplied by `_normalizeBlock`.
+     *     Includes:
+     *     - `ctx.report` : Report instance
+     *     - `ctx.name`   : pipeline name
+     *     - `ctx.key`    : schema key path (e.g. "pipelines")
+     *
+     * @returns {Object}
+     *     Normalized pipeline definition.
+     *
+     * @private
+     */
+    _normalizePipelineItem(p, ctx) {
+        const lib = this.lib;
+
+        p = lib.hash.to(p);
+        if (!('run' in p)) p.run = [];
+        if (!('error' in p)) p.error = [];
+	if (!lib.bool.ish(p.enabled)  && !lib.utils.isEmpty(p.enabled)) {
+            ctx.report.warn("W102_ENABLE_INVALID", "enabled", `enabled should be boolish or undefined for ${ctx.name}.enabled (default true)`);
+        }
+        p.enabled = lib.bool.no(p.enabled) ? false:true;
+        return p;
+    }
+
+    /**
+     * Normalize a single event binding definition.
+     *
+     * Internal:
+     * - Events describe declarative bindings between DOM (or env) events and pipelines.
+     * - This phase performs structural normalization and light intent coercion only.
+     * - Event dispatch semantics and listener lifecycle are handled at runtime.
+     *
+     * Responsibilities:
+     * - Coerce the event definition into hash form.
+     * - Normalize basic intent fields (`enabled`, `event`, `pipeline`).
+     * - Apply safe defaults for selector targeting.
+     * - Normalize addEventListener-style options.
+     *
+     * Normalization rules:
+     * - Input is coerced via `lib.hash.to(ev)`.
+     * - `enabled` defaults to true unless explicit "no" intent.
+     * - `event` is coerced to a lower-case string.
+     * - `pipeline` is coerced to a string identifier.
+     * - `selector` is kept as a string; empty values default to `"__SELF__"`.
+     *   (Sentinel value interpreted by the ActiveTags runtime, not a CSS selector.)
+     * - `options` is coerced to a hash and normalized as addEventListener flags:
+     *     - `capture`, `passive`, `once` are true only on explicit "yes" intent.
+     *
+     * Diagnostics:
+     * - No hard validation is performed here.
+     * - Invalid or missing values degrade to safe defaults without warnings.
+     *
+     * Invariants after normalization:
+     * - Returned value is always a hash.
+     * - `enabled` is boolean.
+     * - `event`, `pipeline`, and `selector` are non-empty strings.
+     * - `options` is always a hash with boolean flags.
+     *
+     * @param {Object} ev
+     *     Raw event definition.
+     *
+     * @param {Object} ctx
+     *     Normalization context supplied by `_normalizeBlock`.
+     *     Includes:
+     *     - `ctx.report` : Report instance (not currently used here)
+     *     - `ctx.name`   : event name
+     *     - `ctx.key`    : schema key path (e.g. "events")
+     *
+     * @returns {Object}
+     *     Normalized event definition.
+     *
+     * @private
+     */
+    _normalizeEventItem(ev, ctx) {
+	const lib = this.lib;
+
+	ev = lib.hash.to(ev);
+
+	// default to enabled=true unless explicit "no"
+	ev.enabled = !lib.bool.no(ev.enabled);
+
+	// event type: required-ish, canonical lower-case string
+	ev.event = lib.str.to(ev.event, true).trim().toLowerCase();
+
+	// pipeline: required-ish
+	ev.pipeline = lib.str.to(ev.pipeline, true).trim();
+
+	// selector: keep as string; empty -> default (runtime can treat as self)
+	// For now we keep this very light, because selector semantics are runtime-defined.
+	ev.selector = lib.str.to(ev.selector, true).trim();
+	if (!ev.selector) ev.selector = "__SELF__"; // sentinel; NOT CSS (AT runtime interprets)
+
+	// options: addEventListener-ish bag
+	ev.options = lib.hash.to(ev.options);
+	ev.options.capture = lib.bool.yes(ev.options.capture);
+	ev.options.passive = lib.bool.yes(ev.options.passive);
+	ev.options.once    = lib.bool.yes(ev.options.once);
+
+	return ev;
+    }
+    
+    // ---------- phase 2: validate ----------
+    // unimplimented at this time. may not be necessary.
+}
+
+
+/**
+ * @typedef {Object} CompileResult
+ * @property {CompileReport} report
+ *     Exported compilation report.
+ *
+ * @property {Object} schema
+ *     Normalized, groomed runtime schema.
+ *     Safe for consumers to read, store, and pass to runtime systems.
+ */
+
+/**
+ * @typedef {Object} CompileReport
+ * @property {boolean} ok
+ * @property {Array<Object>} errors
+ * @property {Array<Object>} warnings
+ */
+
+/**
+ * @typedef {Object} BlockNormalizerSpec
+ *
+ * Specification object passed to `_normalizeBlock`.
+ *
+ * @property {string} single
+ *     Key on the schema object representing the “lazy button” single entry
+ *     (e.g. `"request"`, `"interval"`, `"pipeline"`, `"event"`).
+ *
+ * @property {string} plural
+ *     Key on the schema object representing the named-entry map
+ *     (e.g. `"requests"`, `"intervals"`, `"pipelines"`, `"events"`).
+ *
+ * @property {Object} default_shape
+ *     Engine baseline shape for items in this block family.
+ *
+ * @property {Object|string} [user_shape]
+ *     Optional user-provided shape overlay.
+ *     Either:
+ *       - a hash, or
+ *       - a string key referencing a hash on the schema object.
+ *
+ * @property {string} [hotkey]
+ *     Optional hotkey used by `lib.hash.to(value, hotkey)` to coerce
+ *     scalar entries into hashes.
+ *
+ * @property {Function|string} [handler]
+ *     Optional item normalizer applied after merge.
+ *     May be a function reference or the name of a method on `Master`.
+ *
+ * @property {string} outKey
+ *     Target key on the schema object where the effective bucket
+ *     will be written (e.g. `"_effectiveRequests"`).
+ */
+
+/**
+ * @typedef {Object} BlockItemContext
+ *
+ * Context object passed to block item normalizers.
+ *
+ * @property {string} name
+ *     Item name.
+ *     `"default"` for single-entry items, or the key name for named entries.
+ *
+ * @property {"default"|"named"} kind
+ *     Indicates whether the item originated from the single or plural source.
+ *
+ * @property {string} key
+ *     Source schema key for this item (either `spec.single` or `spec.plural`).
+ *
+ * @property {string} single
+ *     Name of the single-entry key for this block family.
+ *
+ * @property {string} plural
+ *     Name of the plural-entry key for this block family.
+ *
+ * @property {string} [hotkey]
+ *     Hotkey used for scalar coercion, if any.
+ *
+ * @property {string} outKey
+ *     Name of the effective bucket key being produced.
+ *
+ * @property {Report} report
+ *     Compilation report instance used for warnings and diagnostics.
+ */
+
+
+# --- end: class/job/config/schema/Master.js ---
+
+
+
+# --- begin: class/job/config/schema/Master.oldish.js ---
 
 // class/schema/Master.js
 /**
@@ -6269,8 +8557,9 @@ export default class Master {
             name      : s.name,
             require   : s.require,
 
-            enable    : s.enable,
-            confirm   : s.confirm,
+            enabled   : s.enabled,
+	    autorun   : s.autorun,
+            //confirm   : s.confirm,
             env       : s.env,
 
             requests  : s._effectiveRequests  || {},
@@ -6335,21 +8624,27 @@ export default class Master {
 
         // name: string coercion
         s.name = lib.str.to(s.name, true);
-
         // enable: hash coercion
+	if (!lib.bool.ish(s.enabled)  && !lib.utils.isEmpty(s.enabled)) {
+            report.warn("W102_ENABLE_INVALID", "enabled", "enabled should be boolish or undefined");
+        }
+	s.enabled = lib.bool.no(s.enabled) ? false:true;
+	s.autorun = this._normalizeAutorunSelector(report, s.autorun);
+	/*
         if (!lib.hash.is(s.enable) && !lib.utils.isEmpty(s.enable)) {
             report.warn("W102_ENABLE_INVALID", "enable", "enable should be object(hash)");
         }
         s.enable = lib.hash.to(s.enable);
-
+	*/
+	
         // enable.enabled: default true unless explicit "no" intent
-        s.enable.enabled = lib.bool.no(s.enable.enabled) ? false : true;
+        //s.enable.enabled = lib.bool.no(s.enable.enabled) ? false : true;
 
         // enable.autorun: canonical selector list
-        s.enable.autorun = this._normalizeAutorunSelector(report, s.enable.autorun);
+        //s.enable.autorun = this._normalizeAutorunSelector(report, s.enable.autorun);
 
         // confirm: canonical confirm shape
-        s.confirm = this._normalizeConfirm(report,s.confirm);
+        //s.confirm = this._normalizeConfirm(report,s.confirm);
 
         // env: hash coercion
         if (!lib.hash.is(s.env) && !lib.utils.isEmpty(s.env)) {
@@ -6460,7 +8755,7 @@ export default class Master {
      *
      * @private
      */
-    _normalizeAutorunSelector(report, v, path = "enable.autorun") {
+    _normalizeAutorunSelector(report, v, path = "autorun") {
         const lib = this.lib;
 
         // none
@@ -6748,14 +9043,15 @@ export default class Master {
         interval.enabled = !lib.bool.no(interval.enabled);
 
 	interval.autorun = this._normalizeAutorunSelector( ctx.report, interval.autorun, `${ctx.key}.${ctx.name}.autorun`);
+	/*
 	interval.onError = lib.utils.clamp(
 	    CONSTANTS.INTERVAL.RANGE_ERROR,
 	    lib.str.to(interval.onError, true).trim().toLowerCase(),
 	    CONSTANTS.INTERVAL.RANGE_DEFAULT
 	).toLowerCase();
-
+	*/
         interval.allowOverlap =lib.bool.yes(interval.allowOverlap) ;
-
+	interval.repeat = lib.number.clamp ( lib.number.toInt(interval.repeat),0,null);
         return interval;
     }
 
@@ -6883,21 +9179,32 @@ export default class Master {
         p = lib.hash.to(p);
 	//console.log(lib.utils.deepCopy(p) );
         // confirm canonical (pipeline-level)
+	/*
+	  //confirms are currently relegated to pipeline  builtins
         p.confirm = this._normalizeConfirm(
             ctx.report,
             p.confirm,
             "W302_PIPELINE_CONFIRM_INVALID",
             `${ctx.key}.${ctx.name}.confirm`
         );
-
+	*/
         // run/onError: leave as-is for phase2 parsing, but ensure keys exist
 	//p.run = lib.array.to(p.run, CONSTANTS.ARR_TO_OPTS);
 	//console.log(p.run);
 	//p.onError = lib.array.to(p.onError, CONSTANTS.ARR_TO_OPTS);
 	//console.log(lib.utils.deepCopy(p));
         if (!('run' in p)) p.run = [];
-        if (!('onError' in p)) p.onError = [];
-
+        if (!('error' in p)) p.error = [];
+	if (!lib.bool.ish(p.enabled)  && !lib.utils.isEmpty(p.enabled)) {
+            ctx.report.warn("W102_ENABLE_INVALID", "enabled", `enabled should be boolish or undefined for ${ctx.name} (default true)`);
+        }
+        p.enabled = lib.bool.no(p.enabled) ? false:true;
+	/*
+	if (!lib.bool.ish(p.confirm)  && !lib.utils.isEmpty(p.confirm)) {
+            ctx.report.warn("W302_ENABLE_INVALID", "confirm", `confirm should be boolish or undefined for ${ctx.name} (default false)`);
+        }
+	p.confirm = lib.bool.yes(p.confirm) ;
+	*/
         return p;
     }
 
@@ -7015,7 +9322,7 @@ export default class Master {
  */
 
 
-# --- end: class/job/config/schema/Master.js ---
+# --- end: class/job/config/schema/Master.oldish.js ---
 
 
 
@@ -7123,12 +9430,14 @@ export default class Job {
  *     Optional initial lifecycle flags (merged onto defaults).
  */
     constructor(opts = {}) {
-	if (!opts.lib)  throw new Error("[Job] missing required option (opts.lib)");
+
+	if (!opts?.lib)  throw new Error("[Job] missing required option (opts.lib)");
 	if (!opts.e)    throw new Error("[Job] missing required option (opts.e)");
 	if (!opts.expr) throw new Error("[Job] missing required option (opts.expr)");
-
 	const lib = opts.lib;
+	opts = lib.hash.to(opts);
 
+	this.opts = opts;
 	// ---- core dependencies ----
 	this.lib  = lib;
 	this.expr = opts.expr;
@@ -7147,7 +9456,8 @@ export default class Job {
             lib,
             expr      : opts.expr,
             e         : opts.e,
-            job       : this
+            job       : this,
+	    env       : opts.env
 	});
 	
 	// ---- optional logical name (not guaranteed unique) ----
@@ -7277,10 +9587,16 @@ export default class Job {
  * @returns {Job}
  *     Returns `this` for chaining.
  */
-    configure(opts) {
-	this.config.build(opts);
+    async configure(opts) {
+	const cOpts = lib.hash.merge(lib.hash.to(this.opts.config) , lib.hash.to(opts) );
+	const status = await this.config.build({...cOpts});
+	if( status !== JOB_CONFIG_STATUS.READY){
+	    this.status = JOB_STATUS.ERROR;
+	    this.error  = status;
+	}
 	return this;
     }
+
     // ---- End Configuration Aliases ----
     
     //leave for running. not related to config
@@ -8123,6 +10439,7 @@ export const JOB_STATUS = Object.freeze({
     RUNNING: "running",
     WAIT: "wait",
     ERROR: "error",
+    CONFIG_ERROR : "config_error",
     COMPLETE: "complete",
     DETACHED: "detached",
 });
@@ -8173,6 +10490,20 @@ export const SCHED_STATUS = Object.freeze({
 
 
 // ─────────────────────────────────────────
+// LOGGING
+// ─────────────────────────────────────────
+export const LOG_BUCKETS = {
+    ROOT:     "activetags",
+    CONFIG:   "activetags.config",
+    RUNTIME:  "activetags.runtime",
+    PIPELINE: "activetags.pipeline",
+};
+
+export const LOG_POLICY = {
+     console: "warn", // print warn+error, suppress log/info
+};
+
+// ─────────────────────────────────────────
 // Default export (convenience / introspection)
 // ─────────────────────────────────────────
 
@@ -8191,7 +10522,10 @@ export default {
     CORE_SERVICES,
     JOB_CONFIG_STATUS,JOB_STATUS, JOB_TYPE,
     ARR_TO_OPTS, DOM_ATTRS_RUNTIME_INPUTS, DOM_CONFIG_AT, MERGE_OPTS_V1,
-    SCHED_STATUS
+    SCHED_STATUS,
+    LOG_BUCKETS,
+    LOG_POLICY
+    
 };
 
 
@@ -8274,6 +10608,93 @@ export default freezeDeep;
 
 
 # --- end: helpers/freezeDeep.js ---
+
+
+
+# --- begin: helpers/reporter/configReporter.js ---
+
+// helpers/reporter/configReporter.js
+import { LOG_BUCKETS } from '../../constants.js';
+export function configReporter({ job, lib, log, bucketName = LOG_BUCKETS.CONFIG } = {}) {
+    if (!job) return;
+    if (!lib) throw new Error("configReporter: missing lib");
+    if (!log) return; // logging is optional by design
+
+    const bucket = bucketName;
+
+    const domReport    = lib.hash.get(job, "config.inputs.report");
+    const schemaReport = lib.hash.get(job, "config.schemaReport");
+
+    const emit = (phase, rep) => {
+        if (!rep || typeof rep !== "object") return;
+
+        const errors   = lib.array.to(rep.errors);
+        const warnings = lib.array.to(rep.warnings);
+
+        if (!errors.length && !warnings.length) return;
+
+        const toRow = (entry, level) => {
+            entry = lib.hash.to(entry);
+
+            const code = lib.str.to(entry.code || entry.id || entry.key, true).trim();
+            const path = lib.str.to(entry.path || entry.at || entry.field, true).trim();
+            const msg  = lib.str.to(entry.msg || entry.message || entry.text || entry.note, true).trim();
+
+            return {
+                jobId: job.id,
+                jobName: job.name,
+                phase,
+                level,
+                code: code || undefined,
+                path: path || undefined,
+                msg:  msg  || undefined,
+                raw: entry,
+            };
+        };
+
+        for (let i = 0; i < warnings.length; i++) {
+            log.warn(bucket, toRow(warnings[i], "warn"), { event: "job.config.warn" });
+        }
+        for (let i = 0; i < errors.length; i++) {
+            log.error(bucket, toRow(errors[i], "error"), { event: "job.config.error" });
+        }
+    };
+
+    emit("dom", domReport);
+    emit("schema", schemaReport);
+}
+
+export default configReporter;
+/*
+  //saving in case I want a basic reporter.
+  const basicemit = (phase, rep) => {
+  if (!rep || typeof rep !== "object") return;
+
+  const errors   = lib.array.to(rep.errors);
+  const warnings = lib.array.to(rep.warnings);
+
+  if (!errors.length && !warnings.length) return;
+
+  const body = {
+  job: {
+  id: job.id,
+  name: job.name,
+  // optionally include selector/type/etc if you have it
+  },
+  phase,              // "dom" | "schema"
+  ok: rep.ok === true,
+  report: { ok: rep.ok, errors, warnings }
+  };
+
+  // Emit warnings first (optional), errors second
+  if (warnings.length) log.warn(bucket, body, { event: "job.config.warn" });
+  if (errors.length)   log.error(bucket, body, { event: "job.config.error" });
+  };
+
+*/
+
+
+# --- end: helpers/reporter/configReporter.js ---
 
 
 
@@ -8416,7 +10837,7 @@ export const eventTraits = {
 	for (const job of jobs) {
 	    if (!job) continue;
 	    // enabled gate (matches schema shape)
-	    const enabled = lib.hash.get(job,"config.schema.enable.enabled");
+	    const enabled = lib.hash.get(job,"config.schema.enabled");
 	    if (lib.bool.no(enabled) ) continue;
 	    this.registerEvents(job);
 	    count++;
@@ -8941,7 +11362,7 @@ export const intervalTraits = {
     for (const job of jobs) {
       if (!job) continue;
 
-      const enabled = lib.hash.get(job, "config.schema.enable.enabled");
+      const enabled = lib.hash.get(job, "config.schema.enabled");
       if (lib.bool.no(enabled)) continue;
 
       this.registerIntervals(job);
@@ -9075,6 +11496,7 @@ export default trait_job;
 
 import Job from '../class/job/Job.js';
 import CONSTANTS from '../constants.js';
+import configReporter from '../helpers/reporter/configReporter.js'
 //REQUIRES STACK CONSTRUCTION AND INTERVAL STAGING STILL.
 //RUNNER == requires a reset job.
 
@@ -9156,22 +11578,34 @@ import CONSTANTS from '../constants.js';
 
 
 export const trait_load = {
+    parseSomeShit(job,stuff) {
+	const parsed = this.expr.walker.parseExpressions(stuff);
+	const at = this;
+	const scheme = AT.expr.interpScheme(job, {ticket:5})
+	const resolved = this.expr.walker.evalCompiled(parsed, (expr) => {
+	    // this is where ExpressionResolver does the real work
+	    console.log('stuffies');
 
-    
+	    return at.expr.evalTarget(job, expr, scheme);
+	    //return at.expr.eval(expr, { job, ticket, inputs, ctx, trigger });
+	});
+	return resolved;
+    },
     
     enqueueAll() {
 	const jobs = this.jobs.list();
-
+	const lib = this.lib;
 	for (const job of jobs) {
 	    // enabled gate (matches your schema shape shown)
-	    const enabled = job?.config?.schema?.enable?.enabled;
+	    const enabled = lib.hash.get(job,"config.schema.enabled") ;
+
 	    if (enabled === false) continue;
 
 	    // autorun list lives here in your example
-	    let autorun = job?.config?.schema?.enable?.autorun;
+	    let autorun = lib.hash.get(job,"config.schema.autorun");
 
 	    // policy: if autorun is missing/null, do nothing (explicit only)
-	    if (!Array.isArray(autorun) || autorun.length === 0) continue;
+	    if (!lib.array.len(autorun) ) continue;
 
 	    for (let key of autorun) {
 		if (!key) continue;
@@ -9226,11 +11660,11 @@ export const trait_load = {
      * - Execution is intentionally decoupled and handled elsewhere (runner/pump).
      */
     
-    load(sel=null,opts={}){
+    async load(sel=null,opts={}){
 	const list = this.sweep(sel);
 	if (!list) return;
 	console.log(`found ${list.length} candidates`);
-	const reg = this.registerJobs(list,opts);
+	const reg = await this.registerJobs(list,opts);
 	console.log(`registered ${this.lib.array.len(reg)} new jobs`);
     },
 
@@ -9272,7 +11706,7 @@ export const trait_load = {
      * - Initial job state is `{ status: 'ready' }`.
      */
 
-    registerJobs(list,opts={}) {
+    async registerJobs(list,opts={}) {
 	const lib = this.lib;
 	const jobs = [];
 	opts = lib.hash.to(opts,'ignoreExisting');
@@ -9289,12 +11723,23 @@ export const trait_load = {
 		continue;
             }
 
-            const job = new Job({ lib: this.lib, expr: this.expr, e: tag, ws: {} });
+            const job = new Job({ lib: this.lib, expr: this.expr, e: tag, ws: {},env:this.env });
 
             const registered = this.jobs.register(job);
             jobs.push(registered);
 
-            registered.configure();
+	    const def = lib.hash.to( lib.hash.get(this,"opts.job.config", {}) );
+	    const jobConf = lib.hash.slice( lib.hash.merge(def, opts) , "evalEnabled evalType importEnabled importPath");
+	    
+            await registered.configure(jobConf);
+
+	    // emit config diagnostics (dom + schema) through logging buckets
+	    configReporter({
+		job: registered,
+		lib: this.lib,
+		log:  this.svc.log,
+		bucketName: CONSTANTS.LOG_BUCKETS.CONFIG
+	    });
 	    //console.log('setting name for',registered, registered.name);
 	    this.jobs.setName(registered, registered.name);
 	}
@@ -9303,6 +11748,7 @@ export const trait_load = {
     },
     
 
+    
 
     /**
      * Rewrite legacy `data-*` attributes into modern dataset shape.

@@ -13,10 +13,11 @@ import { VM }        from './vm/VM.js';
 import { Tick }      from './Tick.js';
 
 export class Engine {
-    constructor({ lib, jobRegistry, vm, scheduler, hooks = {}, builtins,expr } = {}) {
+    constructor({ lib, jobRegistry, vm, scheduler, conf = {},expr } = {}) {
 	if (!lib) throw new Error("Engine requires lib");
 	this.lib = lib;
-
+	const hooks    = lib.hash.to(conf.hooks);
+	const builtins = lib.hash.to(conf.builtins);
 	// external registry (jobLike -> job)
 	this.jobRegistry = jobRegistry || null;
 

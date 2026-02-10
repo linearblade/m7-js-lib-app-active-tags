@@ -93,8 +93,13 @@ export default class Registry {
      * - Multiple Schedulers may coexist without coordination.
      */
     constructor(opts = {}) {
+	if(!lib) throw new Error("registry requires lib");
 	this.lib = opts.lib;
-	this.prefix = opts.prefix || "at";
+	this.conf = this.lib.hash.to(opts.conf);
+
+    
+	this.env =  opts.env;
+	this.prefix = this.conf.registry.prefix || "DEFAULT__at";
 	this.counter = 0;
 
 	// Primary indexes

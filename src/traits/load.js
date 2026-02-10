@@ -232,7 +232,7 @@ export const trait_load = {
             const registered = this.jobs.register(job);
             jobs.push(registered);
 
-	    const def = lib.hash.to( lib.hash.get(this,"opts.job.config", {}) );
+	    const def = this.conf.job.config; // lib.hash.to( lib.hash.get(this,"opts.job.config", {}) );
 	    const jobConf = lib.hash.slice( lib.hash.merge(def, opts) , "evalEnabled evalType importEnabled importPath");
 	    
             await registered.configure(jobConf);

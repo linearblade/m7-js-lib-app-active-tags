@@ -5,8 +5,6 @@ import trait_load  from './traits/load.js';
 import trait_sweep  from './traits/sweep.js';
 import trait_muta  from './traits/mutationObserver.js';
 //import trait_diag  from './traits/diagnostics.js';
-import trait_exp   from './traits/expressions.js';
-import trait_cst   from './traits/constructor.js';
 import trait_evt    from './traits/events.js';
 import trait_int    from './traits/intervals.js';
 import JobRegistry   from './class/job/Registry.js';
@@ -17,20 +15,21 @@ import testHooks from './class/engine/testHooks.js';
 import IntervalController from './class/interval/Controller.js';
 import EventController    from './class/event/Controller.js';
 import builtins           from './builtins/index.js';
+import atSchema           from './at_config/Schema.js';
+import DEFAULT_CONFIG     from './at_config/DEFAULT_CONFIG.js';
 class ActiveTags {
     constructor(lib, conf = {}) {
 	if (!lib) {
             throw new Error('[activeTags] constructor requires lib as first argument');
 	}
-
+	this.schema = new atSchema({lib, def_conf:DEFAULT_CONFIG, user_conf: conf});
+	this.opts = this.conf   = this.schema.snapShot();
 	// allow helpers to assume this.lib exists
 	this.lib = lib;
 	
 	// minimal require so we can normalize config
 	lib.require.all(CONSTANTS.LIB_HASH, { mod: '[activeTags]' });
 
-	// canonical config coercion
-	conf = lib.hash.to(conf);
 
 	lib.require.all(CONSTANTS.CORE_DEPS ,                    { mod: '[activeTags]' } );
 	const svc = lib.require.service(CONSTANTS.CORE_SERVICES, { mod: '[activeTags]', returnMap: true } );
@@ -53,14 +52,13 @@ class ActiveTags {
 	  console.log("[IM]", ev.type, ev.name, ev.reason || "", ev.message || "");
 	  };*/
 	
-	this.env = this._makeEnv(conf.env);
 
 	
 	this.expr = new ExpressionResolver({
 	    lib: this.lib,
 	    toJob: (x) => this.toJob(x),
 	    logger: this.logger,
-	    env: this.env
+	    env: this.conf.env
 	});
 
 	
@@ -70,19 +68,16 @@ class ActiveTags {
 	// workspace + scheduler
 	this.ws = new lib.primitive.workspace.WorkSpace();
 
-	this.jobs = new JobRegistry({ lib , prefix: 'at',...lib.hash.to(conf.job), env:this.env});
+	this.jobs = new JobRegistry({ lib , conf: this.conf.job, env:this.conf.env});
 
 	// options (delegated)
-	this.opts = this.getOpts(conf);
-	this.conf = this.opts;
 	//this.engine = new Engine({lib,jobRegistry: this.jobs});
 	//console.log('jamming test hooks', testHooks);
 	this.engine = new Engine({
 	    lib,
-	    jobRegistry: this.jobs,
-	    hooks:conf.testHooks?testHooks:{},
-	    builtins : builtins,
-	    expr: this.expr
+	    jobRegistry  : this.jobs,
+	    conf         : this.conf.engine,
+	    expr         : this.expr
 	});
 
 	this.intervals = new IntervalController ({
@@ -104,52 +99,6 @@ class ActiveTags {
     }
 
 
-    _makeEnv(inEnv = {}) {
-	const lib = this.lib;
-
-	// Normalize caller env
-	inEnv = lib && lib.hash && lib.hash.is(inEnv) ? inEnv : {};
-
-	// Pull lib env (legacy + modern)
-	const libEnv =
-              (lib && (lib._env || (lib.hash && lib.hash.get(lib, "_env")))) || {};
-
-	const libRoot =
-              libEnv.root ||
-              (lib && lib.hash && lib.hash.get(lib, "_env.root")) ||
-              null;
-
-	// Canonical derivation
-	const root =
-              inEnv.root ||
-              inEnv.window ||
-              libRoot ||
-              (typeof globalThis !== "undefined" ? globalThis : null);
-
-	const windowRef =
-              inEnv.window ||
-              (root && root.window) ||
-              root ||
-              null;
-
-	const documentRef =
-              inEnv.document ||
-              (windowRef && windowRef.document) ||
-              null;
-
-	const baseURI =
-              inEnv.baseURI ||
-              (documentRef && documentRef.baseURI) ||
-              null;
-
-	return {
-            root,          // globalThis / window / global
-            window: windowRef,
-            document: documentRef,
-            baseURI,
-	};
-    }
-    
     
     //cycles the jobs. if one is found with a status ready to start runs it. otherwise skips
     //at this point, the job can be set to inflight and ignored. controller will be set to job on startup, and it cna notify it on completion
@@ -163,21 +112,22 @@ class ActiveTags {
 	this.intervals.registerAll();
 	this.events.registerAll();
 	//on by default, falsy to prevent.
-	if(!lib.bool.no(this.conf.intervalOn))
+	if(!lib.bool.no(this.conf.boot.intervals))
 	    this.intervals.on();
-	if(!lib.bool.no(this.conf.eventOn))
+	if(!lib.bool.no(this.conf.boot.events))
 	    this.events.on();
     }
     
-    //employed by interval manager to periodically pickup new jobs automatically. may alternately utilize a dom observer to notice changes.
-    sniffer(){
-	/*
-	//still undefined
-	this.bootSweep() // runs on interval.
-	*/
-    }
 }
 
-applyMixins(ActiveTags, trait_job, trait_load, trait_sweep,  trait_muta, trait_exp,trait_cst,trait_evt,trait_int);
+applyMixins(
+    ActiveTags,
+    trait_job,   // no config deps
+    trait_load,  // requires this.conf.job
+    trait_sweep, // no config deps
+    trait_muta,  // requires this.conf.observe
+    trait_evt,   // no config deps
+    trait_int    // no config deps
+);
 export { ActiveTags };
 export default ActiveTags;

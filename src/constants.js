@@ -83,7 +83,8 @@ export const DOM_ATTRS_RUNTIME_INPUTS = [
     "enctype",
     "tagName"
 ];
-export const DOM_CONFIG_AT = "config-at at";
+//pulls from dataset, not from attributes directly (ie data-xyz).  use dot notation.
+export const DOM_CONFIG_AT = "config.at at";
 // Arrays are replaced (NOT concatenated), and array+scalar overwrites (NOT push).
 export const MERGE_OPTS_V1 = {
     disp: {

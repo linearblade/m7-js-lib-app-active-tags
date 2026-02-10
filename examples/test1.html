@@ -23,43 +23,47 @@
 	<script type="module"  src="/vendor/m7-js-lib-site-form/src/auto.js"></script>
 
 	<script type="module">
-  import ActiveTags from '/vendor/m7-js-lib-active-tags/src/ActiveTags.js';
-  import testPipes from './testPipe.js';
-
-  window.testPipes = testPipes;
-  window.ActiveTags = ActiveTags;
-
-  document.addEventListener("DOMContentLoaded", async () => {
-    const AT = new ActiveTags(lib, {
-      env: {
-        // optional — ActiveTags will derive these if omitted,
-        // but being explicit is fine
-        window,
-        document,
-        root: window,
-      },
-
-      // runtime/system toggles (keep yours here; names depend on your ActiveTags impl)
-      intervalOn: false,
-      eventOn: true,
-
-      // job-default config (this is what gets sliced + passed into Job.configure)
-      job: {
-        config: {
-          evalEnabled: true,
-          evalType: "text/at-eval",     // string or array ok
-            importEnabled: true,
-            importPath: ["/vendor/m7-js-lib-active-tags/examples/"], // optional allow-list
-        }
-      }
-    });
-
-    lib.service.set("activeTags", AT);
-    window.AT = AT;
-
-    await AT.start();
-  });
-</script>
+	  import ActiveTags from '/vendor/m7-js-lib-active-tags/src/ActiveTags.js';
+	  import testPipes from './testPipe.js';
+	  
+	  window.testPipes = testPipes;
+	  window.ActiveTags = ActiveTags;
+	  
+	  document.addEventListener("DOMContentLoaded", async () => {
+	      const AT = new ActiveTags(lib, {
+		  env: {
+		      // optional — ActiveTags will derive these if omitted,
+		      // but being explicit is fine
+		      window,
+		      document,
+		      root: window,
+		  },
+		  
+		  // runtime/system toggles (keep yours here; names depend on your ActiveTags impl)
+		  boot: {
+		      intervals:false,
+		      events: true
+		  },
+		  engine: {
+		      //hooks : true
+		  },
+		  // job-default config (this is what gets sliced + passed into Job.configure)
+		  job: {
+		      config: {
+			  evalEnabled: true,
+			  evalType: "text/at-eval",     // string or array ok
+			  importEnabled: true,
+			  importPath: ["/vendor/m7-js-lib-active-tags/examples/"], // optional allow-list
+		      }
+		  }
+	      });
+	      
+	      lib.service.set("activeTags", AT);
+	      window.AT = AT;
+	      
+	      await AT.start();
+	  });
+	</script>
 	<!--
 	<script type="module">
 	  import ActiveTags from '/vendor/m7-js-lib-active-tags/src/ActiveTags.js';
@@ -97,8 +101,7 @@
 	  enctype="multipart/form-data"
 	  data-confirm="are you sure?"
 	  data-activetag="1"
-	  data-at="find:.config"
-	  data-config-at="find:.config"
+	  data-config-at="import:test-job.js"
 
 	  data-request-url="/api/demo/submit"
 	  data-request-method="post"
@@ -134,133 +137,6 @@
 
 	  data-debug="1"
 	  data-flags-enabled="true">
-      <script type="application/json" class="config">
-	{
-	"name": "test-job",
-	"require" : "jumjum",
-	"enable" : true,
-	"autorun" : "funz",
-	
-
-	    "events": {
-		"hover:on" : {
-		    "enabled" : true,
-		    "event": "pointerover",
-		    "selector": "[data-button]",
-		    "pipeline": "hover_on",
-		    "options": { "capture": false, "passive": true }
-		},
-		"hover:off" : {
-		    "event": "pointerout",
-		    "selector": "[data-button]",
-		    "pipeline": "hover_off",
-		    "options": { "capture": false, "passive": true }
-		}
-	    },
-	    
-	    "request_shape": {
-		"headers": {
-		    "X-Test": "yes"
-		}
-	    },
-
-	    "request": "/api/test/default",
-
-	    "requests": {
-		"delete": {
-		    "url": "/api/test/delete",
-		    "method": "post"
-		}
-	    },
-
-	    "interval_shape": {
-		"repeat": 7000,
-		"allowOverlap": false
-	    },
-
-	    "interval": {
-		"pipeline" : "interval"
-	    },
-
-	    "intervals": {
-		"poll": {
-		    "pipeline" : "interval2",
-		    "repeat": 2000,
-		    "allowOverlap": false
-		}
-	    },
-
-	    "pipeline_shape": {
-		"confirm": true
-	    },
-
-	    "pipeline": {
-		"run": "foo:1,2,3 bar:${a},${b} far",
-		"error" : "errOutput:whoopsie"
-	    },
-	    
-	"pipelines": {
-	"funz" : {
-	"run": [
-    "confirm",
-    "form.prepare",
-    "form.collect",
-
-    {
-        "op": "foo",
-        "args": {
-             "mode": "test",
-
-             "jobId": "${job:id}",
-
-             "label": "running job ${job:id}",
-	"rawTarget": "${target:}",          
-"rawMeta": "${buffer_meta:}"        ,
-"stringTarget": "t=${target:tagName}" ,
-             "meta": {
-                "pipeline": "${ticket:pipelineKey}",
-                "targetTag": "tag=${target:tagName}"
-            }
-        }
-    },
-
-    {
-        "op": "dom.patch",
-        "args": {
-            "style.font-weight": "bold",
-            "style.color": "red"
-        }
-    },
-
-    {
-        "op": "form.submit",
-        "args": {
-            "contentType": "json"
-        }
-    }
-],
-
-"error": [
-    { "op": "error.dump", "args": { "throw": true } }
-]
-	},
-	"patch" :{
-	"run": [ "confirm", "form.prepare", "form.collect", {"op": "dom.patch", "args" : {"style.font-weight": "bold",	"style.color"      : "red"} },
-	{"op": "form.submit", "args": {"contentType": "json"} } ],
-	"error": [{"op": "error.dump", "args": {"throw":true} }]
-	},
-		"hover_on": {
-		    "run": "hover_on hover_b",
-		    "error": "errOutput"
-		},
-		
-		"hover_off": {
-		    "run": "hover_off",
-		    "error": "errOutput"
-		}
-	    }
-	}
-      </script>
       <label>
 	Email:
 	<input name="email" type="email" value="test@example.com" />

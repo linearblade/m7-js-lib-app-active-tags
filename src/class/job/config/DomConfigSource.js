@@ -202,7 +202,7 @@ export default class DomConfigSource {
 	for (const loc of list) {
             const s = lib.str.to(lib.hash.get(ds, loc, ''), true).trim();
             if (!s) continue;
-
+	    
             const items = lib.array.to(s, ARR_TO_OPTS);
             if (items.length) at.push(...items);
 	}
