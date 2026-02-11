@@ -38,7 +38,7 @@
  */
 import Report from './Report.js';
 // leave all constants presently as local, have to decide where to organize them later. (there are 2 constants files at moment.
-import { ARR_TO_OPTS, DOM_ATTRS_RUNTIME_INPUTS, DOM_CONFIG_AT, MERGE_OPTS_V1 } from '../../../constants.js';
+import { ARR_TO_OPTS,  MERGE_OPTS_V1 } from '../../../constants.js';
 const DEFAULT_EVAL_TYPE = "text/at-eval";
 export default class DomConfigSource {
     /**
@@ -51,26 +51,29 @@ export default class DomConfigSource {
      *     Optional expression/target resolver used to resolve config-at targets.
      *     (Injected to avoid circular dependencies with Job/ActiveTags.)
      */
-    constructor({ lib, env = {}, expr = null,strict = false,job,evalEnabled = false, evalType = [DEFAULT_EVAL_TYPE] , importEnabled = false, importPath = [] } = {}) {
+    constructor({ lib, env = {}, expr = null,strict = false,job,conf} = {}) {
         if (!lib) throw new Error("DomConfigSource: missing lib");
 	if (!expr) throw new Error("DomConfigSource: missing expr");
         this.lib = lib;
+	this.conf = conf;
         this.env = env;
         this.expr = expr;
 	this.strict = lib.utils.isEmpty(strict) ? false : strict;
 	this.job = job;
-	this.allowEvalConfig = lib.bool.yes(evalEnabled);
-	this.allowEvalTypes  = lib.bool.no(evalType) ? false : lib.array.to(evalType);
-	this.allowImportConfig = lib.bool.yes(importEnabled) ;
-	this.allowImportPath   = lib.array.to(importPath); 
+
+	this.allowEvalConfig = lib.bool.yes(conf.config.evalEnabled);
+	this.allowEvalTypes  = lib.bool.no(conf.config.evalType) ? false : lib.array.to(conf.config.evalType);
+	this.allowImportConfig = lib.bool.yes(conf.config.importEnabled) ;
+	this.allowImportPath   = lib.array.to(conf.config.importPath);
     }
     static emptyReadShape(report){
 	report = (report)?report.export() :  Report.emptyExportShape();
 	return { report, dataSet:{}, attrs: {}, at : [], config: {}, output: {} };
     }
-    async read(source,{config_at = DOM_CONFIG_AT, defaultConfig = {}} = {}){
+    async read(source,{config_at = this.conf.config.at, defaultConfig = {}} = {}){
 	const lib = this.lib;
 	const report = new Report({lib});
+
 	//will assume for now that report will set ok=false  if errors.
 	if (!this._assertElement({report, source}) )
 	    return this.constructor.emptyReadShape(report);
@@ -85,28 +88,50 @@ export default class DomConfigSource {
 
 
     /**
-     * Read and normalize `data-*` attributes from a DOM element.
+     * Read and normalize prefixed attributes from a DOM element.
      *
      * Semantics:
-     * - Extracts all `data-*` attributes into a plain hash.
-     * - Removes the `data-` prefix (per lib.dom.filterAttributes behavior).
+     * - Iterates over configured `attrPrefixes` in order.
+     * - Extracts matching attributes per prefix.
+     * - Strips the prefix from keys.
      * - Inflates dashed keys into nested objects (delim: "-").
+     * - Merges results in prefix order (later prefixes override earlier ones).
      *
      * @param {Object} [args]
      * @param {Object} [args.report]
-     *     Optional report sink (currently unused here; reserved for future warnings).
+     *     Optional report sink (reserved for future diagnostics).
      * @param {Element} args.source
      *     DOM element to read from.
      *
      * @returns {Object}
-     *     Inflated dataset hash (plain object).
+     *     Inflated attribute hash (plain object).
      */
     _readDataset({ report, source } = {}) {
 	const lib = this.lib;
 
-	const rawData = lib.dom.filterAttributes(source, /^data-/, 1) || {};
-	return lib.hash.to(lib.hash.inflate(rawData, { delim: "-" }));
+	const prefixes = lib.array.to(
+            this.conf.config.attrPrefixes,
+            ARR_TO_OPTS
+	).filter(v => typeof v === "string");
+
+	let out = {};
+
+	for (let i = 0; i < prefixes.length; i++) {
+            const prefix = prefixes[i];
+            if (!prefix) continue;
+            const re = new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+            const raw = lib.dom.filterAttributes(source, re, prefix.length) || {};
+
+            const inflated = lib.hash.inflate(raw, { delim: "-" });
+            const normalized = lib.hash.to(inflated);
+
+            // merge in declared order (later prefixes override earlier ones)
+            out = lib.hash.merge(out, normalized, MERGE_OPTS_V1);
+	}
+
+	return out;
     }
+    
     
     /**
      * Capture raw element attributes/properties used as runtime inputs.
@@ -121,7 +146,7 @@ export default class DomConfigSource {
      * @param {string|Array} [args.list]
      * @returns {Object}
      */
-    _readAttrs({ report, source, list = DOM_ATTRS_RUNTIME_INPUTS } = {}) {
+    _readAttrs({ report, source, list = this.conf.config.capture_attrs } = {}) {
 	const lib = this.lib;
 
 	list = lib.array.to(list, ARR_TO_OPTS);

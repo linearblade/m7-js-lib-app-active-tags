@@ -101,9 +101,11 @@ export default class Job {
  */
     constructor(opts = {}) {
 
-	if (!opts?.lib)  throw new Error("[Job] missing required option (opts.lib)");
+	if (!opts?.lib) throw new Error("[Job] missing required option (opts.lib)");
 	if (!opts.e)    throw new Error("[Job] missing required option (opts.e)");
 	if (!opts.expr) throw new Error("[Job] missing required option (opts.expr)");
+	if (!opts.env)  throw new Error("[Job] missing required option (opts.env)");
+	if (!opts.conf) throw new Error("[Job] missing required option (opts.conf)");
 	const lib = opts.lib;
 	opts = lib.hash.to(opts);
 
@@ -124,6 +126,7 @@ export default class Job {
 	// ---- configuration (fully delegated) ----
 	this.config = new JobConfig({
             lib,
+	    conf      : opts.conf,
             expr      : opts.expr,
             e         : opts.e,
             job       : this,
@@ -258,7 +261,7 @@ export default class Job {
  *     Returns `this` for chaining.
  */
     async configure(opts) {
-	const cOpts = lib.hash.merge(lib.hash.to(this.opts.config) , lib.hash.to(opts) );
+	const cOpts = lib.hash.merge(lib.hash.to(this.opts.conf.config) , lib.hash.to(opts) );
 	const status = await this.config.build({...cOpts});
 	if( status !== JOB_CONFIG_STATUS.READY){
 	    this.status = JOB_STATUS.ERROR;

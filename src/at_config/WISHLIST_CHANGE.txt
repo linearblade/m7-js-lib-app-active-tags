@@ -1,0 +1,121 @@
+
+
+	/*
+	//how I'd like it to work. not how it works.
+	const rules  = lib.array.to(obs.rules);
+	for (let i =0; i < rules.length; i++){
+        const rule = rules[i];
+        if(!lib.hash.is(rule) )
+        throw new Error(`observe.rule[${i} must be a hash`);
+
+        if(typeof rule.match !== 'string')
+        throw new Error(`observe.rule[${i}] must be a string`);
+
+        if(!lib.utils.baseType(rule.attr, 'string null undefined') )
+        throw new Error(`observe.rule[${i}] must be string , null, or undefined`);
+	}
+	obs.rules = rules;
+	*/
+
+// ---------------------------------------------------------------------------
+        // Mutation observer
+        // ---------------------------------------------------------------------------
+        // ---------------------------------------------------------------------------
+        // Mutation observer policy
+        //
+        // This block controls DOM mutation + attribute-change observation.
+        // It is intentionally DECOUPLED from `boot.selector` / sweep discovery.
+        //
+        // Why:
+        // - Discovery (sweep) answers: "what elements should become jobs?"
+        // - Observation answers:       "what DOM changes should trigger follow-up discovery?"
+        // These are related, but not the same.
+        //
+        // IMPORTANT:
+        // - This policy does NOT reconcile prior DOM state.
+        // - It reacts only to changes after observation starts.
+        // - Call `discover()` if full reconciliation is required.
+        // ---------------------------------------------------------------------------
+
+        observe: {
+
+            // Observation rules:
+            // - match: CSS selector for relevant elements
+            // - attr:  Attribute name that should trigger reaction when changed
+            //
+            // One rule = one selector + one watched attribute.
+            // Rules are evaluated in-order.
+            //
+            rules: [
+                {
+                    match: "[data-activetag]",
+                    attr: "data-activetag"
+                }
+            ],
+
+            // Debounce window used by the observer service.
+            debounceMs: 25,
+
+            // If true, attribute mutations will be observed.
+            observeAttributes: true,
+        },
+
+
+
+////// this wont really work b/c thats not how the mutation observer works.
+attribute filters are a union (logical OR) so its probably not necessary anyway
+
+ start() {
+        const { lib } = this;
+
+        const obs = this.observer;
+        if (!obs) {
+            throw new Error("[ActiveTags] DomChangeObserver service not found: primitive.dom.changeobserver");
+        }
+
+        const observe = lib.hash.to(this.conf.observe);
+
+        // compiled policy: [{ match: "...", attr: "..." }, ...]
+        const rules = lib.array.to(observe.rules);
+
+        // normalize + keep only valid rule objects with a selector
+        const cleaned = [];
+        const attrSet = new Set();
+
+        for (let i = 0; i < rules.length; i++) {
+            const r = lib.hash.to(rules[i]);
+            const match = lib.str.to(r.match, true).trim();
+            const attr  = lib.str.to(r.attr, true).trim();
+
+            if (!match) continue;
+
+            cleaned.push({ match, attr: attr || "" });
+
+            if (attr) attrSet.add(attr);
+        }
+
+        if (!lib.array.len(cleaned)) {
+            throw new Error("[ActiveTags] empty observe.rules (no valid match selectors)");
+        }
+
+        // attributeFilter: list of watched attributes (may be empty if observeAttributes is false)
+        const observeAttrs = !lib.bool.no(observe.observeAttributes);
+
+        const attributeFilter = observeAttrs ? Array.from(attrSet) : [];
+        if (observeAttrs && !lib.array.len(attributeFilter)) {
+            throw new Error("[ActiveTags] observeAttributes=true but no rule.attr values provided");
+        }
+	
+        const selectorSpecs = cleaned.map((r) => ({
+            selector: r.match,
+            includeSubtreeMatches: true,
+            observeAttributes: observeAttrs,
+            attributeFilter,
+            onEvent: (batch) => this._onDomChanges(batch),
+        }));
+
+        this._selectorSpecs = selectorSpecs;
+
+        obs.setSelectors(selectorSpecs);
+        obs.start();
+    }

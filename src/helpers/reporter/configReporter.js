@@ -1,10 +1,10 @@
 // helpers/reporter/configReporter.js
-import { LOG_BUCKETS } from '../../constants.js';
-export function configReporter({ job, lib, log, bucketName = LOG_BUCKETS.CONFIG } = {}) {
+
+export function configReporter({ job, lib, log, bucketName } = {}) {
     if (!job) return;
     if (!lib) throw new Error("configReporter: missing lib");
     if (!log) return; // logging is optional by design
-
+    if (!bucketName) throw new Error("configReporter: missing bucket name");
     const bucket = bucketName;
 
     const domReport    = lib.hash.get(job, "config.inputs.report");

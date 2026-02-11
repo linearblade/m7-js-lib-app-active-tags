@@ -55,7 +55,8 @@
  * - Do NOT introduce runtime behavior into this module
  * - Constants may be used ONLY as final safety nets
  */
-import CONSTANTS  from "../constants.js"; // adjust path as needed
+import CONSTANTS  from "../constants.js"; 
+import LAST_LINE  from "./LAST_LINE_DEFAULTS.js"; 
 import testHooks  from "../class/engine/testHooks.js";
 import builtins   from '../builtins/index.js';
 import freezeDeep from '../helpers/freezeDeep.js';
@@ -226,31 +227,37 @@ export default class Schema {
 	this.active = next;
 	return this.active;
     }
+    
     /**
-     * Return a detached snapshot of the currently compiled active configuration.
+     * Return a detached snapshot of the currently compiled configuration.
      *
      * CONTRACT:
-     * - Does NOT mutate schema state.
-     * - Returns a deep copy of `this.active` so external callers cannot
-     *   accidentally mutate internal schema state.
+     * - Does NOT mutate Schema state.
+     * - Returns a deep copy of `this.active` (callers cannot mutate internal state).
      *
      * SEMANTICS:
-     * - This is the primary "read surface" for the compiled configuration.
-     * - The returned object is detached from `this.active`.
-     * - No recompilation occurs (use `merge()` for that).
+     * - Primary read surface for compiled config.
+     * - Does not recompile (use `merge()` to rebuild).
+     * - Optional best-effort deep-freeze:
+     *     - If `freeze === true`, attempts `freezeDeep(snapshot)`.
+     *     - If deep-freeze fails (unfreezable objects), returns the unfrozen snapshot.
      *
      * RESPONSIBILITIES:
-     * - Provide a safe, stable external view of the compiled config.
+     * - Provide a stable, detached view of the active compiled config.
      *
      * NON-RESPONSIBILITIES:
-     * - Does NOT freeze the returned object.
      * - Does NOT validate runtime capability.
+     * - Does NOT guarantee the snapshot is frozen even when `freeze === true`.
+     *
+     * @param {Object} [opts]
+     * @param {boolean} [opts.freeze=false]
+     *   If true, best-effort deep-freeze the returned snapshot.
      *
      * @returns {Object}
-     *   A detached deep copy of the current compiled configuration.
+     *   Detached deep copy of the current compiled configuration.
      *
      * @throws {Error}
-     *   If no active config exists (unexpected after successful construction).
+     *   If no active config exists to snapshot.
      */
     snapShot({ freeze = false } = {}) {
 	const { lib } = this;
@@ -360,54 +367,45 @@ export default class Schema {
 	active.env = this._makeEnv(inEnv);
     }
     /**
-     * Derive and normalize the execution environment configuration.
+     * Derive and normalize the execution environment descriptor.
      *
      * CONTRACT:
-     * - Pure function with respect to schema state.
-     * - Does NOT mutate `active` or `user` directly.
-     * - Returns a fully-populated, canonical environment object.
-     * - Never throws under normal conditions.
+     * - Pure w.r.t. Schema state (reads `this.lib`, does not mutate Schema fields).
+     * - Does NOT touch `active`/`user`; operates only on the provided `inEnv` input.
+     * - Returns a canonical `{ root, window, document, baseURI }` object.
+     * - Does not intentionally throw (best-effort derivation; missing parts become `null`).
      *
      * INPUT SOURCES (precedence, low → high):
-     *   1) Implicit global environment (`globalThis`)
-     *   2) Environment derived from `lib._env` (legacy + modern)
-     *   3) User-provided environment (`user.env`)
+     *   1) Implicit globals (`globalThis`)
+     *   2) `lib._env` (supports legacy + modern layouts)
+     *   3) Explicit caller overrides (`inEnv`)
      *
      * DERIVATION RULES:
-     * - `root` is resolved first and represents the global execution context.
-     * - `window` is resolved from:
-     *     user.env.window → root.window → root
-     * - `document` is resolved from:
-     *     user.env.document → window.document
-     * - `baseURI` is resolved from:
-     *     user.env.baseURI → document.baseURI
+     * - `root` is resolved first:
+     *     inEnv.root → inEnv.window → lib._env.root → globalThis → null
+     * - `window` is resolved next:
+     *     inEnv.window → root.window → root → null
+     * - `document` is resolved next:
+     *     inEnv.document → window.document → null
+     * - `baseURI` is resolved last:
+     *     inEnv.baseURI → document.baseURI → null
      *
      * RESPONSIBILITIES:
-     * - Normalize and validate the shape of the environment object.
-     * - Resolve legacy and modern `lib._env` layouts.
-     * - Provide consistent references for DOM-related subsystems.
+     * - Coerce `inEnv` to a hash (non-objects ignored).
+     * - Tolerate partial environments (non-browser contexts).
+     * - Provide stable references used by DOM-facing runtime subsystems.
      *
      * NON-RESPONSIBILITIES:
-     * - Does NOT verify DOM availability or browser capability.
-     * - Does NOT start observers or access the DOM.
-     * - Does NOT mutate `lib` or global objects.
+     * - Does NOT verify browser capability (MutationObserver, querySelectorAll, etc.).
+     * - Does NOT access the DOM or start services.
+     * - Does NOT mutate `lib`, globals, or any runtime objects.
      *
      * OUTPUT GUARANTEES:
-     * The returned object will always have the following shape:
+     * - Always returns an object with keys:
+     *     { root:any|null, window:any|null, document:any|null, baseURI:string|null }
      *
-     *   {
-     *     root: any|null,        // globalThis / window / global object
-     *     window: any|null,      // window-like object
-     *     document: any|null,    // document-like object
-     *     baseURI: string|null   // base URI if available
-     *   }
-     *
-     * Any property may be `null` if it cannot be resolved in the
-     * current execution environment (e.g., non-browser contexts).
-     *
-     * @param {Object} inEnv
-     *   Optional user-provided environment override.
-     *   Non-object values are ignored.
+     * @param {Object} [inEnv]
+     *   Optional environment override. Non-object values are ignored.
      *
      * @returns {Object}
      *   Canonical environment descriptor.
@@ -496,57 +494,51 @@ export default class Schema {
      *
      * CONTRACT:
      * - Mutates `active.job.config` in-place.
-     * - Establishes the canonical job-configuration policy used by the system.
-     * - Does NOT load external configs; it only defines *whether/how* they are allowed
-     *   and how they would be merged later.
-     * - Ensures stable types and required keys for downstream consumers.
+     * - Establishes the canonical job-configuration *policy* used by the runtime
+     *   when compiling per-job configs later.
+     * - Ensures stable shapes/types for downstream consumers.
      *
      * INPUT SOURCES (precedence, low → high):
      *   1) Default configuration (`def_conf.job.config`)
-     *   2) Default base config (`def_conf.job.config.base`)
-     *   3) Explicit job config overrides (`user.job.config`)
-     *      - This may override ANY field, including `base`
-     *   4) Constants safety-net (applied only if required values are still missing)
+     *   2) User overrides (`user.job.config`) merged over defaults (MERGE_OPTS_V1)
+     *   3) LAST_LINE safety nets (applied only if required fields remain missing/invalid)
      *
-     * BASE CONFIG SEMANTICS:
-     * - `job.config.base` is the lowest-precedence base object used during job
-     *   configuration compilation.
-     * - `user.job.config.base` (if provided) overrides the default base.
-     *
-     * SAFETY NET:
-     * - Constants are the final fallback only (e.g., DOM_CONFIG_AT, DEFAULT_SELECTOR).
-     * - Missing/invalid list fields are coerced to arrays and filtered to strings.
-     * - Missing/invalid objects are coerced to hashes.
+     * BASE SEMANTICS:
+     * - `job.config.base` is treated as seed data and is only shape-coerced here.
+     * - If the user provides `user.job.config.base`, it overrides `cfg.base` via the
+     *   `user.job.config` merge (no special handling beyond merge semantics).
      *
      * RESPONSIBILITIES:
-     * - Shape coercion (ensure `job` and `job.config` are objects)
-     * - Deterministic merge of user overrides into defaults
-     * - Base config precedence handling (`job.config.base`)
-     * - Normalization of list fields (`at`, `attrPrefixes`, `evalType`, `importPath`)
-     * - Normalization of merge policy (`merge.order`, `merge.objects`, `merge.arrays`)
+     * - Shape coercion (ensure `job`, `job.config`, and nested objects are hashes)
+     * - Deterministic merge of `user.job.config` over defaults
+     * - Normalize list-like fields to `string[]` (filter + trim-guard)
+     * - Apply LAST_LINE fallbacks for required fields:
+     *     - `at` (from LAST_LINE.DOM_CONFIG_AT)
+     *     - `evalType` (from LAST_LINE.DEFAULT_EVAL_TYPE)
+     * - Normalize merge policy defaults (`merge.order`, `merge.objects`, `merge.arrays`)
      * - Boolean normalization of `allowExternal`
      *
      * NON-RESPONSIBILITIES:
+     * - Does NOT load/read external configs (DOM/script/import)
      * - Does NOT parse or execute eval/import content
-     * - Does NOT fetch or resolve imports
-     * - Does NOT read DOM/script config sources
-     * - Does NOT validate semantics beyond basic type/shape guarantees
+     * - Does NOT validate business semantics beyond type/shape guarantees
      *
      * OUTPUT GUARANTEES:
-     * After execution, `active.job.config` will satisfy:
+     * After execution, `active.job.config` will satisfy (minimum contract):
      *
      *   {
-     *     allowExternal: boolean,     // defaults to true unless explicitly disabled
-     *     at: string[],              // DSL pointers; never empty (constants fallback)
-     *     attrPrefixes: string[],     // defaults to ["data-","at-"]
-     *     evalType: string[],         // defaults to ["text/at-eval","text/at-config"]
-     *     importPath: string[],       // defaults to []
+     *     allowExternal: boolean,      // default true unless explicitly disabled
+     *     at: string[],               // non-empty (LAST_LINE fallback)
+     *     attrPrefixes: string[],      // non-empty (fallback ["data-","at-"])
+     *     evalType: string[],          // non-empty (LAST_LINE fallback)
+     *     importPath: string[],        // may be empty
+     *     capture_attrs: string[],     // may be empty
      *     merge: {
-     *       order: string[],          // defaults to ["base","external","inline"]
-     *       objects: string,          // defaults to "deep"
-     *       arrays: string            // defaults to "concatUnique"
+     *       order: string[],           // non-empty (fallback ["base","external","inline"])
+     *       objects: string,           // fallback "deep"
+     *       arrays: string             // fallback "concatUnique"
      *     },
-     *     base: Object                // always a hash/object
+     *     base: Object                 // always a hash/object
      *   }
      *
      * @param {Object} active
@@ -589,10 +581,10 @@ export default class Schema {
 	// 3) Final safety-net defaults from constants (only if missing)
 	// -----------------------------------------
 
-	// at pointers: default from constants.DOM_CONFIG_AT ("config.at at")
+	// at pointers: default from LAST_LINE.DOM_CONFIG_AT ("config.at at")
 	out.at = lib.array.to(out.at, CONSTANTS.ARR_TO_OPTS).filter(v => typeof v === "string");
 	if (!lib.array.len(out.at))
-            out.at = lib.array.to(CONSTANTS.DOM_CONFIG_AT, CONSTANTS.ARR_TO_OPTS).filter(v => typeof v === "string");
+            out.at = lib.array.to(LAST_LINE.DOM_CONFIG_AT, CONSTANTS.ARR_TO_OPTS).filter(v => typeof v === "string");
 
 	// attrPrefixes
 	out.attrPrefixes = lib.array.to(out.attrPrefixes, CONSTANTS.ARR_TO_OPTS).filter(v => typeof v === "string");
@@ -602,7 +594,7 @@ export default class Schema {
 	// evalType
 	out.evalType = lib.array.to(out.evalType, CONSTANTS.ARR_TO_OPTS).filter(v => typeof v === "string");
 	if (!lib.array.len(out.evalType))
-            out.evalType = ["text/at-eval", "text/at-config"];
+            out.evalType = LAST_LINE.DEFAULT_EVAL_TYPE;
 
 	// importPath
 	out.importPath = lib.array.to(out.importPath, CONSTANTS.ARR_TO_OPTS).filter(v => typeof v === "string");
@@ -619,6 +611,8 @@ export default class Schema {
 	// allowExternal default (if somehow missing)
 	out.allowExternal = !lib.bool.no(out.allowExternal);
 
+	out.capture_attrs = lib.array.to(out.capture_attrs, CONSTANTS.ARR_TO_OPTS).filter(v => typeof v === 'string');
+	
 	// Ensure base always ends up a hash
 	out.base = lib.hash.to(out.base);
     }
@@ -635,9 +629,30 @@ export default class Schema {
      *   1) Default configuration (`def_conf.job.registry`)
      *   2) User-provided configuration (`user.job.registry`)
      *
+     * RESPONSIBILITIES:
+     * - Shape coercion (ensure `job` and `job.registry` are objects)
+     * - Deterministic merge of user overrides (MERGE_OPTS_V1)
+     * - Apply final safety-net defaults for required fields
+     *
+     * NON-RESPONSIBILITIES:
+     * - Does NOT create the JobRegistry
+     * - Does NOT register/unregister jobs
+     * - Does NOT validate semantics beyond basic type/shape guarantees
+     *
      * OUTPUT GUARANTEES:
-     * - `active.job.registry` is a hash
-     * - `active.job.registry.prefix` is a non-empty string (defaults to "at")
+     * After execution, `active.job.registry` will satisfy:
+     *
+     *   {
+     *     prefix: string   // non-empty, trimmed, defaults to "at"
+     *   }
+     *
+     * @param {Object} active
+     *   The in-progress compiled configuration object.
+     *   This method mutates `active.job.registry` directly.
+     *
+     * @param {Object} user
+     *   Normalized user configuration object.
+     *   May or may not contain a `job.registry` subtree.
      */
     _configJobRegistry(active, user) {
 	const { lib } = this;
@@ -661,45 +676,48 @@ export default class Schema {
     /**
      * Compile and normalize the `boot` configuration block.
      *
+     * RUNTIME SEPARATION:
+     * - This method ONLY compiles boot-time configuration.
+     * - It does NOT start/stop any subsystems (sweep, observer, events, intervals).
+     * - Actual boot execution is handled by the ActiveTags runtime layer.
+     *
      * CONTRACT:
      * - Mutates `active.boot` in-place.
-     * - Defines ONLY boot-time behavior and initial runtime enablement.
-     * - Does NOT start services, observers, events, or intervals.
-     * - Does NOT manage runtime state after initialization.
+     * - Establishes boot-time policy and initial runtime enablement intent only.
      *
      * INPUT SOURCES (precedence, low → high):
      *   1) Default configuration (`def_conf.boot`)
      *   2) User-provided configuration (`user.boot`)
      *
      * SAFETY NET:
-     * - Missing or invalid fields are replaced with safe defaults.
-     * - Constants are used only as a final fallback.
+     * - Missing/invalid fields are replaced with safe defaults.
+     * - LAST_LINE defaults are used only as a final fallback.
      *
      * RESPONSIBILITIES:
      * - Shape coercion (ensure `boot` is an object)
-     * - Deterministic merge of user overrides
-     * - Normalization of selector and boolean flags
-     * - Establish initial runtime enablement intent
+     * - Deterministic merge of user overrides (MERGE_OPTS_V1)
+     * - Normalize `boot.selector` into a non-empty `string[]`
+     * - Normalize boolean flags with "default true unless explicitly disabled"
      *
      * NON-RESPONSIBILITIES:
-     * - Does NOT execute boot actions (sweep, observe, enable subsystems)
+     * - Does NOT execute boot actions (discover/sweep, observe, enable subsystems)
      * - Does NOT validate selector correctness beyond basic type checks
-     * - Does NOT control runtime toggling after boot
+     * - Does NOT manage runtime state after initialization
      *
      * SEMANTICS:
-     * - All boolean flags default to `true` unless explicitly disabled.
-     * - `intervals` and `events` represent initial runtime state ONLY.
-     *   They may be changed later via runtime APIs.
+     * - Boolean flags default to `true` unless explicitly disabled via `lib.bool.no(...)`.
+     * - `intervals` and `events` express initial runtime enablement intent only;
+     *   they may be changed later via runtime APIs.
      *
      * OUTPUT GUARANTEES:
      * After execution, `active.boot` will satisfy:
      *
      *   {
-     *     selector: string,      // non-empty, trimmed
-     *     bootSweep: boolean,    // default true
-     *     observeDom: boolean,   // default true
-     *     intervals: boolean,    // initial enablement, default true
-     *     events: boolean        // initial enablement, default true
+     *     selector: string[],     // non-empty, trimmed strings
+     *     bootSweep: boolean,     // default true
+     *     observeDom: boolean,    // default true
+     *     intervals: boolean,     // default true
+     *     events: boolean         // default true
      *   }
      *
      * @param {Object} active
@@ -710,43 +728,55 @@ export default class Schema {
      *   Normalized user configuration object.
      *   May or may not contain a `boot` subtree.
      */
-    _configBoot(active, user) {
-	const { lib } = this;
+_configBoot(active, user) {
+    const { lib } = this;
 
-	// ensure structure
-	active.boot = lib.hash.to(active.boot);
+    // ensure structure
+    active.boot = lib.hash.to(active.boot);
 
-	// merge user.boot over defaults (if provided)
-	const userBoot = lib.hash.to(lib.hash.get(user, "boot"));
-	active.boot = lib.hash.merge(active.boot, userBoot, CONSTANTS.MERGE_OPTS_V1);
+    // merge user.boot over defaults
+    const userBoot = lib.hash.to(lib.hash.get(user, "boot"));
+    active.boot = lib.hash.merge(active.boot, userBoot, CONSTANTS.MERGE_OPTS_V1);
 
-	const boot = active.boot;
+    const boot = active.boot;
 
-	// ---- final safety-net defaults (only if missing/invalid) ----
+    const normSelectors = (val) => lib.array
+        .to(val, CONSTANTS.ARR_TO_OPTS)
+        .filter(v => typeof v === "string" && v.trim())
+        .map(v => v.trim());
 
-	// selector
-	boot.selector = (typeof boot.selector !== "string" || !boot.selector.trim()) ?
-	    CONSTANTS.DEFAULT_SELECTOR || "[data-activetag]":
-	    boot.selector.trim();
+    // ---- selector (required; string OR string[]) ----
+    boot.selector = normSelectors(boot.selector);
 
-	// bootSweep
-	boot.bootSweep  = !lib.bool.no(boot.bootSweep);
-	// observeDom
-	boot.observeDom = !lib.bool.no(boot.observeDom);
-	// initial runtime state flags (boot-time enablement only)
-	boot.intervals  = !lib.bool.no(boot.intervals);
-	boot.events     = !lib.bool.no(boot.events);
+    // safety-net fallback
+    if (!lib.array.len(boot.selector)) {
+        boot.selector = normSelectors(LAST_LINE.DEFAULT_SELECTOR);
     }
-    
 
+    if (!lib.array.len(boot.selector)) {
+        throw new Error(
+            "Schema._configBoot(): boot.selector is required and must be a non-empty string or string[]"
+        );
+    }
+
+    // ---- flags ----
+    boot.bootSweep  = !lib.bool.no(boot.bootSweep);
+    boot.observeDom = !lib.bool.no(boot.observeDom);
+
+    // initial runtime enablement flags (boot-time only)
+    boot.intervals  = !lib.bool.no(boot.intervals);
+    boot.events     = !lib.bool.no(boot.events);
+}
+    
+    
     /**
      * Compile and normalize the `log` configuration block.
      *
      * CONTRACT:
      * - Mutates `active.log` in-place.
-     * - Does NOT create or configure logger instances.
-     * - Does NOT emit logs or perform side effects.
-     * - Ensures a stable, predictable logging configuration object.
+     * - Defines logging/diagnostics policy only.
+     * - Does NOT create logger instances or bind to services.
+     * - Does NOT emit logs or perform runtime side effects.
      *
      * INPUT SOURCES (precedence, low → high):
      *   1) Default configuration (`def_conf.log`)
@@ -754,29 +784,37 @@ export default class Schema {
      *
      * SAFETY NET:
      * - Missing or invalid fields are replaced with sane defaults.
-     * - Constants are used only as a final fallback.
+     * - LAST_LINE defaults are used only as a final fallback.
      *
      * RESPONSIBILITIES:
-     * - Shape coercion (ensure `log` and `log.policy` are objects)
-     * - Deterministic merge of user overrides
-     * - Boolean normalization using lib semantics
-     * - Default policy completion
+     * - Shape coercion (ensure `log`, `log.policy`, and `log.buckets` are objects)
+     * - Deterministic merge of user overrides (MERGE_OPTS_V1)
+     * - Boolean normalization of `enabled`
+     * - Boolean normalization of `policy.trace`
+     * - Fallback normalization of `policy.console`
+     * - Ensure `buckets` is a hash of string values (deep-copied, filtered)
      *
      * NON-RESPONSIBILITIES:
-     * - Does NOT validate the full range of logging policies
-     * - Does NOT bind to logging services or buckets
+     * - Does NOT validate the full range of logging policy values
+     * - Does NOT enforce bucket naming conventions
+     * - Does NOT bind or create buckets in the logger service
      * - Does NOT interpret or execute logging behavior
      *
      * OUTPUT GUARANTEES:
-     * After execution, `active.log` will satisfy:
+     * After execution, `active.log` will satisfy (minimum contract):
      *
      *   {
-     *     enabled: boolean,          // defaults to true
+     *     enabled: boolean,
      *     policy: {
-     *       console: string,         // defaults to CONSTANTS.LOG_POLICY.console ("warn")
-     *       trace: boolean           // defaults to false
+     *       console: string,
+     *       trace: boolean
+     *     },
+     *     buckets: {
+     *       [key: string]: string   // string values only
      *     }
      *   }
+     *
+     * `buckets` is always a plain object with string values only.
      *
      * @param {Object} active
      *   The in-progress compiled configuration object.
@@ -810,11 +848,13 @@ export default class Schema {
 	// console policy (fallback to constants)
 	//$fixup - go dig up the console policy range later
 	if (!log.policy.console) 
-	    log.policy.console = lib.hash.get(CONSTANTS, "LOG_POLICY.console", "warn") ;
+	    log.policy.console = lib.hash.get(LAST_LINE, "LOG_POLICY.console", "warn") ;
 	
 
 	// trace flag
 	log.policy.trace = lib.bool.yes(log.policy.trace) ;
+	if (!lib.hash.is(log.buckets) ) log.buckets = LAST_LINE.LOG_BUCKETS_DEFAULT_VALUES;
+	log.buckets = lib.utils.deepCopy(lib.hash.filter( lib.hash.to(log.buckets) , (v)=> typeof v === 'string' ) );
     }
 
     /**
@@ -888,31 +928,49 @@ export default class Schema {
      *
      * CONTRACT:
      * - Mutates `active.observe` in-place.
-     * - Defines configuration for the DOM mutation observer service.
+     * - Defines policy/config for the DOM mutation observer service.
      * - Runtime enablement is controlled elsewhere (`boot.observeDom`).
      *
      * INPUT SOURCES (precedence, low → high):
      *   1) Default configuration (`def_conf.observe`)
      *   2) User-provided configuration (`user.observe`)
      *
+     * KEY SEMANTICS:
+     * - `observe.selector` is OPTIONAL and intentionally decoupled from discovery.
+     *   - If omitted or empty, runtime fallback to `boot.selector` is handled
+     *     by the ObserveController (not here).
+     *   - Schema does NOT alias or copy `boot.selector` into `observe.selector`.
+     *
+     * - `observe.attribute_filter` defines which attribute changes trigger
+     *   re-evaluation when `observeAttributes` is enabled.
+     *   - This list MUST be non-empty after compilation.
+     *   - If missing/empty, a LAST_LINE default is applied.
+     *   - For correct behavior, it should generally include attributes referenced
+     *     by the selector(s). See DomChangeObserver documentation.
+     *
      * RESPONSIBILITIES:
      * - Shape coercion (ensure `observe` is an object)
-     * - Deterministic merge of user overrides
-     * - Normalization of selectors and options
-     * - Fallback to boot selector when selectors are omitted
+     * - Deterministic merge of user overrides (MERGE_OPTS_V1)
+     * - Normalize `selector` to `string[]` (may be empty)
+     * - Normalize `attribute_filter` to `string[]` (guaranteed non-empty after compile)
+     * - Normalize `debounceMs` to integer >= 0 (default 25)
+     * - Normalize `observeAttributes` to boolean (lib semantics)
+     * - Apply LAST_LINE safety-net for `attribute_filter`
      *
      * NON-RESPONSIBILITIES:
-     * - Does NOT start or stop observers
-     * - Does NOT validate selector correctness
-     * - Does NOT manage observer lifecycle
+     * - Does NOT start/stop the observer service
+     * - Does NOT validate CSS selector correctness
+     * - Does NOT reconcile existing DOM state (handled by discover/boot sweep)
+     * - Does NOT alias discovery selectors into observation selectors
      *
      * OUTPUT GUARANTEES:
      * After execution, `active.observe` will satisfy:
      *
      *   {
-     *     selectors: string[],        // non-empty, defaults to boot.selector
-     *     debounceMs: number,         // integer >= 0, defaults to 25
-     *     observeAttributes: boolean  // defaults to false
+     *     selector: string[],         // may be empty; runtime may fall back to boot.selector
+     *     attribute_filter: string[], // guaranteed non-empty
+     *     debounceMs: number,         // integer >= 0
+     *     observeAttributes: boolean  // normalized boolean
      *   }
      *
      * @param {Object} active
@@ -929,24 +987,29 @@ export default class Schema {
 
 	// merge user.observe over defaults
 	const userObserve = lib.hash.to(lib.hash.get(user, "observe"));
-	active.observe = lib.hash.merge(
-            active.observe,
-            userObserve,
-            CONSTANTS.MERGE_OPTS_V1
-	);
+	active.observe = lib.hash.merge(active.observe, userObserve, CONSTANTS.MERGE_OPTS_V1);
 
 	const obs = active.observe;
 
-	// selectors
-	obs.selectors = lib.array
-            .to(obs.selectors, CONSTANTS.ARR_TO_OPTS)
+	// normalize lists (grease: accept string/array)
+	obs.selector = lib.array
+            .to(obs.selector, CONSTANTS.ARR_TO_OPTS)
             .filter(v => typeof v === "string" && v.trim());
 
-	if (!lib.array.len(obs.selectors)) {
-            obs.selectors = lib.array.to(
-		lib.hash.get(active, "boot.selector", CONSTANTS.DEFAULT_SELECTOR),
-		CONSTANTS.ARR_TO_OPTS
-            );
+	obs.attribute_filter = lib.array
+            .to(obs.attribute_filter, CONSTANTS.ARR_TO_OPTS)
+            .filter(v => typeof v === "string" && v.trim());
+
+	// NOTE:
+	// We do NOT alias `boot.selector` into `observe.selector` here.
+	// Fallback resolution (observe.selector || boot.selector) is handled at runtime
+	// by the ObserveController, keeping discovery and observation decoupled.
+
+	// attribute filter fallback (final safety net)
+	if (!lib.array.len(obs.attribute_filter)) {
+            obs.attribute_filter = lib.array
+		.to(LAST_LINE.DEFAULT_ATTRIBUTE_SELECTOR, CONSTANTS.ARR_TO_OPTS)
+		.filter(v => typeof v === "string" && v.trim());
 	}
 
 	// debounceMs
@@ -955,7 +1018,9 @@ export default class Schema {
 
 	// observeAttributes
 	obs.observeAttributes = lib.bool.yes(obs.observeAttributes);
+
     }
+    
 
 
     /**
@@ -965,48 +1030,50 @@ export default class Schema {
      * - Mutates `active.engine` in-place.
      * - Produces a fully compiled engine configuration suitable for runtime use.
      *
-     * SEMANTICS:
-     * - Engine configuration is layered:
-     *     1) System/default engine config (`active.engine`)
-     *     2) User-provided engine config (`user.engine`)
-     * - User config overrides system config using MERGE_OPTS_V1.
+     * LAYERING (precedence low → high):
+     *   1) System/default engine config (`active.engine`)
+     *   2) User-provided engine config (`user.engine`)
+     * - User config overrides system config using `CONSTANTS.MERGE_OPTS_V1`.
      *
      * BUILTINS HANDLING (`engine.builtins`):
-     * - Supports boolish semantics:
-     *     - `false` / explicit opt-out => `{}` (disable all builtins)
-     *     - `true`  => default builtins map
-     *     - object  => merged with default builtins
-     * - Builtins are filtered to function values only.
-     * - Filtering is deep and compacted to remove empty containers.
+     * - Resolved via `_boolishCoerceHash(...)`.
+     * - Boolish semantics:
+     *     - Explicit opt-out on user layer (`false` / null) => `{}` (disable all builtins)
+     *     - `true` on either layer => substitute default builtins map
+     *     - object => merged with defaults (user wins on conflicts)
+     * - Final surface:
+     *     - Filtered to function values only
+     *     - Deep filtering enabled
+     *     - Empty containers compacted
      *
      * HOOKS HANDLING (`engine.hooks`):
-     * - Provides a minimal, permissive instrumentation hook surface.
-     * - Supports boolish semantics:
-     *     - `false` / explicit opt-out => `{}` (disable all hooks)
-     *     - `true`  => built-in test hooks (`testHooks`)
-     *     - object  => merged with default hooks (functions only)
-     * - Hooks are filtered to function values only.
-     * - Hook filtering is shallow (hooks are not expected to be nested).
+     * - Resolved via `_boolishCoerceHash(...)`.
+     * - Boolish semantics:
+     *     - Explicit opt-out on user layer => `{}` (disable all hooks)
+     *     - `true` => substitute built-in `testHooks`
+     *     - object => merged with defaults (user wins on conflicts)
+     * - Final surface:
+     *     - Filtered to function values only
+     *     - Shallow filtering (not deep)
      *
      * RESPONSIBILITIES:
      * - Normalize system and user engine config blocks.
-     * - Resolve and compile the `engine.builtins` surface.
-     * - Resolve and compile the `engine.hooks` surface.
-     * - Merge engine configuration layers deterministically.
+     * - Resolve and compile the `engine.builtins` function surface.
+     * - Resolve and compile the `engine.hooks` function surface.
+     * - Merge engine configuration deterministically.
      *
      * NON-RESPONSIBILITIES:
      * - Does NOT execute builtins or hooks.
      * - Does NOT validate hook names or builtin behavior.
-     * - Does NOT require specific hooks/builtins to exist.
      * - Does NOT manage engine lifecycle or runtime state.
      *
      * OUTPUT GUARANTEES:
-     * After execution, `active.engine` will be:
-     * - a plain object
-     * - containing:
-     *     - `builtins`: a clean, nested hash of functions
-     *     - `hooks`: a clean hash of functions
-     * - both surfaces are safe for runtime invocation without additional type checks
+     * After execution, `active.engine` will:
+     * - Be a plain object.
+     * - Contain:
+     *     - `builtins`: a (possibly nested) hash of functions only.
+     *     - `hooks`: a hash of functions only.
+     * - Be safe for runtime invocation without additional type checks.
      *
      * @param {Object} active
      *   The in-progress compiled configuration object.
@@ -1048,23 +1115,49 @@ export default class Schema {
     /**
      * Coerce a boolish config surface into a merged "hash of functions".
      *
-     * SEMANTICS:
-     * - If `layer` is an explicit opt-out (`lib.bool.no(layer)` or `layer === null`),
-     *   return `{}` and ignore `base`.
-     * - If `base` is truthy-yes, substitute `override`.
-     * - If `layer` is truthy-yes, substitute `override`.
-     * - Coerce both to hashes, merge base <- layer using MERGE_OPTS_V1.
-     * - Filter result to function values only (optionally deep/compact).
+     * This helper is used to compile surfaces like `engine.builtins` and `engine.hooks`
+     * into a safe runtime callable map (functions only).
+     *
+     * SEMANTICS (boolish):
+     * - `layer` is authoritative for disabling:
+     *     - If `layer` is explicit opt-out (`lib.bool.no(layer)` OR `layer === null`),
+     *       return `{}` and ignore `base` entirely.
+     * - `base` and `layer` may be:
+     *     - `true`  => treated as "enable defaults": substituted with `override`
+     *     - object  => treated as user-provided map to merge
+     *     - other   => coerced to `{}` via `lib.hash.to(...)`
+     *
+     * MERGE:
+     * - After boolish substitution/coercion:
+     *     merged = merge( hash(base), hash(layer), MERGE_OPTS_V1 )
+     * - `layer` wins over `base` on conflicts (per MERGE_OPTS_V1).
+     *
+     * FILTERING:
+     * - The merged object is filtered to function values only:
+     *     `lib.hash.filter(merged, v => typeof v === "function", filterOpts)`
+     * - If `filterOpts` enables deep/compact behavior, nested maps may be preserved
+     *   and empty containers may be removed (per `lib.hash.filter` semantics).
+     *
+     * NOTES:
+     * - Only `layer` is checked for explicit opt-out. A falsy/disabled `base` does
+     *   not force-disable the result; it simply contributes no entries unless it is
+     *   `true` (which enables `override`).
      *
      * @param {*} base
+     *   System/default surface (may be boolish or object).
+     *
      * @param {*} layer
+     *   User/config surface (may be boolish or object). Explicit opt-out on this
+     *   parameter disables the entire surface.
+     *
      * @param {Object} override
+     *   The default function map to substitute when either `base` or `layer` is `true`.
+     *
      * @param {Object|boolean} [filterOpts]
-     *   Passed through to `lib.hash.filter(..., fn, filterOpts)`.
-     *   Use `true` for deep filtering of nested maps.
+     *   Options passed through to `lib.hash.filter(...)` (e.g. `{ deep:true, compact:true }`).
      *
      * @returns {Object}
-     *   Hash of functions (possibly nested if deep filtering is enabled).
+     *   A (possibly nested) object containing only function values, safe for runtime invocation.
      */
     _boolishCoerceHash(base, layer, override, filterOpts) {
 	const { lib } = this;

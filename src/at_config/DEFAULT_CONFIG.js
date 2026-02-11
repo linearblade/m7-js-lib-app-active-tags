@@ -63,7 +63,16 @@ export const DEFAULT_CONFIG = freezeDeep(
 		evalType: ["text/at-eval", "text/at-config"],
 		importEnabled: true,
 		importPath: ["/vendor/m7-js-lib-active-tags/examples/"],
-
+		// --- capture attrs on configuration ---
+		//this is at present a convenience and hold over from legacy AT versions. it does not get used, it is here for convenience.
+		//id or name will probably be added for failovers to the job.name key , but may also be used later for 'resetting' a mutated form at runtime.
+		capture_attrs : [ "id",
+				  "name",
+				  "action",
+				  "method",
+				  "enctype",
+				  "tagName"
+				],
 		// --- merge semantics for layered job config ---
 		// base    : constructor-provided config
 		// external: DOM / script-derived config
@@ -96,13 +105,47 @@ export const DEFAULT_CONFIG = freezeDeep(
 	},
 
 	// ---------------------------------------------------------------------------
-	// Logging / diagnostics policy
+	// Logging / Diagnostics Policy
 	// ---------------------------------------------------------------------------
+	//
+	// This block controls integration with `lib.primitive.log`
+	// (resolved via `lib.service`, typically `lib.svc.log`).
+	//
+	// ActiveTags does NOT implement its own logger.
+	// It delegates all structured logging, bucket management,
+	// and console policy enforcement to m7-js-lib-primitive-log.
+	//
+	// See: m7-js-lib-primitive-log documentation for full behavior.
+	//
+	// ---------------------------------------------------------------------------
+	// Behavior
+	// ---------------------------------------------------------------------------
+	//
+	// - Buckets defined here are created automatically if they do not exist.
+	// - Logging output level is governed by `policy.console`.
+	// - Pipeline/VM tracing is controlled by `policy.trace`.
+	// - Disabling `enabled` suppresses ActiveTags log emission,
+	//   but does not disable the underlying log service.
+	//
+	// In most projects, there is no need to modify bucket names.
+	//
+	// ---------------------------------------------------------------------------
+
 	log: {
 	    enabled: true,
+
 	    policy: {
 		console: "warn",   // warn | error | info | log (as supported by lib logger)
 		trace: false       // pipeline / VM trace output
+	    },
+
+	    // Logging buckets are created if not already present.
+	    // Advanced projects may customize these.
+	    buckets: {
+		ROOT:     "activetags",
+		CONFIG:   "activetags.config",
+		RUNTIME:  "activetags.runtime",
+		PIPELINE: "activetags.pipeline",
 	    }
 	},
 
@@ -114,28 +157,121 @@ export const DEFAULT_CONFIG = freezeDeep(
 	    onOpError: "error"   // "error" | "complete" | "continue" (if supported)
 	},
 	
-	
 	// ---------------------------------------------------------------------------
-	// Mutation observer
+	// Mutation Observer Policy
 	// ---------------------------------------------------------------------------
+	//
+	// Controls how ActiveTags reacts to DOM mutations.
+	//
+	// This subsystem is responsible for reacting to:
+	// - element insertion/removal
+	// - selector membership transitions
+	// - attribute changes that affect selector matching
+	//
+	// IMPORTANT:
+	// - Runtime enablement is controlled by `boot.observeDom`.
+	// - This block configures observation behavior only.
+	// - Observation does NOT reconcile prior DOM state.
+	//   Call `discover()` for full reconciliation at startup.
+	//
+	// SELECTOR RESOLUTION:
+	// - `observe.selector` is the CSS selector used by the observer.
+	// - If omitted or empty, it falls back to `boot.selector`.
+	// - This selector determines which elements are considered relevant.
+	//
+	// ATTRIBUTE FILTER SEMANTICS:
+	// - `attribute_filter` defines which attribute changes trigger
+	//   re-evaluation of selector membership.
+	// - May be a string or array of strings.
+	// - Only attribute names listed here will trigger observer checks.
+	// - The filter is OR-based (any listed attribute change will trigger).
+	//
+	// DESIGN NOTE:
+	// - `attribute_filter` should generally include the attribute(s)
+	//   referenced by `selector`.
+	// - If they do not align, selector transitions may not be detected.
+	// - See DomChangeObserver documentation for deeper behavior details.
+	//
+	// ---------------------------------------------------------------------------
+
 	observe: {
-	    // enabled intentionally omitted
-	    // runtime enablement is controlled by boot.observeDom
-	    //selectors: "[data-activetag]", // defaults to boot selector if omitted
+	    // CSS selector for observer matching.
+	    // Falls back to `boot.selector` if omitted.
+	    selector: "[data-activetag]",
+
+	    // Attribute(s) that trigger selector re-evaluation.
+	    // String or array accepted.
+	    attribute_filter: ["data-activetag", "data-foo"],
+
+	    // Debounce window (ms) for batching mutation events.
 	    debounceMs: 25,
-	    observeAttributes: false
+
+	    // If true, attribute mutations are observed.
+	    // If false, only childList/subtree mutations are processed.
+	    observeAttributes: true,
 	},
+
 	// ---------------------------------------------------------------------------
-	// Hooks
+	// Engine configuration
 	// ---------------------------------------------------------------------------
-	
-	//hooks : true, //true = test hooks , falsy = no hooks , user defined => hash of functions
+	//
+	// The `engine` block defines the functional surface exposed to the runtime
+	// execution engine (builtins + hooks).
+	//
+	// This block is compiled at configuration time into a normalized,
+	// functions-only map. Non-function values are discarded.
+	//
 	// ---------------------------------------------------------------------------
-	// Engine
+	// builtins
 	// ---------------------------------------------------------------------------
-	engine : {
-	    builtins : true,
-	    hooks    : false
+	//
+	// Controls the builtin operation library available to pipelines.
+	//
+	// Semantics:
+	//   builtins === true
+	//     → Use the standard ActiveTags builtins bundle.
+	//
+	//   builtins === null / false / explicit opt-out
+	//     → Disable all builtins (empty object).
+	//
+	//   builtins === { ... }
+	//     → Treated as a hash (may be nested).
+	//       Merged over the default builtins using MERGE_OPTS_V1.
+	//       Result is filtered deeply to function values only.
+	//
+	// Notes:
+	//   - Deep structures are allowed.
+	//   - Empty containers are compacted during compilation.
+	//   - Final surface is always a clean hash of functions.
+	//
+	// ---------------------------------------------------------------------------
+	// hooks
+	// ---------------------------------------------------------------------------
+	//
+	// Controls engine-level lifecycle/test hooks.
+	//
+	// Semantics:
+	//   hooks === true
+	//     → Use the standard test hooks (see testHooks.js).
+	//
+	//   hooks === false / null / undefined
+	//     → No hooks (empty object).
+	//
+	//   hooks === { ... }
+	//     → Treated as a hash of functions.
+	//       Shallow merge over defaults (if any).
+	//       Only function values are retained.
+	//
+	// Notes:
+	//   - Hooks are NOT deep-filtered like builtins.
+	//   - Hook names are not validated at compile time.
+	//   - Intended for diagnostics, instrumentation, and testing.
+	//
+	// ---------------------------------------------------------------------------
+
+	engine: {
+	    builtins: true,
+	    hooks: false
 	}
     }
 );

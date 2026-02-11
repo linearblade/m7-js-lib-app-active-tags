@@ -51,10 +51,20 @@ export class Controller {
 	if (typeof toJob !== "function") throw new Error("EventController requires { toJob } function");
 
 	// REQUIRED: root delegation selector (no default)
-	selector = lib.str.to(selector, true).trim();
-	if (!selector) throw new Error("EventController requires { selector } (root delegation selector)");
+	let selectors = lib.array.to(selector);
+	selectors = lib.array.filterStrings(selectors); // trims + removes non-strings
 
-	this.selector  = selector;
+	const rootSelector = selectors.join(", ");
+	if (!rootSelector) {
+	    throw new Error("EventController requires { selector } (root delegation selector)");
+	}
+
+	this.selector = rootSelector;
+	
+	//selector = lib.str.to(selector, true).trim();
+	//if (!selector) throw new Error("EventController requires { selector } (root delegation selector)");
+	//this.selector  = selector;
+	
 	this.AT        = AT;
 	this.engine    = AT.engine;
 	this.delegator = AT.svc.delegator;

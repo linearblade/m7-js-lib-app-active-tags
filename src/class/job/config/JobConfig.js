@@ -111,8 +111,10 @@ export class JobConfig {
 	if (!opts.e)    throw new Error("[Job] missing required option (opts.e)");
 	if (!opts.expr) throw new Error("[Job] missing required option (opts.expr)");
 	if (!opts.job)  throw new Error("[Job] missing required option (opts.job)");
+	if (!opts.conf)  throw new Error("[Job] missing required option (opts.conf)");
 	
 	const lib = opts.lib;
+	this.startupConf = opts.conf;
 	this.job = opts.job;
 	this.env = opts.env; //root , document etc
 	// core deps (config needs these)
@@ -205,7 +207,7 @@ export class JobConfig {
 
 	const domService = new DomConfigSource(
 	    {
-		...opts, env:this.env,
+		...opts, env:this.env, conf:this.startupConf,
 		lib:this.lib,expr:this.expr,job:this.job,
 	    });
 	const resp = await domService.read(this.e);
