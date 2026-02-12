@@ -1,103 +1,143 @@
 /**
  * Job Registry
+ * ============
  *
- * Central registry and identity manager for Jobs.
+ * Central registry and identity manager for Job instances.
  *
- * Responsibilities:
- * - Owns job identity (id, createdAt) and guarantees uniqueness within a runtime.
- * - Maintains canonical indexes for resolving jobs by:
- *   - id
- *   - DOM element
- *   - logical name (non-unique, convenience only)
- * - Acts as the single source of truth for "which jobs exist right now".
  *
- * Explicit non-responsibilities:
- * - Does NOT execute jobs.
- * - Does NOT run pipelines, stacks, or intervals.
- * - Does NOT mutate job configuration.
- * - Does NOT interpret schemas or DOM config.
+ * ROLE IN THE SYSTEM
+ * ------------------
+ * The Registry is the authoritative directory of all Jobs currently
+ * known to the runtime. It owns identity assignment and provides
+ * deterministic resolution across multiple lookup modes.
  *
- * Conceptual model:
- * - Scheduler is a *directory*, not a runner.
- * - Jobs may exist before or after registration.
- * - Registration binds identity and enables resolution.
- * - Resolution is tolerant and ergonomic (id | name | element | job-like).
+ * It is a directory, not a runner.
  *
- * Identity rules:
- * - `id` is the true identity (stable, unique, scheduler-owned).
- * - `name` is a convenience alias (optional, non-unique).
- * - DOM element (`job.e`) is the physical anchor for registration.
  *
- * Indexes:
+ * RESPONSIBILITIES
+ * ----------------
+ * - Assign and guarantee unique job identity (id, createdAt).
+ * - Maintain canonical indexes for resolving Jobs by:
+ *     - id
+ *     - DOM element
+ *     - logical name (non-unique)
+ * - Serve as the single source of truth for which Jobs exist.
+ * - Coordinate controlled unregistration and lifecycle shutdown.
+ *
+ *
+ * NON-RESPONSIBILITIES
+ * --------------------
+ * - Does not execute Jobs.
+ * - Does not enqueue or drain pipelines.
+ * - Does not interpret schema or configuration.
+ * - Does not mutate JobConfig.
+ *
+ *
+ * IDENTITY MODEL
+ * --------------
+ * - id is the canonical unique identifier.
+ * - name is an optional convenience alias and may collide.
+ * - job.e (DOM element) is the physical anchor for registration.
+ *
+ *
+ * INDEX STRUCTURE
+ * ---------------
  * - byId   : Map<id, Job>
  * - byEl   : WeakMap<Element, id>
  * - byName : Map<name, Set<id>>
  *
- * Lifecycle integration:
- * - Scheduler is responsible for invoking `job.shutdown()` during unregister.
- * - Shutdown metadata is recorded for diagnostics (bounded FIFO log).
+ * WeakMap is used for DOM bindings to avoid memory leaks when
+ * elements are garbage-collected.
  *
- * Design notes:
- * - Resolution prefers correctness over convenience:
- *     id → element → name → job-like object
- * - Name collisions are allowed but surfaced via warnings.
- * - WeakMap is used for DOM binding to avoid memory leaks.
  *
- * This class is intentionally small and strict.
- * Execution, orchestration, and timing belong to runtime/Runner.
+ * RESOLUTION POLICY
+ * -----------------
+ * Resolution is ergonomic but deterministic:
+ *   id → element → name → job-like object
+ *
+ * Name collisions are allowed but must be handled explicitly
+ * by callers when multiple matches exist.
+ *
+ *
+ * LIFECYCLE INTEGRATION
+ * ---------------------
+ * - unregister() invokes job.shutdown() before removal.
+ * - Shutdown metadata may be recorded in a bounded diagnostic log.
+ *
+ *
+ * DESIGN CONSTRAINTS
+ * ------------------
+ * - Small and strict.
+ * - No execution semantics.
+ * - No hidden side effects.
+ * - Identity and indexing must remain internally consistent.
  */
-
-import { SCHED_STATUS } from '../../constants.js';
 
 
 export default class Registry {
     /**
-     * Create a new Scheduler instance.
+     * Create a new Job Registry instance.
      *
-     * The Scheduler is a registry and identity authority for Jobs.
-     * It assigns unique identifiers, maintains resolution indexes,
-     * and tracks lifecycle metadata, but does not execute jobs.
+     * CONTRACT
+     * --------
+     * The Registry is a directory and identity authority for Jobs.
+     * It assigns unique identifiers, maintains resolution indexes, and
+     * coordinates controlled unregistration, but it does not execute jobs.
      *
-     * @param {Object} [opts]
-     * @param {string} [opts.prefix="at"]
-     *     Prefix used when generating job ids.
-     *     The final id format is implementation-defined but guaranteed
-     *     unique within this Scheduler instance.
+     *
+     * INPUT
+     * -----
+     * @param {Object} [opts={}]
+     *
+     * @param {Object} opts.lib
+     *   Required m7 lib instance.
+     *
+     * @param {Object} [opts.conf]
+     *   Optional registry configuration object.
+     *   When provided, prefix is read from conf.registry.prefix.
+     *
+     * @param {Object} [opts.env]
+     *   Optional environment context (document, baseURI, hooks).
      *
      * @param {number} [opts.shutdownLogMax=200]
-     *     Maximum number of shutdown records to retain in `shutdownLog`.
-     *     Older entries are discarded in FIFO order.
+     *   Maximum number of shutdown records retained in shutdownLog.
+     *   Older entries are discarded in FIFO order.
      *
-     * Internal state initialized:
-     * - `byId`        : Map<string, Job>
-     *     Primary identity index.
      *
-     * - `byEl`        : WeakMap<Element, string>
-     *     DOM element → job id binding.
-     *     WeakMap is used to avoid leaking detached DOM nodes.
+     * INITIALIZED STATE
+     * -----------------
+     * Identity
+     * - this.prefix    string prefix used when generating ids
+     * - this.counter   monotonic counter used for id generation
      *
-     * - `byName`      : Map<string, Set<string>>
-     *     Optional secondary index for logical job names.
-     *     Names are not guaranteed unique.
+     * Indexes
+     * - this.byId      Map<id, Job> primary identity index
+     * - this.byEl      WeakMap<Element, id> element binding index
+     * - this.byName    Map<name, Set<id>> optional secondary name index
      *
-     * - `createdAt`   : Map<string, number>
-     *     Job creation timestamps indexed by id.
-     *     Redundant with `job.createdAt`, but retained for fast lookup
-     *     and decoupled lifecycle tracking.
+     * Metadata
+     * - this.createdAt Map<id, number> creation timestamps (redundant with job.createdAt)
+     * - this.shutdownLog Array diagnostic shutdown records (bounded FIFO)
+     * - this.shutdownLogMax number max retained shutdown records
      *
-     * - `shutdownLog` : Array<Object>
-     *     Bounded log of job shutdown events for diagnostics.
      *
-     * Notes:
-     * - All identity and index state is local to this Scheduler instance.
-     * - Multiple Schedulers may coexist without coordination.
+     * NOTES
+     * -----
+     * - All identity and index state is local to this Registry instance.
+     * - Multiple registries may coexist without coordination.
+     * - WeakMap is used for DOM bindings to avoid leaking detached DOM nodes.
+     *
+     *
+     * FAILURE MODES
+     * -------------
+     * Throws if opts.lib is missing.
      */
     constructor(opts = {}) {
-	if(!lib) throw new Error("registry requires lib");
+	if(!opts?.lib) throw new Error("registry requires lib");
 	this.lib = opts.lib;
 	this.conf = this.lib.hash.to(opts.conf);
 
-    
+	
 	this.env =  opts.env;
 	this.prefix = this.conf.registry.prefix || "DEFAULT__at";
 	this.counter = 0;
@@ -119,76 +159,208 @@ export default class Registry {
     /**
      * Resolve a job reference into a Job instance.
      *
-     * Thin public wrapper around the internal `_resolve` method.
-     * Accepts ids, DOM elements, or job-like objects depending on resolver rules.
+     * CONTRACT
+     * --------
+     * resolve() converts a flexible job reference into a canonical Job
+     * instance using registry resolution rules.
      *
+     * This is a thin public wrapper around the internal _resolve() method.
+     *
+     *
+     * ACCEPTED INPUT FORMS
+     * --------------------
+     * - id (string or number)
+     * - DOM element bound to a Job
+     * - Job instance
+     * - job-like object (containing id and/or e)
+     *
+     *
+     * RESOLUTION POLICY
+     * -----------------
+     * Resolution is tolerant but deterministic.
+     * If no matching Job exists in the registry, null is returned.
+     *
+     *
+     * INPUT
+     * -----
      * @param {*} x
-     *     Job reference (id, element, Job instance, or job-like object).
+     *   Job reference of any supported type.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {Job|null}
-     *     Resolved Job instance, or null if not found.
+     *   The resolved Job instance, or null if not found.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not register jobs.
+     * Does not mutate registry state.
+     * Does not throw on resolution failure.
      */
     resolve(x) {
 	return this._resolve(x);
     }
     /**
-     * Generate the next unique job id.
+     * Generate the next unique Job id.
      *
-     * Ids are unique within this Scheduler instance and are generated
-     * sequentially using the configured prefix.
+     * CONTRACT
+     * --------
+     * nextId() produces a new identifier that is guaranteed to be unique
+     * within this Registry instance.
      *
+     * Ids are generated sequentially using the configured prefix and
+     * an internal monotonic counter.
+     *
+     *
+     * FORMAT
+     * ------
+     * `${prefix}-${counter}`
+     *
+     * The exact format is an implementation detail and should not be
+     * parsed externally.
+     *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {string}
-     *     Newly generated job id.
-     */ 
+     *   Newly generated unique Job identifier.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not register the id.
+     * Does not validate collisions externally.
+     * Uniqueness is guaranteed only within this Registry instance.
+     */
     nextId() {
 	this.counter += 1;
 	return `${this.prefix}-${this.counter}`;
     }
     /**
-     * Check whether a DOM element is already registered.
+     * Determine whether a DOM element is already registered.
      *
+     * CONTRACT
+     * --------
+     * hasElement() checks whether the provided DOM element is currently
+     * bound to a Job within this Registry instance.
+     *
+     *
+     * INPUT
+     * -----
      * @param {Element} el
-     *     DOM element to test.
+     *   DOM element to test.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {boolean}
-     *     True if the element is already bound to a job.
+     *   true  if the element is already associated with a registered Job.
+     *   false otherwise.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not resolve the Job.
+     * Does not validate element type.
+     * Does not mutate registry state.
      */
     hasElement(el) {
 	return this.byEl.has(el);
     }
     /**
-     * Get the job id associated with a DOM element.
+     * Retrieve the Job id associated with a DOM element.
      *
+     * CONTRACT
+     * --------
+     * getIdByElement() returns the registered Job id bound to the
+     * provided DOM element, if one exists.
+     *
+     *
+     * INPUT
+     * -----
      * @param {Element} el
-     *     DOM element bound to a job.
+     *   DOM element previously registered with a Job.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {string|null}
-     *     Job id if found, otherwise null.
+     *   The associated Job id if found; otherwise null.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not resolve or return the Job instance.
+     * Does not validate the element type.
+     * Does not mutate registry state.
      */
     getIdByElement(el) {
 	return this.byEl.get(el) || null;
     }
+
     /**
-     * Get a Job by its id.
+     * Retrieve a Job by its id.
      *
+     * CONTRACT
+     * --------
+     * getById() returns the registered Job associated with the provided
+     * identifier, if one exists in this Registry instance.
+     *
+     *
+     * INPUT
+     * -----
      * @param {string} id
-     *     Job identifier.
+     *   Canonical Job identifier.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {Job|null}
-     *     Job instance if found, otherwise null.
+     *   The corresponding Job instance if found; otherwise null.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not attempt resolution from other reference types.
+     * Does not throw if the id is unknown.
+     * Does not mutate registry state.
      */
     getById(id) {
 	return this.byId.get(id) || null;
     }
 
     /**
-     * Get a Job bound to a specific DOM element.
+     * Retrieve the Job bound to a specific DOM element.
      *
+     * CONTRACT
+     * --------
+     * getByElement() resolves the Job associated with the provided
+     * DOM element, if one exists in this Registry instance.
+     *
+     * Resolution is performed by:
+     *   1) Looking up the Job id via getIdByElement()
+     *   2) Retrieving the Job via getById()
+     *
+     *
+     * INPUT
+     * -----
      * @param {Element} el
-     *     DOM element bound to a job.
+     *   DOM element previously registered with a Job.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {Job|null}
-     *     Job instance if found, otherwise null.
+     *   The associated Job instance if found; otherwise null.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not register elements.
+     * Does not validate element type.
+     * Does not mutate registry state.
      */
     getByElement(el) {
 	const id = this.getIdByElement(el);
@@ -196,25 +368,43 @@ export default class Registry {
     }
 
     /**
-     * Get a Job by its logical name.
+     * Retrieve a Job by its logical name.
      *
-     * Behavior:
-     * - If exactly one job is registered under the given name, it is returned.
-     * - If multiple jobs share the same name:
-     *   - A warning is emitted.
-     *   - `null` is returned to avoid ambiguous resolution.
-     * - If no jobs match, returns null.
+     * CONTRACT
+     * --------
+     * getByName() attempts to resolve a Job using its convenience name.
+     * Because names are not required to be unique, resolution is strict:
      *
-     * Notes:
-     * - Job names are NOT required to be unique.
-     * - This method is a convenience lookup, not a guaranteed resolver.
-     * - Callers that expect multiple jobs should use `listByName(name)` instead.
+     *   - If exactly one Job matches, it is returned.
+     *   - If multiple Jobs share the name, a warning may be emitted and
+     *     null is returned to avoid ambiguity.
+     *   - If no Jobs match, null is returned.
      *
+     *
+     * SEMANTICS
+     * ---------
+     * - This is a convenience lookup only.
+     * - Name uniqueness is not enforced by the Registry.
+     * - Callers expecting multiple results should use listByName(name).
+     *
+     *
+     * INPUT
+     * -----
      * @param {string} name
-     *     Logical job name.
+     *   Logical Job name.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {Job|null}
-     *     The resolved Job if unique, otherwise null.
+     *   The uniquely resolved Job instance, or null if none or ambiguous.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not enforce name uniqueness.
+     * Does not mutate registry state.
+     * Does not throw on ambiguity.
      */
     getByName(name) {
 	const list = this.listByName(name);
@@ -231,26 +421,70 @@ export default class Registry {
     }
 
     /**
-     * List all registered jobs.
+     * List all registered Jobs.
      *
+     * CONTRACT
+     * --------
+     * list() returns a snapshot array of all Job instances currently
+     * registered within this Registry.
+     *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {Job[]}
-     *     Array of all jobs currently registered with the Scheduler.
+     *   Array of registered Job instances.
+     *
+     *
+     * NOTES
+     * -----
+     * - The returned array is a shallow snapshot.
+     * - Mutating the array does not affect registry state.
+     * - Order is implementation-defined (insertion order of Map).
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not filter by status.
+     * Does not sort.
+     * Does not mutate registry state.
      */
     list() {
 	return Array.from(this.byId.values());
     }
+
     /**
-     * List all jobs matching a given status.
+     * List all Jobs matching a given lifecycle status.
      *
-     * Notes:
-     * - Status comparison is strict equality (`===`).
-     * - No validation is performed on the status value.
+     * CONTRACT
+     * --------
+     * listByStatus() returns a snapshot array of Jobs whose
+     * job.status strictly equals the provided value.
      *
+     *
+     * SEMANTICS
+     * ---------
+     * - Comparison uses strict equality (===).
+     * - No validation is performed on the status argument.
+     * - If no Jobs match, an empty array is returned.
+     *
+     *
+     * INPUT
+     * -----
      * @param {string} status
-     *     Job status to match (e.g. JOB_STATUS.READY, RUNNING, ERROR).
+     *   Lifecycle status to match (e.g. JOB_STATUS.READY, RUNNING, ERROR).
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {Job[]}
-     *     Array of jobs whose `job.status` matches the provided status.
+     *   Array of Jobs with a matching status.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not sort results.
+     * Does not mutate registry state.
+     * Does not validate status enum correctness.
      */
     listByStatus(status) {
 	const out = [];
@@ -261,20 +495,40 @@ export default class Registry {
     }
 
     /**
-     * List all jobs registered under a given logical name.
+     * List all Jobs registered under a given logical name.
      *
-     * Notes:
-     * - Job names are NOT required to be unique.
-     * - This method always returns an array.
-     * - If no jobs match, an empty array is returned.
+     * CONTRACT
+     * --------
+     * listByName() returns all Job instances currently indexed under
+     * the provided convenience name.
      *
+     *
+     * SEMANTICS
+     * ---------
+     * - Job names are not required to be unique.
+     * - Always returns an array.
+     * - If no Jobs match, an empty array is returned.
+     * - Resolution is based on the current byName index.
+     *
+     *
+     * INPUT
+     * -----
      * @param {string} name
-     *     Logical job name.
+     *   Logical Job name.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {Job[]}
-     *     Array of jobs matching the given name.
+     *   Array of matching Job instances.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not enforce uniqueness.
+     * Does not validate name format.
+     * Does not mutate registry state.
      */
-    
     listByName(name) {
 	if (!name) return [];
 
@@ -291,48 +545,71 @@ export default class Registry {
 
 
     /**
-     * Register a Job with the Scheduler.
+     * Register a Job with this Registry.
      *
-     * Responsibilities:
-     * - Assigns a stable job identity (`id`, `createdAt`) if not already present.
-     * - Indexes the job by:
-     *   - id        → job
-     *   - element   → id
-     *   - name      → id (optional, non-unique)
-     * - Ensures a single Job instance is associated with a given DOM element.
+     * CONTRACT
+     * --------
+     * register() binds a Job into the Registry and establishes canonical
+     * identity and resolution indexes.
      *
-     * Registration semantics:
-     * - Idempotent by element:
-     *   If a job is already registered for `job.e`, the existing job is returned.
+     * Registration is idempotent by DOM element:
+     *   - If a Job is already registered for job.e, the existing Job is returned.
      *
-     * - Identity ownership:
-     *   The Scheduler is the authority for job identity.
-     *   If a job arrives with a pre-seeded `id`, it is respected *only if unused*.
      *
-     * - Collision policy (v1.0):
-     *   - HARD FAIL on id collision.
-     *   - If `job.id` is already registered to a different job, an Error is thrown.
-     *   - This prevents silent overwrites and ambiguous identity graphs.
+     * RESPONSIBILITIES
+     * ----------------
+     * - Ensure a single Job instance is associated with a given DOM element.
+     * - Assign stable identity (id, createdAt) when missing.
+     * - Maintain indexes:
+     *     - byId:   id -> Job
+     *     - byEl:   element -> id
+     *     - byName: name -> Set<id> (optional, non-unique)
+     * - Record createdAt metadata in the Registry (redundant with job.createdAt).
      *
-     * Name indexing:
-     * - `job.name` is optional and NOT guaranteed unique.
-     * - Names are indexed into a secondary map (`name → Set<id>`).
-     * - Ambiguity is tolerated; resolution is handled at lookup time.
      *
-     * Side effects:
-     * - Mutates `job` via `job.setIdentity({ id, createdAt })`.
-     * - Mutates internal scheduler indexes.
+     * IDENTITY OWNERSHIP
+     * ------------------
+     * The Registry is the authority for identity uniqueness.
+     * A pre-seeded job.id is respected only if it is not already in use.
      *
+     *
+     * COLLISION POLICY
+     * ----------------
+     * v1 policy is hard fail:
+     *   - If the resolved id is already registered to a different Job,
+     *     an Error is thrown to prevent silent overwrites.
+     *
+     *
+     * NAME INDEXING
+     * -------------
+     * - job.name is optional and not guaranteed unique.
+     * - Names are indexed into byName as: name -> Set<id>.
+     * - Ambiguity is tolerated; strict resolution is handled at lookup time.
+     *
+     *
+     * SIDE EFFECTS
+     * ------------
+     * - Mutates the Job via job.setIdentity({ id, createdAt }).
+     * - Mutates internal registry indexes and metadata maps.
+     *
+     *
+     * INPUT
+     * -----
      * @param {Job} job
-     *     Job instance to register.
-     *     Must have a bound DOM element (`job.e`).
+     *   Job instance to register. Must have a bound DOM element at job.e.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {Job}
-     *     The registered Job instance (either the existing one or the newly registered one).
+     *   The registered Job instance (existing or newly registered).
      *
-     * @throws {Error}
-     *     If `job` or `job.e` is missing.
-     *     If an id collision is detected with an existing job.
+     *
+     * FAILURE MODES
+     * -------------
+     * Throws if:
+     * - job is missing or job.e is missing
+     * - an id collision is detected with an existing registered Job
      */
     register(job) {
 	if (!job || !job.e) throw new Error("[Scheduler] register(job) requires job.e");
@@ -380,50 +657,80 @@ export default class Registry {
     }
 
     /**
-     * Unregister a Job from the Scheduler.
+     * Unregister a Job from this Registry.
      *
-     * Responsibilities:
-     * - Resolves the target job from an id, DOM element, or Job instance.
-     * - Initiates a graceful shutdown of the job.
-     * - Removes all scheduler indexes and metadata associated with the job.
+     * CONTRACT
+     * --------
+     * unregister() removes a Job from all registry indexes and records a
+     * bounded shutdown entry. It attempts a graceful teardown by invoking
+     * job.shutdown() before removal.
      *
-     * Resolution semantics:
-     * - `jobOrIdOrEl` may be:
-     *   - a Job instance
-     *   - a job id (string)
-     *   - a DOM element bound to a job
-     * - If the target cannot be resolved, this method is a no-op and returns false.
+     * If the target cannot be resolved, this method is a no-op and returns false.
      *
-     * Shutdown semantics:
-     * - `job.shutdown()` is invoked BEFORE index removal.
-     *   This allows the job to:
-     *   - cancel intervals
-     *   - abort in-flight work
-     *   - perform cleanup while scheduler context is still available
      *
-     * Metadata handling:
-     * - Shutdown metadata is recorded via `_recordShutdown`.
-     * - The shutdown log is bounded to prevent unbounded memory growth.
+     * RESOLUTION
+     * ----------
+     * The target may be provided as:
+     * - Job instance
+     * - job id (string/number)
+     * - DOM element bound to a Job
+     * - job-like object (id/e)
      *
-     * Side effects:
-     * - Mutates scheduler indexes:
-     *   - removes job from `byId`, `byEl`, `byName`, and `createdAt`
-     * - Mutates job state via `job.shutdown()`
+     * Resolution is performed via the internal _resolve() policy.
      *
-     * Idempotency:
-     * - Safe to call multiple times.
-     * - Calling `unregister` on an already-unregistered job returns false.
      *
-     * @param {Job|string|Element} jobOrIdOrEl
-     *     Job reference, job id, or DOM element bound to the job.
+     * SHUTDOWN ORDER
+     * --------------
+     * job.shutdown() is invoked before index removal so the Job may perform
+     * teardown while it still has access to its environment context.
      *
-     * @param {Object} [opts]
+     *
+     * METADATA
+     * --------
+     * - A shutdown record is written via _recordShutdown().
+     * - The shutdown log is bounded (FIFO) to prevent memory growth.
+     *
+     *
+     * SIDE EFFECTS
+     * ------------
+     * - Invokes job.shutdown({ reason }).
+     * - Removes the Job from:
+     *     - byId
+     *     - byEl
+     *     - byName (if indexed)
+     *     - createdAt
+     * - Appends a bounded diagnostic record to shutdownLog.
+     *
+     *
+     * IDEMPOTENCY
+     * -----------
+     * - Safe to call repeatedly.
+     * - Returns false if the Job is not currently registered.
+     *
+     *
+     * INPUT
+     * -----
+     * @param {Job|string|number|Element|Object} jobOrIdOrEl
+     *   Job reference, job id, DOM element, or job-like object.
+     *
+     * @param {Object} [opts={}]
+     *
      * @param {string} [opts.reason]
-     *     Optional human-readable reason for shutdown (used for logging/diagnostics).
+     *   Optional human-readable reason used for shutdown and diagnostics.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {boolean}
-     *     `true` if a job was resolved and unregistered.
-     *     `false` if no matching job was found.
+     *   true  if a Job was resolved and unregistered.
+     *   false if no matching Job was found.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not cancel Engine queues directly.
+     * Does not destroy the Job instance.
+     * Does not prevent the caller from re-registering later.
      */
     unregister(jobOrIdOrEl, opts = {}) {
 	const job = this._resolve(jobOrIdOrEl);
@@ -447,32 +754,52 @@ export default class Registry {
     /**
      * Assign or update the logical name of a Job and maintain name indexes.
      *
-     * Purpose:
-     * - Provides the Scheduler-controlled pathway for setting a job’s name.
-     * - Ensures secondary indexes (`byName`) stay consistent when names change.
+     * CONTRACT
+     * --------
+     * setName() is the registry-managed pathway for updating a Job's
+     * convenience name while keeping the byName index consistent.
      *
-     * Semantics:
-     * - Job names are **convenience identifiers**, not unique identifiers.
-     * - Multiple jobs may share the same name.
-     * - Internally, names map to a `Set` of job ids.
      *
-     * Behavior:
-     * - If the job already has a name, it is first removed from the old name index.
-     * - The new name is assigned via `job.setName(name)`.
-     * - The job id is then indexed under the new name.
+     * SEMANTICS
+     * ---------
+     * - Names are convenience identifiers and are not unique.
+     * - Multiple Jobs may share the same name.
+     * - Internally, byName maps: name -> Set<id>.
      *
-     * Safety:
-     * - If `job` is missing or does not yet have an id, this method is a no-op.
-     *   (Jobs must be registered before they can be indexed by name.)
      *
+     * BEHAVIOR
+     * --------
+     * - If the Job currently has a name, the Job id is removed from the old
+     *   byName bucket.
+     * - The new name is assigned via job.setName(name).
+     * - The Job id is indexed under the new name (if name is truthy).
+     *
+     *
+     * SAFETY
+     * ------
+     * - If job is missing or job.id is missing, this is a no-op.
+     *   Jobs must be registered before they can be indexed by name.
+     *
+     *
+     * INPUT
+     * -----
      * @param {Job} job
-     *     Job instance whose name should be updated.
+     *   Registered Job instance to update.
      *
      * @param {string|null} name
-     *     Logical name to assign to the job.
-     *     Passing a falsy value effectively clears the job’s name.
+     *   New logical name to assign. Falsy clears the name and removes indexing.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {void}
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not enforce uniqueness.
+     * Does not register the Job.
+     * Does not mutate other indexes beyond name indexing.
      */
     setName(job, name) {
 	if (!job || !job.id) return;
@@ -485,25 +812,46 @@ export default class Registry {
     // ---- INTERNAL METHODS ----
 
     /**
-     * Add a job id to the name index.
+     * Add a Job id to the secondary name index.
      *
-     * Internal helper used to maintain the `byName` secondary index.
+     * CONTRACT
+     * --------
+     * _indexName() associates a Job id with a logical name inside
+     * the byName index.
      *
-     * Semantics:
-     * - Multiple job ids may be associated with the same name.
-     * - Names map to `Set<id>` to support efficient add/remove.
      *
-     * Safety:
+     * SEMANTICS
+     * ---------
+     * - Multiple ids may be associated with the same name.
+     * - Names map to Set<id> for efficient add and delete operations.
+     * - Operation is idempotent for an existing (name, id) pair.
+     *
+     *
+     * SAFETY
+     * ------
      * - Falsy names are ignored.
-     * - Idempotent for the same (name, id) pair.
+     * - Does not validate id existence in byId.
      *
+     *
+     * INPUT
+     * -----
      * @param {string} name
-     *     Logical job name.
+     *   Logical Job name.
      *
      * @param {string|number} id
-     *     Job id to associate with the name.
+     *   Job id to associate with the name.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {void}
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not enforce uniqueness.
+     * Does not register the Job.
+     * Does not emit warnings on collisions.
      */
     _indexName(name, id) {
 	if (!name) return;
@@ -512,25 +860,45 @@ export default class Registry {
     }
 
     /**
-     * Remove a job id from the name index.
+     * Remove a Job id from the secondary name index.
      *
-     * Internal helper used to keep `byName` consistent when:
-     * - a job is renamed
-     * - a job is unregistered
+     * CONTRACT
+     * --------
+     * _unindexName() removes the association between a logical name
+     * and a Job id within the byName index.
      *
-     * Behavior:
-     * - If the resulting id set becomes empty, the name entry is removed entirely.
      *
-     * Safety:
+     * SEMANTICS
+     * ---------
+     * - If the id exists in the name's Set, it is removed.
+     * - If the resulting Set becomes empty, the name entry is deleted
+     *   entirely from byName.
+     *
+     *
+     * SAFETY
+     * ------
      * - No-op if the name is not indexed.
+     * - No-op if the id is not present in the Set.
      *
+     *
+     * INPUT
+     * -----
      * @param {string} name
-     *     Logical job name.
+     *   Logical Job name.
      *
      * @param {string|number} id
-     *     Job id to remove from the name mapping.
+     *   Job id to remove from the name mapping.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {void}
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not validate id existence in byId.
+     * Does not throw on missing mappings.
      */
     _unindexName(name, id) {
 	const set = this.byName.get(name);
@@ -541,45 +909,67 @@ export default class Registry {
 
 
     /**
-     * Resolve a job reference into a Job instance.
+     * Internal resolution primitive for converting a reference into a Job.
      *
-     * This is the Scheduler’s internal resolution primitive and is used by
-     * public-facing methods such as `resolve`, `unregister`, etc.
+     * CONTRACT
+     * --------
+     * _resolve() attempts to normalize a flexible job reference into a
+     * canonical Job instance using registry indexes.
      *
-     * Resolution order & semantics:
-     * - `null` / falsy → `null`
+     * This method never throws and returns null on failure.
      *
-     * - string:
-     *   1) Treated as a job id first.
-     *   2) If no id match is found, treated as a job name.
-     *      - If multiple jobs share the name, `getByName` will warn and return null.
      *
-     * - DOM element:
-     *   - Resolves via element-to-job binding.
+     * RESOLUTION ORDER
+     * ----------------
+     * 1) Falsy input
+     *    - null or undefined → null
      *
-     * - job-like object:
-     *   - If the object has both `id` and `e`, it is assumed to already be a Job
-     *     (or a compatible job-like structure) and is returned as-is.
+     * 2) String
+     *    - Attempt id lookup via getById()
+     *    - Fallback to name lookup via getByName()
      *
-     * - object with `e` property:
-     *   - Treated as a wrapper and resolved via its bound element.
+     * 3) DOM Element
+     *    - Resolve via element binding (getByElement)
      *
-     * Failure behavior:
-     * - If the reference cannot be resolved, returns `null`.
-     * - This method never throws.
+     * 4) Job-like object (id and e present)
+     *    - Assumed to already represent a Job; returned as-is
      *
+     * 5) Object with e property
+     *    - Resolve via element binding
+     *
+     * 6) Otherwise
+     *    - null
+     *
+     *
+     * FAILURE POLICY
+     * --------------
+     * - Returns null if resolution fails.
+     * - Does not emit warnings except those triggered by getByName().
+     *
+     *
+     * INPUT
+     * -----
      * @param {*} x
-     *     Job reference. May be:
-     *     - job id (string)
-     *     - job name (string)
+     *   Flexible Job reference:
+     *     - id (string)
+     *     - name (string)
      *     - DOM element
      *     - Job instance
-     *     - object containing `{ e: Element }`
+     *     - object containing { e: Element }
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {Job|null}
-     *     Resolved Job instance, or `null` if no match is found.
+     *   Resolved Job instance, or null if no match.
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not register Jobs.
+     * Does not validate schema state.
+     * Does not mutate registry state.
      */
-    
     _resolve(x) {
 	if (!x) return null;
 
@@ -606,40 +996,68 @@ export default class Registry {
 
 
     /**
-     * Record a shutdown event for a job.
+     * Record a shutdown event for a Job.
      *
-     * Purpose:
-     * - Maintain a bounded, in-memory audit log of job shutdowns.
-     * - Useful for debugging lifecycle issues, scheduler behavior,
-     *   and post-mortem inspection during development.
+     * CONTRACT
+     * --------
+     * _recordShutdown() appends a lightweight, bounded diagnostic entry
+     * describing a Job shutdown event.
      *
-     * Behavior:
-     * - Captures a lightweight snapshot of the job identity and context
-     *   at the moment of shutdown.
-     * - Appends the entry to `this.shutdownLog`.
-     * - Enforces a FIFO bound using `this.shutdownLogMax`.
+     * This log is intended for debugging and lifecycle inspection only.
+     * It is not a durable audit trail.
      *
-     * Captured fields:
-     * - at      : timestamp (ms since epoch)
-     * - id      : job id (if available)
-     * - name    : job name (if available)
-     * - reason  : shutdown reason (if provided)
-     * - tag     : DOM tag name (lowercased) of the bound element
-     * - elId    : DOM element id (if present)
      *
-     * Notes:
-     * - This function never throws.
+     * SEMANTICS
+     * ---------
+     * - Captures a shallow snapshot of identity and DOM context.
+     * - Appends the entry to this.shutdownLog.
+     * - Enforces a FIFO bound using this.shutdownLogMax.
+     *
+     *
+     * CAPTURED FIELDS
+     * ---------------
+     * - at     : number   timestamp (epoch ms)
+     * - id     : string|null   Job id
+     * - name   : string|null   logical Job name
+     * - reason : string|null   optional shutdown reason
+     * - tag    : string|null   lowercased DOM tag name
+     * - elId   : string|null   DOM element id attribute
+     *
+     *
+     * BOUNDING POLICY
+     * ---------------
+     * - If shutdownLogMax > 0, the log is truncated to the most recent
+     *   shutdownLogMax entries.
+     * - Oldest entries are removed first (FIFO).
+     *
+     *
+     * FAILURE POLICY
+     * --------------
+     * - Never throws.
      * - Logging is best-effort and intentionally shallow.
-     * - This is NOT intended to be a durable audit trail.
      *
+     *
+     * INPUT
+     * -----
      * @param {Job} job
-     *     Job instance being shut down.
+     *   Job instance being shut down.
      *
-     * @param {Object} [info]
+     * @param {Object} [info={}]
+     *
      * @param {string} [info.reason]
-     *     Optional human-readable shutdown reason.
+     *   Optional human-readable shutdown reason.
      *
+     *
+     * RETURN VALUE
+     * ------------
      * @returns {void}
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not persist logs externally.
+     * Does not emit events.
+     * Does not mutate Job state.
      */
     _recordShutdown(job, info = {}) {
 	const entry = {

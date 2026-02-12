@@ -1,60 +1,71 @@
 /**
- * JobConfig (v1.0) — Job-bound configuration compiler + artifact builder.
+ * JobConfig (v1) — Job-bound configuration compiler.
  *
- * Role in the system
- * - JobConfig is the *configuration nucleus* of a Job.
- * - It owns reading DOM inputs, resolving config references, compiling the normalized schema,
- *   and producing runtime-facing buckets/artifacts in a stable shape.
+ * ROLE IN THE SYSTEM
+ * ------------------
+ * JobConfig is the configuration nucleus of a Job.
+ * It owns reading DOM inputs, resolving configuration references,
+ * and compiling the normalized schema used by runtime subsystems.
  *
- * High-level pipeline (build)
- * 1) Read DOM inputs (dataset/attrs + config-at references)
+ *
+ * HIGH-LEVEL PIPELINE (build)
+ * ---------------------------
+ * 1) Read DOM inputs
  *    - Delegates to DomConfigSource.read(source)
- *    - Produces a deterministic read-shape: { report, dataSet, attrs, at, config, output }
+ *    - Produces a deterministic snapshot:
+ *        { report, dataSet, attrs, at, config, output }
  *
  * 2) Compile normalized schema
  *    - Delegates to Schema(Master).compile(output)
- *    - Produces { report, schema } where `schema` is groomed and ready for runtime use.
+ *    - Produces:
+ *        { report, schema }
+ *    - `schema` is groomed and ready for runtime consumption.
  *
- * 3) Derive creation-only artifacts
- *    - Derives stack/interval/pipeline definitions from schema (or config) and deep-freezes them.
- *    - Artifacts are *creation-only* and may be rebuilt only when explicitly requested.
+ * No artifact derivation is performed at this stage.
  *
- * What JobConfig stores (public, stable)
+ *
+ * WHAT JOBCONFIG STORES (PUBLIC, STABLE)
+ * ---------------------------------------
  * - this.inputs       : DOM/config read snapshot (DomConfigSource shape)
- * - this.schemaReport : exported schema compilation report (warnings/errors, ok flag)
- * - this.schema       : groomed schema used as the canonical config for runtime
- * - this.requests     : runtime request bucket (mirrors schema.requests; shaped/normalized)
- * - this.intervals    : runtime interval bucket (mirrors schema.intervals; shaped/normalized)
- * - this.pipelines    : runtime pipeline bucket (mirrors schema.pipelines; shaped/normalized)
- * - this.artifacts    : frozen creation-only derived artifacts (stackDefs/intervalDefs/pipelineDefs)
- * - this.status       : JOB_CONFIG_STATUS.* lifecycle for config readiness
+ * - this.schemaReport : exported schema compilation report
+ * - this.schema       : canonical compiled schema used by runtime
+ * - this.status       : JOB_CONFIG_STATUS.* lifecycle state
+ * - this.error        : last thrown error (when applicable)
+ * - this.name         : resolved job name from compiled schema
  *
- * What JobConfig intentionally does NOT do
- * - No scheduling ("when to run") — Scheduler owns that.
- * - No execution ("how to run") — Runner owns that.
- * - No eval / executable expressions in config resolution (v1.0 policy).
  *
- * Coercion stance
- * - This layer is intentionally coercive (normalize into stable shapes),
- *   not a strict validator. Runtime resolution / runner phases may add strict checks later.
+ * WHAT JOBCONFIG INTENTIONALLY DOES NOT DO
+ * ----------------------------------------
+ * - No scheduling decisions — handled by runtime controllers.
+ * - No pipeline execution — handled by Engine / VM.
+ * - No stack or interval artifact derivation.
+ * - No direct runtime mutation.
  *
- * Extensibility hooks
- * - build({ deriveStacks, deriveIntervals, derivePipelines })
- *   allows the engine (or consumers, if allowed) to inject derivation logic.
- * - Returned artifacts are deep-copied then frozen to avoid reference retention and mutation.
  *
- * Error / reporting model (current posture)
- * - Dom read failures and schema compile failures flip status to ERROR_* and stop build().
- * - Report objects are exported snapshots; downstream systems should not mutate them.
+ * COERCION STANCE
+ * ---------------
+ * This layer is intentionally coercive and normalization-focused.
+ * It produces stable shapes suitable for runtime.
+ * Strict execution validation belongs to later phases.
  *
- * Threading / lifecycle notes
- * - Safe to call build() repeatedly. Derived artifacts are cached unless opts.rebuild is true.
- * - JobConfig is job-bound: it assumes a stable `this.e` DOM binding and `this.expr` resolver.
  *
- * See also
- * - DomConfigSource: DOM/dataset/config-at resolution
- * - schema/Master (Schema compiler): normalization + grooming of configuration
- * - Report: diagnostics container used during compile/build
+ * ERROR AND REPORTING MODEL
+ * --------------------------
+ * - DOM read failures or schema compile failures transition status to ERROR.
+ * - Report objects are exported snapshots and should not be mutated downstream.
+ *
+ *
+ * LIFECYCLE NOTES
+ * ---------------
+ * - Safe to call build() multiple times; each call regenerates inputs and schema.
+ * - JobConfig is job-bound and assumes a stable DOM element and ExpressionResolver.
+ *
+ *
+ * SEE ALSO
+ * --------
+ * - DomConfigSource      DOM attribute and config-at resolution
+ * - schema/Master        schema normalization and grooming
+ * - Report               diagnostics container used during build
  */
 
 import Schema          from './schema/Master.js';
@@ -65,47 +76,73 @@ import {JOB_CONFIG_STATUS} from '../../../constants.js';
 export class JobConfig {
 
     /**
-     * Create a JobConfig instance bound to a Job and a DOM source.
+     * Create a JobConfig instance bound to a Job and its DOM source element.
      *
-     * JobConfig is a job-scoped configuration service. It is responsible for:
-     * - reading configuration inputs from the DOM
-     * - resolving config references
-     * - compiling the normalized schema
-     * - producing runtime-ready configuration buckets
+     * CONTRACT
+     * --------
+     * JobConfig is a job-scoped configuration compiler.
+     * It owns:
+     *   - reading DOM inputs and config bindings
+     *   - resolving referenced configuration targets
+     *   - compiling the normalized schema used by runtime subsystems
      *
-     * This constructor performs *no compilation* itself. It only establishes
-     * the required dependencies and initializes stable containers.
+     * This constructor performs dependency wiring only.
+     * It does not read from the DOM.
+     * It does not resolve config targets.
+     * It does not compile schema.
      *
+     *
+     * INPUT
+     * -----
      * @param {Object} opts
-     * @param {Object} opts.lib
-     *     m7 core library instance. Required for all coercion, hashing,
-     *     DOM utilities, and merge semantics.
      *
-     * @param {Object} opts.expr
-     *     ExpressionResolver instance used for interpolation and target parsing
-     *     during config reference resolution.
+     * @param {Object} opts.lib
+     *   Required m7 lib instance used for coercion, hashing, DOM utilities,
+     *   and merge semantics.
+     *
+     * @param {ExpressionResolver} opts.expr
+     *   Required ExpressionResolver used to resolve config references.
      *
      * @param {Element} opts.e
-     *     DOM element that serves as the configuration source root.
-     *     All dataset, attribute, and config-at resolution is relative to this node.
+     *   Required DOM element used as the configuration source root.
+     *   All DOM reads and config-at resolution are relative to this element.
      *
      * @param {Job} opts.job
-     *     Owning Job instance. Used as the lifecycle anchor and for
-     *     bidirectional coordination (but JobConfig does not execute jobs).
+     *   Required owning Job instance.
+     *   Used as a lifecycle anchor and for diagnostics context.
+     *
+     * @param {Object} opts.conf
+     *   Required startup configuration policy used by DomConfigSource and schema
+     *   compilation layers.
+     *
+     * @param {Object} [opts.env]
+     *   Optional environment context (document hooks, baseURI, feature flags).
      *
      * @param {Object} [opts.ws]
-     *     Optional shared workspace object.
-     *     This workspace may be used by both configuration and runtime layers.
+     *   Optional shared workspace root used across config and runtime layers.
      *
-     * @throws {Error}
-     *     If any required dependency (lib, expr, e, job) is missing.
      *
-     * @notes
-     * - JobConfig is *job-bound*, not a static utility.
-     * - All configuration state is isolated here to keep Job itself lean.
-     * - Execution and scheduling are intentionally out of scope.
+     * INITIALIZED STATE
+     * -----------------
+     * - this.inputs       initialized to an empty DomConfigSource read shape
+     * - this.schemaReport initialized to null
+     * - this.schema       initialized to null
+     * - this.status       initialized to JOB_CONFIG_STATUS.INIT
+     * - this.error        initialized to null
+     *
+     *
+     * FAILURE MODES
+     * -------------
+     * Throws if any required dependency is missing:
+     *   lib, expr, e, job, conf
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not execute pipelines.
+     * Does not schedule work.
+     * Does not derive stack or interval artifacts.
      */
-    
     constructor(opts = {}) {
 	if (!opts.lib)  throw new Error("[Job] missing required option (opts.lib)");
 	if (!opts.e)    throw new Error("[Job] missing required option (opts.e)");
@@ -146,61 +183,80 @@ export class JobConfig {
     }
 
     /**
-     * Build (or rebuild) this Job’s configuration from its bound DOM element.
+     * Build or rebuild this Job configuration from its bound DOM element.
      *
-     * This method is the primary entry point for configuration lifecycle.
-     * It performs a full, ordered configuration pass:
+     * CONTRACT
+     * --------
+     * build() is the primary configuration lifecycle entry point for a Job.
+     * It performs a deterministic two-phase pass:
+     *   1) Read DOM inputs and resolve config bindings into a merged output object
+     *   2) Compile the merged output into a canonical schema
      *
-     * 1) Read inputs from the DOM (`this.e`)
-     *    - dataset, attributes, and config-at references
+     * Artifact derivation is intentionally not performed in the current v1 path.
      *
-     * 2) Resolve configuration
-     *    - merge defaults + resolved config + dataset
      *
-     * 3) Compile schema
-     *    - normalize and groom configuration into a canonical schema
+     * PIPELINE
+     * --------
+     * 1) Read inputs from the DOM (this.e)
+     *    - Delegates to DomConfigSource.read()
+     *    - Produces a stable snapshot:
+     *        { report, dataSet, attrs, at, config, output }
      *
-     * 4) Derive creation-only artifacts
-     *    - build and freeze runtime-facing definitions (pipelines, intervals, etc.)
+     * 2) Compile schema
+     *    - Delegates to Schema.compile(output)
+     *    - Produces:
+     *        { report, schema }
      *
-     * The operation is deterministic and safe to call multiple times.
+     * This method does not execute pipelines and does not schedule work.
      *
-     * v1.0 Design Notes
-     * - This is a deliberate successor to legacy ActiveTags configuration shaping.
-     * - The conceptual model (read → normalize → merge → derive → freeze) is preserved,
-     *   but implementation details are intentionally modernized and compartmentalized.
-     * - This method does not execute jobs or schedule runs.
      *
-     * Failure Policy
-     * - DOM read failures set status to ERROR_DOM.
-     * - Schema compilation failures set status to ERROR_SCHEMA.
-     * - In either case, configuration halts and the Job is left non-runnable.
+     * FAILURE POLICY
+     * --------------
+     * - If DOM read report is not ok:
+     *     status is set to JOB_CONFIG_STATUS.ERROR_DOM
+     *     this.error is set to the exported read report
+     *     build() returns ERROR_DOM
      *
-     * @param {Object} [opts]
-     *     Optional build controls.
+     * - If schema compile report is not ok:
+     *     status is set to JOB_CONFIG_STATUS.ERROR_SCHEMA
+     *     this.error is set to the exported schema report
+     *     build() returns ERROR_SCHEMA
      *
-     * @param {boolean} [opts.readDom=true]
-     *     Whether to re-read dataset/attributes from the bound DOM element.
-     *     (Currently always true; included for forward compatibility.)
+     * In either error state, the Job should be treated as non-runnable.
      *
-     * @param {boolean} [opts.recompute=true]
-     *     Whether to recompute the merged configuration from inputs.
-     *     (Currently always true; included for forward compatibility.)
      *
-     * @param {boolean} [opts.rebuild=false]
-     *     Whether to force rebuilding derived artifacts even if they already exist.
+     * INPUT
+     * -----
+     * @param {Object} [opts={}]
+     *   Optional options forwarded to DomConfigSource construction.
+     *   This method currently performs a full rebuild each time and does not
+     *   implement partial rebuild flags.
      *
-     * @returns {number}
-     *     One of JOB_CONFIG_STATUS values indicating the resulting configuration state.
      *
-     * @sideeffects
-     * - Mutates:
+     * RETURN VALUE
+     * ------------
+     * @returns {Promise<number>}
+     *   One of JOB_CONFIG_STATUS values indicating the resulting state:
+     *     INIT, ERROR_DOM, ERROR_SCHEMA, READY
+     *
+     *
+     * SIDE EFFECTS
+     * ------------
+     * Mutates:
      *   - this.inputs
      *   - this.schemaReport
      *   - this.schema
-     *   - this.artifacts (via _deriveArtifacts)
+     *   - this.name
      *   - this.status
-     */    
+     *   - this.error
+     *
+     *
+     * NON-RESPONSIBILITIES
+     * --------------------
+     * Does not derive stack or interval artifacts.
+     * Does not enqueue or execute pipelines.
+     * Does not register events or intervals.
+     */
     async build(opts = {}){
 	//---- read dom ----
 	opts = this.lib.hash.to(opts);
@@ -213,7 +269,7 @@ export class JobConfig {
 	const resp = await domService.read(this.e);
 	this.inputs = resp;
 	//immediately try to acquire a name
-	this.name = lib.hash.getUntilNotEmpty(resp, "output.name dataset.name");
+	this.name = this.lib.hash.getUntilNotEmpty(resp, "output.name dataset.name");
 	if(!resp.report.ok) {
 	    this.error = resp.report;
 	    //console.error(this.error.errors[0]);
@@ -240,120 +296,6 @@ export class JobConfig {
 	return this.status   = JOB_CONFIG_STATUS.READY;	
     }
 
-    /* ------------------------------------------------------------
-     * Private section methods 
-     * ------------------------------------------------------------ */
-    /**
-     * Derive and freeze creation-time runtime artifacts.
-     *
-     * This method produces *creation-only* artifacts derived from the
-     * already-compiled Job configuration. These artifacts are intended
-     * for runtime consumption and must not be mutated after creation.
-     *
-     * Current behavior (v1.0):
-     * - Acts as a coordination point for artifact derivation.
-     * - Invokes optional derivation hooks if present.
-     * - Freezes the resulting artifact object to prevent mutation.
-     *
-     * Design intent:
-     * - Artifacts are built once per configuration lifecycle.
-     * - Rebuilding is explicit and opt-in via `opts.rebuild`.
-     * - Sub-derivation methods are intentionally stubbed and will be
-     *   implemented incrementally as the runtime matures.
-     *
-     * Policy:
-     * - If artifacts already exist and `opts.rebuild !== true`,
-     *   this method is a no-op.
-     *
-     * Inputs:
-     * - Prefers `this.schema` (normalized, groomed configuration).
-     * - Falls back to an empty object if schema is not yet available.
-     *
-     * Side effects:
-     * - Writes `this.artifacts` as a frozen object:
-     *     {
-     *       stackDefs,
-     *       intervalDefs,
-     *       pipelineDefs
-     *     }
-     * - Sets `this.artifactsBuilt = true`.
-     *
-     * @param {Object} [opts]
-     * @param {boolean} [opts.rebuild]
-     *     Force rebuilding artifacts even if already built.
-     *
-     * @returns {void}
-     */
-    _deriveArtifacts(opts = {}) {
-	const lib = this.lib;
-	const rebuild = !!opts.rebuild;
-
-	// If already built and not rebuilding, do nothing.
-	if (!rebuild && this.artifactsBuilt) return;
-
-	// Prefer schema (groomed), fall back to conf (raw merged)
-	const src = lib.hash.is(this.schema) ? this.schema : {};
-
-	// ---- Derive stack defs
-	let stackDefs;
-	if (typeof opts.deriveStacks === "function") {
-            stackDefs = opts.deriveStacks(this, src, opts);
-	} else if (typeof this._deriveStackDefs === "function") {
-            stackDefs = this._deriveStackDefs(src, opts);
-	} else {
-            stackDefs = {};
-	}
-
-	// ---- Derive interval defs
-	let intervalDefs;
-	if (typeof opts.deriveIntervals === "function") {
-            intervalDefs = opts.deriveIntervals(this, src, opts);
-	} else if (typeof this._deriveIntervalDefs === "function") {
-            intervalDefs = this._deriveIntervalDefs(src, opts);
-	} else {
-            intervalDefs = {};
-	}
-
-	// ---- Derive pipeline defs
-	let pipelineDefs;
-	if (typeof opts.derivePipelines === "function") {
-            pipelineDefs = opts.derivePipelines(this, src, opts);
-	} else if (typeof this._derivePipelineDefs === "function") {
-            pipelineDefs = this._derivePipelineDefs(src, opts);
-	} else {
-            pipelineDefs = {};
-	}
-
-	// Snapshot + freeze (creation-only)
-	const artifacts = {
-            stackDefs: stackDefs || {},
-            intervalDefs: intervalDefs || {},
-            pipelineDefs: pipelineDefs || {}
-	};
-
-	// deepCopy ensures caller hooks can't retain references; freeze prevents later mutation
-	this.artifacts = freezeDeep(lib.hash.deepCopy(artifacts));
-	this.artifactsBuilt = true;
-    }
-
-    /* ------------------------------------------------------------
-     * Private derivation hooks (intentionally strict stubs for now)
-     * ------------------------------------------------------------ */
-
-    _deriveStackDefs(conf, opts = {}) {
-	// TODO: derive stack definitions from conf (job-type archetypes, stacks, triggers, etc.)
-	return {};
-    }
-
-    _deriveIntervalDefs(conf, opts = {}) {
-	// TODO: derive interval definitions from conf (interval policies, named intervals, etc.)
-	return {};
-    }
-
-    _derivePipelineDefs(conf, opts = {}) {
-	// TODO: derive pipeline definitions from conf (pre/post chains, transforms, etc.)
-	return {};
-    }
 
     
     

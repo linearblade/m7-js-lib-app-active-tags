@@ -68,7 +68,7 @@
    });
 */
 import CONSTANTS    from '../../constants.js';
-import Interpolator from './interpolator.js';
+import Interpolator from './Interpolator.js';
 import buildDispatch from './dispatch.js';
 export class ExpressionResolver {
 

@@ -1,4 +1,73 @@
-//hooks for testing. Use these for hooking in other sub systems or error tracing. 
+/**
+ * Engine Test / Diagnostic Hooks
+ * ===============================
+ *
+ * Purpose
+ * -------
+ * Provides a reference implementation of Engine hook callbacks for:
+ * - debugging
+ * - lifecycle tracing
+ * - integration testing
+ * - external system instrumentation
+ *
+ * This module is NOT part of core engine logic.
+ * It is an optional observer layer that demonstrates how to subscribe
+ * to Engine lifecycle events via `Engine.hooks`.
+ *
+ * What This File Does
+ * -------------------
+ * - Implements all supported Engine hook callbacks:
+ *     - onEnqueue
+ *     - onStage
+ *     - onComplete
+ *     - onError
+ *     - onTicketDone
+ * - Emits structured console logs for each lifecycle transition.
+ * - Serves as living documentation for hook payload shapes.
+ *
+ * What This File Does NOT Do
+ * --------------------------
+ * - Does not modify engine state.
+ * - Does not alter ticket execution.
+ * - Does not participate in scheduling.
+ * - Does not retry, swallow, or mutate errors.
+ *
+ * Design Role
+ * -----------
+ * This file is a template and diagnostic tool.
+ *
+ * It demonstrates:
+ * - What hook signatures look like.
+ * - When each hook fires.
+ * - What data is available at each lifecycle phase.
+ *
+ * Consumers may:
+ * - Replace this implementation entirely.
+ * - Partially override selected hooks.
+ * - Route hook events into:
+ *     - logging frameworks
+ *     - analytics systems
+ *     - devtools panels
+ *     - test assertions
+ *     - observability pipelines
+ *
+ * Configuration
+ * -------------
+ * Hook wiring is controlled by ActiveTags engine configuration.
+ * Hooks may be:
+ * - enabled
+ * - disabled
+ * - overridden
+ * - extended
+ *
+ * This module is inert unless explicitly wired into the Engine configuration.
+ *
+ * Stability
+ * ---------
+ * Hook payload contracts should be considered semi-public runtime API.
+ * If hook signatures change, this file should be updated accordingly.
+ */
+
 export const hooks = {
     /**
      * Fires after enqueue (useful to confirm ticket creation).
@@ -47,18 +116,6 @@ export const hooks = {
     /**
      * Terminal error only.
      */
-    donError: ({ job, ticket, error, res }) => {
-	console.error("[AT][error]", {
-	    jobId: job?.id,
-	    ticketId: ticket?.id,
-	    phase: ticket?.phase,
-	    pipelineKey: res?.detail?.pipelineKey || ticket?.pipelineKey || "default",
-	    op: res?.detail?.op,
-	    error,
-	    detail: res?.detail,
-	    original: ticket?.errorInfo || null,
-	});
-    },
     onError: ({ job, ticket, summary }) => {
 	console.error("[AT][error]", {
 	    jobId: job?.id,

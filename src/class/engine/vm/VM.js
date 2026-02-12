@@ -1,6 +1,106 @@
-// -----------------------------------------------------------------------------
-// VM (deterministic stepping of a single ticket) — v1 
-// -----------------------------------------------------------------------------
+/**
+ * VM (Virtual Machine)
+ * ====================
+ * Deterministic, single-step execution engine for a single ticket.
+ *
+ * Role
+ * ----
+ * - Executes exactly ONE pipeline stage transition per call.
+ * - Applies validation, op execution, normalization, and phase routing.
+ * - Produces a canonical StageResult object consumed by Tick.
+ *
+ * Architectural Position
+ * ----------------------
+ * Engine
+ *   → Tick (scheduler + lifecycle control)
+ *       → VM (pure stage execution)
+ *           → Validate (pipeline + step resolution)
+ *           → OP (return normalization + labeling)
+ *
+ * The VM does NOT:
+ * - Schedule tickets
+ * - Finalize tickets
+ * - Emit hooks
+ * - Mutate engine state outside the active ticket
+ *
+ * Execution Model
+ * ---------------
+ * `step({ job, ticket, ctx })` performs:
+ *
+ * 1) Runtime grooming
+ *    - Ensures ticket has required runtime fields
+ *      (cursor, phase, errorInfo).
+ *
+ * 2) Validation
+ *    - Resolves pipeline definition by key.
+ *    - Resolves current phase:  helpers.PIPELINE_PHASE_RUN ("run") | helpers.PIPELINE_PHASE_ERROR ("error")
+ *    - Resolves current stage and operation.
+ *    - Produces either:
+ *        - `err`  → StageResult error
+ *        - `done` → StageResult complete
+ *        - or executable stage metadata
+ *
+ * 3) Stage execution (if applicable)
+ *    - Materializes arguments via `expr`.
+ *    - Invokes stage function.
+ *    - Catches thrown errors and converts to `SR_error`.
+ *    - Normalizes return value via OP._normalizeReturn().
+ *
+ * 4) Stage identity stamping
+ *    - Snapshots pre-mutation execution identity:
+ *        { phase, stageIndex, pipelineKey, op, step }
+ *    - Injects stable metadata into `res.detail`
+ *      to preserve stage identity across transitions.
+ *
+ * 5) Status dispatch
+ *    - OK       → advance cursor
+ *    - WAIT     → no cursor change
+ *    - COMPLETE → emit early completion StageResult
+ *    - ERROR    → apply error-phase routing semantics
+ *    - Unknown  → converted to SR_error
+ *
+ * Phase Semantics
+ * ---------------
+ * - Phase is one of:
+ *     helpers.PIPELINE_PHASE_RUN   ("run")
+ *     helpers.PIPELINE_PHASE_ERROR ("error")
+ *
+ * - When a stage fails:
+ *     - If an error-phase pipeline exists, transition into it.
+ *     - Otherwise, return a terminal error StageResult.
+ *
+ * - If already in PIPELINE_PHASE_ERROR and a stage fails,
+ *   the error is terminal and annotated as handler failure.
+ *
+ * Return Contract
+ * ---------------
+ * `step()` returns a normalized StageResult-like object:
+ *
+ *   {
+ *     status: helpers.STAGE_STATUS.*,
+ *     detail: { ...stable metadata... },
+ *     error?: Error
+ *   }
+ *
+ * Additionally:
+ * - `return_status` is attached to the returned object
+ *   and reflects the raw status BEFORE any transition
+ *   (e.g., before entering error phase).
+ *
+ * Determinism Guarantees
+ * ----------------------
+ * - Executes at most one stage.
+ * - Never throws outward.
+ * - Always returns a StageResult-like object.
+ * - Only mutates:
+ *     - ticket.phase
+ *     - ticket.cursor.stage
+ *     - ticket.errorInfo
+ *
+ * This class is intentionally side-effect minimal and
+ * scheduling-agnostic.
+ */
+
 import helpers from '../helpers.js';
 import Validate from './Validate.js';
 import OP       from './OP.js';
@@ -15,9 +115,96 @@ export class VM {
 	this.expr      = expr;
     }
 
+
     /**
-     * Run exactly ONE stage step for this ticket.
-     * Returns StageResult-like: status ok|wait|error|complete
+     * Execute exactly ONE pipeline stage transition for a ticket.
+     *
+     * This is the core execution primitive of the VM. It performs validation,
+     * optional stage execution, normalization, and phase-aware dispatch — but
+     * does NOT schedule, finalize, or emit hooks.
+     *
+     * Execution pipeline
+     * ------------------
+     * 1) Runtime grooming
+     *    - Ensures required ticket runtime fields exist
+     *      (cursor, phase, errorInfo).
+     *
+     * 2) Step validation
+     *    - Resolves pipeline definition and current phase.
+     *    - Resolves the current stage record and operation.
+     *    - May produce:
+     *        - `v.err`  → StageResult error
+     *        - `v.done` → StageResult complete
+     *        - executable stage metadata
+     *
+     *    Validation results are NOT early-returned; they flow through the
+     *    same dispatch logic as normal stage execution.
+     *
+     * 3) Stage execution (when applicable)
+     *    - Materializes arguments via `expr.materialize`.
+     *    - Invokes the resolved stage function.
+     *    - Catches thrown errors and converts them to `helpers.SR_error`.
+     *    - Normalizes return value via `OP._normalizeReturn`.
+     *
+     * 4) Stage identity snapshot
+     *    - Captures pre-mutation identity:
+     *        { phase, stageIndex, pipelineKey, op, step }
+     *    - Stamps stable metadata into `res.detail`.
+     *
+     * 5) Status dispatch
+     *    - helpers.STAGE_STATUS.OK       → advance cursor
+     *    - helpers.STAGE_STATUS.WAIT     → no cursor mutation
+     *    - helpers.STAGE_STATUS.ERROR    → apply error-phase routing
+     *    - helpers.STAGE_STATUS.COMPLETE → early completion result
+     *    - Unknown                       → converted to SR_error
+     *
+     * Phase semantics
+     * ---------------
+     * - Phase is one of:
+     *     helpers.PIPELINE_PHASE_RUN   ("run")
+     *     helpers.PIPELINE_PHASE_ERROR ("error")
+     *
+     * - When a stage fails:
+     *     - If an error-phase pipeline exists, execution transitions into
+     *       PIPELINE_PHASE_ERROR.
+     *     - Otherwise, the error remains terminal.
+     *
+     * Return semantics
+     * ----------------
+     * - Always returns a normalized StageResult-like object.
+     * - Never throws.
+     * - Adds `return_status` property to the returned object.
+     *   This reflects the raw status BEFORE any handler-induced transition
+     *   (e.g., before entering PIPELINE_PHASE_ERROR).
+     *
+     * Mutations
+     * ---------
+     * This method may mutate:
+     *   - ticket.cursor.stage
+     *   - ticket.phase
+     *   - ticket.errorInfo
+     *
+     * It does NOT:
+     *   - finalize tickets
+     *   - emit engine hooks
+     *   - schedule other tickets
+     *
+     * @param {Object} args
+     * @param {Object} args.job
+     *   Job definition containing pipeline configuration.
+     *
+     * @param {Object} args.ticket
+     *   Active ticket being executed.
+     *
+     * @param {Object} args.ctx
+     *   Execution context passed through to the stage function.
+     *
+     * @returns {Promise<Object>}
+     *   A normalized StageResult-like object with:
+     *     - `status`  (helpers.STAGE_STATUS.*)
+     *     - `detail`  (augmented stage metadata)
+     *     - optional `error`
+     *     - `return_status` (raw pre-transition status)
      */
     async step({ job, ticket, ctx }) {
 	const lib = this.lib;
@@ -75,6 +262,10 @@ export class VM {
 	    res = this.op._normalizeReturn(res, { pipelineKey: v.pipelineKey, op: v.op });
 	}
 
+	if (!res || typeof res !== "object") {
+	    return helpers.SR_error(new Error("VM produced non-object StageResult"), { pipelineKey: snapShot.pipelineKey });
+	}
+	
 	// raw status MUST be captured BEFORE any handler transforms it (enter PIPELINE_PHASE_ERROR, etc.)
 	const return_status = res.status ?? null;
 
@@ -99,122 +290,111 @@ export class VM {
 	return rv;
     }
     
-    async oldstep({ job, ticket, ctx }) {
-	const lib = this.lib;
-	this.validator._ensureTicketRuntime(ticket);
-
-	const v = this.validator._validateStep({ job, ticket });
-
-	const tagNoStage = (sr) => {
-	    if (!sr || typeof sr !== "object") return sr;
-	    if (!sr.detail || typeof sr.detail !== "object") sr.detail = {};
-	    sr.detail.noStage = true;
-	    return sr;
-	};
-
-	if (v.err) return tagNoStage(v.err);
-	if (v.done) return tagNoStage(v.res || v.err);
-
-	const trigger = lib.hash.get(ticket, "inputs.trigger") || lib.hash.get(job, "e") || null;
-
-	const snapShot = this._snapShot({v, ticket});
-	//END $CLEANING
-	
-	let res;
-	try {
-	    res = await v.fn({
-		job,
-		lib,
-		args: v.args,
-		trigger,
-		ticket,
-		inputs: ticket.inputs,
-		ctx,
-		step: v.stepRec,
-	    });
-	} catch (err) {
-	    res = helpers.SR_error(err, { pipelineKey: v.pipelineKey, op: v.op, step: v.stepRec });
-	}
-
-	
-	res = this.op._normalizeReturn(res, { pipelineKey: v.pipelineKey, op: v.op });
-	const return_status = res.status;
-	//res.return_status = res.status;
-	res = this._finalizeResponse(res,snapShot);
-	const env = { job, ticket, ctx, v, res,return_status }; // <-- EVERYTHING
-
-	const disp = {
-	    [helpers.STAGE_STATUS.OK]       : this._responseOk,
-	    [helpers.STAGE_STATUS.WAIT]     : this._responseWait,
-	    [helpers.STAGE_STATUS.ERROR]    : this._responseError,
-	    [helpers.STAGE_STATUS.COMPLETE] : this._responseComplete,
-	};
-
-	const handler = disp[res.status] || this._responseUnknown;
-	const rv =  handler.call(this, env);
-
-	//this is ugly. I dont like it, but deal with it until more important shit handled
-	rv.return_status = return_status;
-	return rv;
-    }
-
-    
-
-
-
+    /**
+     * Handle an OK stage result.
+     *
+     * Advances the ticket cursor to the next stage within the
+     * current pipeline phase and returns the original StageResult.
+     *
+     * Mutates:
+     * - ticket.cursor.stage
+     *
+     * @param {Object} env
+     * @param {Object} env.ticket
+     * @param {Object} env.res
+     * @returns {Object} StageResult
+     */
     _responseOk({ ticket, res }) {
 	ticket.cursor.stage += 1;
 	return res;
     }
-    
+
+    /**
+     * Handle a WAIT stage result.
+     *
+     * Leaves ticket execution state unchanged. The ticket remains
+     * at the current stage and will be resumed by the scheduler.
+     *
+     * @param {Object} env
+     * @param {Object} env.res
+     * @returns {Object} StageResult
+     */
     _responseWait({ res }) {
 	return res;
     }
 
+    /**
+     * Handle a COMPLETE stage result.
+     *
+     * Produces a normalized early-completion StageResult.
+     * Does not advance the cursor. Finalization and lifecycle
+     * handling are performed by Tick.
+     *
+     * @param {Object} env
+     * @param {Object} env.v
+     *   Validated execution context for the current stage.
+     *
+     * @returns {Object} StageResult (helpers.SR_complete)
+     */
     _responseComplete({ v }) {
 	return helpers.SR_complete({ pipelineKey: v.pipelineKey, op: v.op, early: true });
     }
 
 
     /**
-     * Handle a stage error and apply pipeline error-handling semantics.
+     * Handle a stage failure and apply error-phase routing semantics.
      *
-     * This method is responsible for deciding whether a stage error:
-     *   1) Transitions execution into the `PIPELINE_PHASE_ERROR` pipeline, or
-     *   2) Terminates execution with a final error.
+     * This method determines whether a failing stage:
+     *   1) Transitions execution into helpers.PIPELINE_PHASE_ERROR, or
+     *   2) Remains a terminal error.
      *
-     * Behavior:
-     * - If the current ticket is already in the `PIPELINE_PHASE_ERROR` phase, a failing
-     *   stage is treated as a terminal error. The original error context is
-     *   preserved and annotated to indicate error-handler failure.
+     * Behavior
+     * --------
+     * 1) If the ticket is already in helpers.PIPELINE_PHASE_ERROR:
+     *    - The error handler itself has failed.
+     *    - A terminal helpers.SR_error is returned.
+     *    - The original error context is preserved and annotated
+     *      (`onErrorFailed`, `onErrorOp`, `onErrorStep`).
      *
-     * - If the ticket is not in `PIPELINE_PHASE_ERROR` and the pipeline defines an
-     *   `PIPELINE_PHASE_ERROR` handler, execution transitions into the `PIPELINE_PHASE_ERROR` phase.
-     *   The ticket cursor is reset and the original error context is stored
-     *   on the ticket for later inspection.
+     * 2) If the ticket is NOT in helpers.PIPELINE_PHASE_ERROR and the pipeline
+     *    defines an error-phase track:
+     *    - ticket.errorInfo is populated with the original failure context.
+     *    - ticket.phase is set to helpers.PIPELINE_PHASE_ERROR.
+     *    - ticket.cursor.stage is reset to 0.
+     *    - An helpers.SR_ok result is returned to signal transition
+     *      into the error phase.
      *
-     * - If no `PIPELINE_PHASE_ERROR` handler exists, the original StageResult is returned
-     *   unchanged and will be treated as a terminal error by the caller.
+     * 3) If no error-phase pipeline exists:
+     *    - The original StageResult is returned unchanged.
+     *    - Tick will treat it as a terminal error.
      *
-     * Invariants:
-     * - This method mutates ticket execution state (`phase`, `cursor`,
-     *   `errorInfo`) when transitioning into `PIPELINE_PHASE_ERROR`.
-     * - This method does NOT finalize tickets or manage scheduling.
+     * Mutations
+     * ---------
+     * When transitioning into helpers.PIPELINE_PHASE_ERROR,
+     * this method mutates:
+     *   - ticket.phase
+     *   - ticket.cursor.stage
+     *   - ticket.errorInfo
+     *
+     * It does NOT:
+     *   - finalize tickets
+     *   - emit hooks
+     *   - schedule execution
      *
      * @param {Object} env
      * @param {Object} env.ticket
-     *     Active ticket whose execution state is being evaluated.
+     *   Active ticket whose execution state is being evaluated.
      * @param {Object} env.v
-     *     Validated execution context for the current stage
-     *     (pipeline, step, op, cursor metadata).
+     *   Validated execution context for the current stage
+     *   (pipelineKey, pipelineDef, op, stepRec, etc.).
      * @param {Object} env.res
-     *     Normalized StageResult representing the stage failure.
+     *   Normalized StageResult representing the stage failure.
      *
      * @returns {Object}
-     *     A StageResult:
-     *     - `SR_ok` when transitioning into `PIPELINE_PHASE_ERROR`
-     *     - `SR_error` when the error is terminal
-     *     - or the original `res` when no error handling is defined.
+     *   A StageResult:
+     *     - helpers.SR_ok(...)    when entering helpers.PIPELINE_PHASE_ERROR
+     *     - helpers.SR_error(...) when the error is terminal
+     *     - or the original `res` if no error handler exists
      */
     _responseError({ ticket, v, res }) {
 
@@ -267,6 +447,26 @@ export class VM {
 	return res;
     }
 
+    /**
+     * Handle an unexpected or unsupported stage status.
+     *
+     * This is a defensive fallback invoked when `res.status`
+     * does not match any known helpers.STAGE_STATUS value.
+     *
+     * Produces a terminal helpers.SR_error to prevent silent
+     * continuation under undefined execution semantics.
+     *
+     * Does not mutate ticket state.
+     *
+     * @param {Object} env
+     * @param {Object} env.v
+     *   Validated execution context (pipelineKey, op, etc.).
+     * @param {Object} env.res
+     *   StageResult-like object with an unknown or missing status.
+     *
+     * @returns {Object}
+     *   helpers.SR_error describing the invalid status.
+     */
     _responseUnknown({ v, res }) {
 	return helpers.SR_error(new Error(`Unknown stage status '${res?.status}'`), {
 	    pipelineKey: v?.pipelineKey,
@@ -274,10 +474,40 @@ export class VM {
 	});
     }
 
-    //Snapshot stage identity BEFORE execution/handlers mutate ticket (e.g., run -> PIPELINE_PHASE_ERROR).
+    /**
+     * Capture stable stage identity BEFORE execution mutates ticket state.
+     *
+     * This snapshot preserves the execution context at the moment
+     * the stage begins, prior to any handler-induced mutations
+     * (e.g., transitioning from helpers.PIPELINE_PHASE_RUN to
+     * helpers.PIPELINE_PHASE_ERROR).
+     *
+     * The returned object is later stamped into `res.detail`
+     * to ensure trace/log metadata reflects the original
+     * execution identity, not post-transition state.
+     *
+     * Does not mutate ticket.
+     *
+     * @param {Object} args
+     * @param {Object} args.ticket
+     *   Active ticket being executed.
+     * @param {Object} args.v
+     *   Validated execution context for the current stage.
+     *
+     * @returns {Object}
+     *   Snapshot descriptor:
+     *   {
+     *     phase,
+     *     stageIndex,
+     *     pipelineKey,
+     *     op,
+     *     opLabel,
+     *     step
+     *   }
+     */
     _snapShot({ticket,v}){
 	const exec = {
-	    phase: ticket.phase,                 // "run" | PIPELINE_PHASE_ERROR
+	    phase: ticket.phase,                 // helpers.PIPELINE_PHASE_RUN ("run") | helpers.PIPELINE_PHASE_ERROR ("error")
 	    stageIndex: ticket.cursor?.stage ?? 0,
 	    pipelineKey: v.pipelineKey,
 	    op: v.op,                            // may be string, function, etc
@@ -286,7 +516,40 @@ export class VM {
 	};
 	return exec;
     }
-    
+
+    /**
+     * Stamp stable stage metadata into a StageResult.
+     *
+     * This method injects the pre-execution snapshot identity
+     * (captured by `_snapShot`) into `res.detail` to ensure that
+     * trace and hook consumers see the original stage context,
+     * even if ticket state has since mutated (e.g., phase change).
+     *
+     * Specifically attaches:
+     *   - phase
+     *   - stageIndex
+     *   - pipelineKey
+     *   - op (raw)
+     *   - opLabel (safe string label)
+     *   - step (raw stage record)
+     *
+     * Mutates:
+     *   - res.detail (ensures it exists and stamps fields)
+     *
+     * Does NOT:
+     *   - alter `res.status`
+     *   - modify ticket state
+     *   - perform lifecycle transitions
+     *
+     * @param {Object} res
+     *   Normalized StageResult returned from execution or validation.
+     *
+     * @param {Object} snapShot
+     *   Stage identity descriptor produced by `_snapShot`.
+     *
+     * @returns {Object}
+     *   The same StageResult instance with augmented `detail`.
+     */
     _finalizeResponse(res,snapShot){
 
 	// $CLEANING Stamp stable stage identity into the result for hooks/logging.
@@ -306,6 +569,11 @@ export class VM {
 }
 
 export default VM;
+
+/**
+ * NOTE: The structure below describes TickResponse payloads (Tick layer),
+ * not VM return values.
+ */
 
 /**
    {

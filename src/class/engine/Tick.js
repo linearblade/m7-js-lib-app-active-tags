@@ -1,3 +1,61 @@
+/**
+ * Tick
+ * ----
+ * Single-step execution driver for the Engine.
+ *
+ * Role
+ * - Advances the Engine by exactly ONE stage transition.
+ * - Selects a runnable job via Scheduler (or targets a specific ticket).
+ * - Ensures correct promotion of queued tickets to active.
+ * - Enforces job-level and ticket-level locking.
+ * - Delegates stage execution to the VM.
+ * - Emits standardized hook traces via TickResponse.
+ *
+ * Conceptual model
+ * - Engine is the façade.
+ * - EngineState owns authoritative runtime state.
+ * - EngineManager owns enqueue/lock/cancel policy.
+ * - Scheduler selects runnable jobs.
+ * - VM executes one pipeline stage.
+ * - Tick orchestrates the above for one atomic step.
+ *
+ * Execution modes
+ * 1) Next-runnable mode (default)
+ *    - Pull next jobId from Scheduler.
+ *    - Promote queued ticket to active (if needed).
+ *    - Execute exactly one stage.
+ *
+ * 2) Targeted mode (ticket specified)
+ *    - Validate the specific ticket id.
+ *    - Ensure it is the active ticket (or promote it).
+ *    - Execute exactly one stage for that ticket only.
+ *
+ * Invariants
+ * - At most one ACTIVE ticket per job.
+ * - A locked job or locked ticket will not execute.
+ * - A single call to `tick()` never loops; it advances only one stage.
+ * - Terminal transitions (complete/error) clear active state and aliases.
+ *
+ * Hooks
+ * - onDequeue      : when a ticket is promoted from queue → active
+ * - onStage        : after every VM step (non-terminal or transition)
+ * - onComplete     : when a ticket reaches terminal complete
+ * - onError        : when a ticket reaches terminal error
+ * - onTicketDone   : uniform terminal hook (complete or error)
+ *
+ * Trace contract
+ * - All outward-facing responses are normalized via TickResponse.
+ * - Returned value from `tick()` is always a trace object.
+ *
+ * Non-responsibilities
+ * - Does not enqueue tickets (EngineManager does that).
+ * - Does not maintain indexes (EngineState does that).
+ * - Does not decide scheduling policy (Scheduler does that).
+ * - Does not interpret pipeline semantics (VM does that).
+ *
+ * This class is the deterministic execution spine of the runtime.
+ */
+
 import helpers from './helpers.js';
 import TickResponse from './TickResponse.js';
 
@@ -8,12 +66,70 @@ export class Tick {
 	this.response = new TickResponse({lib});
     }
     
-    /**
-     * Advance the engine by ONE stage step globally.
-     * Picks the next runnable job from the scheduler, advances that job's ACTIVE ticket by one step.
-     *
-     * Returns a small trace object for debugging/tests.
-     */
+/**
+ * Advance the Engine by exactly ONE stage transition.
+ *
+ * This is the primary execution entry point for the runtime loop.
+ * Each call to `tick()` performs at most one VM stage step and
+ * returns a normalized trace object describing what happened.
+ *
+ * Modes of operation
+ * ------------------
+ * 1) Global mode (default)
+ *    - Scheduler selects the next runnable job.
+ *    - That job’s ACTIVE ticket (or head of queue) is advanced by one stage.
+ *
+ * 2) Targeted mode (`ticket` provided)
+ *    - Only the specified ticket is advanced.
+ *    - Scheduler selection is bypassed.
+ *
+ * Execution flow
+ * --------------
+ * 1) Validate and resolve execution context via `_validateTick`.
+ *    - May early-return if nothing is runnable.
+ *
+ * 2) Execute exactly one VM step:
+ *        engine.vm.step({ job, ticket, ctx })
+ *    - Errors are trapped and converted into a StageResult-like error.
+ *
+ * 3) Record last result on the ticket (`ticket.last`).
+ *
+ * 4) Emit `HOOKS.STAGE` after every VM step
+ *    - Fired for all outcomes (OK, WAIT, ERROR, COMPLETE).
+ *    - Includes terminal transitions.
+ *
+ * 5) Dispatch to a response handler based on `res.status`:
+ *        OK        → `_responseOk`
+ *        WAIT      → `_responseWait`
+ *        ERROR     → `_responseError`
+ *        COMPLETE  → `_responseComplete`
+ *        (unknown) → `_responseUnknown`
+ *
+ * 6) Return a normalized TickResponse trace object.
+ *
+ * Guarantees
+ * ----------
+ * - Never advances more than one stage per call.
+ * - Never throws VM errors outward; they are normalized.
+ * - Always returns a trace object.
+ * - Maintains Engine invariants (one active ticket per job).
+ *
+ * Non-responsibilities
+ * --------------------
+ * - Does not enqueue tickets (EngineManager handles that).
+ * - Does not choose scheduling policy (Scheduler handles that).
+ * - Does not mutate configuration.
+ *
+ * @param {Object} [args]
+ * @param {Object} [args.ctx={}]
+ *   Optional execution context passed through to VM and ops.
+ *
+ * @param {string|null} [args.ticket=null]
+ *   Optional ticket id for targeted execution.
+ *
+ * @returns {Promise<Object>}
+ *   Normalized tick trace describing the outcome of this step.
+ */
     async tick({ ctx = {} ,ticket=null} = {}) {
         const v = this._validateTick({ ctx, ticket });
         if (v.done) return v.res;
@@ -24,7 +140,7 @@ export class Tick {
         try {
             res = await this.engine.vm.step({ job: v.job, ticket: v.ticket, ctx: v.ctx});
         } catch (err) {
-	    console.warn('trap an error');
+	    //console.warn('trap an error');
 	    res = helpers.SR_error(err, { pipelineKey: v.ticket?.pipelineKey || null });
             //res = { status: helpers.STAGE_STATUS.ERROR, error: err };
         }
@@ -44,7 +160,7 @@ export class Tick {
         const handler = disp[res?.status] || this._responseUnknown;
         return handler.call(this, env);
     }
-
+    // best-effort invoke hook; never throws
     _emitHook(name, trace) {
 	const fn = this.engine?.hooks?.[name];
 	if (typeof fn === "function") fn(trace);
@@ -66,7 +182,7 @@ export class Tick {
 	    }
 	});
 
-	this._emitHook("onStage", stageTrace);
+	this._emitHook(helpers.HOOKS.STAGE, stageTrace);
 
     }
 
@@ -85,41 +201,60 @@ export class Tick {
             st.stats.lastRunAt = Date.now();
 
             // only clear alias on terminal states
-            if (ticket.pipelineKey && (finalState === "complete" || finalState === "error")) {
+            if (ticket.pipelineKey && (finalState === helpers.TICKET_STATE.COMPLETE || finalState === helpers.TICKET_STATE.ERROR)) {
 		this.engine.state.aliasDeleteIfPointsTo(jobId, ticket.pipelineKey, ticket.id);
             }
 	    
 	};
     }
-    _oldmakeFinalize(env) {
-        const { jobId, st, ticket } = env;
 
-        return (finalState) => {
-            ticket.state = finalState;
-            // drop active
-            st.active = null;
-
-            // clear ticket index
-            this.engine.state.deleteTicket(ticket.id);
-
-            // clear alias mapping for this pipelineKey IF it points to this ticket
-            if (ticket.pipelineKey) {
-                this.engine.state.aliasDeleteIfPointsTo(jobId, ticket.pipelineKey, ticket.id);
-            }
-
-            st.stats.lastRunAt = Date.now();
-
-	    // only clear alias on terminal states
-	    //if (ticket.pipelineKey && (finalState === "complete" || finalState === "error")) {
-	    //this.engine.state.aliasDeleteIfPointsTo(jobId, ticket.pipelineKey, ticket.id);
-	    //}
-            // if more queued work exists, keep job runnable
-            if (st.queue.length && !this.engine.state.isLockedJobId(jobId)) {
-		this.engine.scheduler.markRunnable(jobId);
-            }
-        };
-    }
-
+    /**
+     * Validate and prepare execution context for a tick.
+     *
+     * This method determines which execution path to take:
+     *
+     * - Targeted mode:
+     *     If `ticket` is provided, delegates to `_validateTickNamed`
+     *     to resolve and validate that specific ticket.
+     *
+     * - Global mode:
+     *     If `ticket` is not provided, delegates to `_validateTickNext`
+     *     to select the next runnable job/ticket via the Scheduler.
+     *
+     * Responsibilities
+     * ----------------
+     * - Normalize incoming arguments.
+     * - Resolve job and ticket context.
+     * - Enforce basic invariants (existence, active state, locks).
+     * - Produce a standardized validation object consumed by `tick()`.
+     *
+     * Return contract
+     * ---------------
+     * Returns a validation object of shape:
+     *
+     *   {
+     *     done: boolean,   // true if no execution should occur
+     *     res: Object,     // trace to return immediately if done === true
+     *     job: Job,        // resolved job (when done === false)
+     *     ticket: Object,  // resolved active ticket
+     *     ctx: Object      // normalized execution context
+     *   }
+     *
+     * - If `done === true`, `tick()` must immediately return `res`.
+     * - If `done === false`, the returned job/ticket are safe to execute.
+     *
+     * This method does not execute any VM logic.
+     *
+     * @param {Object} [args]
+     * @param {Object} [args.ctx={}]
+     *   Optional execution context passed through to VM.
+     *
+     * @param {string|null} [args.ticket=null]
+     *   Optional ticket id for targeted execution.
+     *
+     * @returns {Object}
+     *   Validation descriptor for the current tick.
+     */
     _validateTick({  ctx = {},ticket=null } = {}) {
 	return ticket ?
 	    this._validateTickNamed({ctx,ticket}):
@@ -219,7 +354,7 @@ export class Tick {
                     res: this.response._makeTickTrace({
 			jobId,
 			job,
-			ticketId,
+			ticket: this.engine.state.getTicket(ticketId) ,
 			flags: { didWork: false, reason: "ticketNotRunnable" }
                     })
 		};
@@ -233,7 +368,7 @@ export class Tick {
 		ticket: st.active,
 		flags: { didWork: false, reason: "dequeueTarget" }
             });
-            this._emitHook("onDequeue", tr);
+            this._emitHook(helpers.HOOKS.DEQUEUE, tr);
 
             return { ticket: st.active };
 	}
@@ -248,7 +383,7 @@ export class Tick {
 		ticket: st.active,
 		flags: { didWork: false, reason: "dequeue" }
             });
-            this._emitHook("onDequeue", tr);
+            this._emitHook(helpers.HOOKS.DEQUEUE, tr);
 
             return { ticket: st.active };
 	}
@@ -293,12 +428,12 @@ export class Tick {
      * Build a standardized "missing job" tick result.
      * Preserves existing flag differences between named and next modes.
      */
-    _makeMissingJob({ jobId, ticketId, missingJobFlag = false } = {}) {
+    _makeMissingJob({ jobId, ticket, missingJobFlag = false } = {}) {
 	return {
             done: true,
             res: this.response._makeTickTrace({
 		jobId,
-		ticketId,
+		ticket: ticket? this.engine.state.getTicket(ticket) || ticket : null,
 		flags: {
                     didWork: false,
                     ...(missingJobFlag ? { missingJob: true } : {}),
@@ -313,7 +448,12 @@ export class Tick {
 	// -----------------------------------------------------------------
 	// Targeted mode: tick a specific ticket id (or ticket object)
 	// -----------------------------------------------------------------
-	if (!ticket)  return;
+	if (!ticket)  return {
+	    done: true,
+	    res: this.response._makeTickTrace({
+		flags: { didWork: false, reason: "badTicketArg" }
+	    })
+	};
 
         const ticketId = (typeof ticket === "string") ? ticket : ticket.id;
         if (!ticketId) {
@@ -325,7 +465,7 @@ export class Tick {
         const rec = this.engine.state.getTicketRec(ticketId);
         if (!rec || !rec.jobId || !rec.ticket) {
 	    return { done: true, res: this.response._makeTickTrace({
-                ticketId,
+                ticket: rec?.ticket || this.engine.state.getTicket(ticketId) || null ,
                 flags: { didWork: false, reason: "missingTicket" }
 	    }) };
         }
@@ -333,17 +473,26 @@ export class Tick {
         const jobId = rec.jobId;
 
 	const job = this._resolveJobSafe(jobId);
-	if (!job || !job.id) 
-	    return this._makeMissingJob({ jobId, ticketId });
+	if (!job || !job.id)
+	    return this._makeMissingJob({
+		jobId,
+		ticket: rec?.ticket || this.engine.state.getTicket(ticketId) || null
+	    });
 
         const st = this.engine.state.jobState(jobId);
 
         // If some OTHER ticket is active, do not steal the job mid-run
+	
         if (st.active && st.active.id !== ticketId) {
-	    return { done: true, res: this.response._makeTickTrace({
-                jobId, job, ticketId,
-                flags: { didWork: false, reason: "differentActiveTicket" }
-	    }) };
+	    return {
+		done: true,
+		res: this.response._makeTickTrace({
+		    jobId,
+		    job,
+		    ticket: st.active,
+		    flags: { didWork: false, reason: "differentActiveTicket" }
+		})
+	    };
         }
 
 
@@ -357,7 +506,7 @@ export class Tick {
 	const tBlocked = this._isTicketBlocked({ jobId, job, ticket: st.active });
 	if (tBlocked) return tBlocked;
 
-        st.active.state = "running";
+        st.active.state = helpers.TICKET_STATE.RUNNING;
 	return this._makeRunnable({ jobId, job, st, ticket: st.active, ctx });
     }
     
@@ -388,12 +537,16 @@ export class Tick {
         // If ticket is locked, do not run
 	const tBlocked = this._isTicketBlocked({ jobId, job, ticket });
 	if (tBlocked) return tBlocked;
-        ticket.state = "running";
+        ticket.state = helpers.TICKET_STATE.RUNNING;
 	// no need to tick trace b/c done = false means we continue. done = true means. 'were done'
 	return this._makeRunnable({ jobId, job, st, ticket, ctx });
     }
 
 
+    // -------------------------------------
+    // _response*() — mutates ticket state + emits terminal hooks; returns TickResponse trace
+    // -------------------------------------
+    
     _responseOk(env) {
 	const { jobId, job, ticket, res } = env;
 	this.engine.scheduler.markRunnable(jobId);
@@ -406,7 +559,7 @@ export class Tick {
 
     _responseWait(env) {
 	const { jobId, job, ticket, res } = env;
-	ticket.state = "wait";
+	ticket.state = helpers.TICKET_STATE.WAIT;
 	ticket.lock = res.lock || res.await || { type: "wait", token: `aw_${Date.now()}` };
 
 	return this.response._makeTickTrace({
@@ -418,9 +571,9 @@ export class Tick {
     _responseError(env) {
 	const { jobId, job, ticket, res, st, finalize } = env;
 	st.stats.errors += 1;
-	finalize("error");
+	finalize(helpers.TICKET_STATE.ERROR);
 
-	const summary = this.response._makeTerminalSummary({ job, ticket, res, state: "error" });
+	const summary = this.response._makeTerminalSummary({ job, ticket, res, state: helpers.TICKET_STATE.ERROR });
 
 	const trace = this.response._makeTickTrace({
             jobId, job, ticket, res, summary,
@@ -428,8 +581,8 @@ export class Tick {
 	});
 
 	// uniform terminal hooks (same payload)
-	this._emitHook("onError", trace);
-	this._emitHook("onTicketDone", trace);
+	this._emitHook(helpers.HOOKS.ERROR, trace);
+	this._emitHook(helpers.HOOKS.DONE, trace);
 
 	return trace;
     }
@@ -438,9 +591,9 @@ export class Tick {
 	const { jobId, job, ticket, res, st, finalize } = env;
 
 	st.stats.runs += 1;
-	finalize("complete");
+	finalize(helpers.TICKET_STATE.COMPLETE);
 
-	const summary = this.response._makeTerminalSummary({ job, ticket, res, state: "complete" });
+	const summary = this.response._makeTerminalSummary({ job, ticket, res, state: helpers.TICKET_STATE.COMPLETE});
 
 	const trace = this.response._makeTickTrace({
             jobId, job, ticket, res, summary,
@@ -448,8 +601,8 @@ export class Tick {
 	});
 	this.lib.hash.set(job,"flags.hasRun", true);
 	// uniform terminal hooks (same payload)
-	this._emitHook("onComplete", trace);
-	this._emitHook("onTicketDone", trace);
+	this._emitHook(helpers.HOOKS.COMPLETE, trace);
+	this._emitHook(helpers.HOOKS.DONE, trace);
 
 	return trace;
     }
@@ -466,11 +619,11 @@ export class Tick {
 	});
 	st.stats.errors += 1;
 	//always hard fail on things that should exist but dont
-	finalize("error");
+	finalize(helpers.TICKET_STATE.ERROR);
 
 
 
-	const summary = this.response._makeTerminalSummary({ job, ticket, res: sr, state: "error" });
+	const summary = this.response._makeTerminalSummary({ job, ticket, res: sr, state: helpers.TICKET_STATE.ERROR });
 
 	const trace = this.response._makeTickTrace({
             jobId,
@@ -482,8 +635,8 @@ export class Tick {
 	});
 
 	// Uniform terminal hooks
-	this._emitHook("onError", trace);
-	this._emitHook("onTicketDone", trace);
+	this._emitHook(helpers.HOOKS.ERROR, trace);
+	this._emitHook(helpers.HOOKS.DONE, trace);
 
 	return trace;
     }

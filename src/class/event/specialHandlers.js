@@ -1,96 +1,154 @@
-// event/specialHandlers.js
 /**
  * Event Special Handlers
  * ----------------------
  *
- * This module contains **semantic event carveouts** used by the
- * ActiveTags EventController.
+ * Provides semantic filtering for delegated DOM events used by the
+ * ActiveTags Event Controller.
  *
- * Purpose:
- * --------
- * Not all DOM events map cleanly to human intent. Some events (notably
- * hover- and focus-related events) fire repeatedly during internal
- * transitions (e.g. moving between child elements), which makes them
- * unsuitable to route directly to pipelines without normalization.
+ * PURPOSE
+ * -------
+ * Some DOM events do not directly represent meaningful user intent.
+ * Hover and focus related events may fire repeatedly during internal
+ * DOM transitions, such as movement between child elements.
  *
- * This file centralizes those semantics.
+ * This module centralizes semantic boundary rules so that:
+ *   The Event Controller remains generic
+ *   Pipeline dispatch logic remains clean
+ *   Edge cases are isolated and testable
  *
- * Design Principles:
+ *
+ * EXECUTION MODEL
+ * ---------------
+ * Each handler receives a context object containing:
+ *   el           resolved ActiveTag root element
+ *   e            DOM event object
+ *   eventType    normalized delegator-safe event type
+ *   subSelector  optional sub-delegation selector
+ *
+ * Handlers are evaluated sequentially.
+ * The first handler that returns true is considered to have consumed
+ * the event.
+ *
+ * Returning true means:
+ *   The event should be ignored
+ *   No pipeline should be enqueued
+ *
+ * Returning false means:
+ *   Normal event processing should continue
+ *
+ *
+ * DESIGN CONSTRAINTS
  * ------------------
- * 1) These handlers do NOT enqueue work.
- *    They only decide whether an event should be ignored (consumed)
- *    based on semantic rules.
+ * Handlers must be pure functions.
+ * Handlers must not enqueue pipelines.
+ * Handlers must not install or uninstall delegated handlers.
+ * Handlers must not mutate controller or Job state.
  *
- * 2) These handlers are **pure functions**.
- *    They depend only on the provided context and do not mutate state.
+ * Job identity is already resolved upstream.
+ * All logic operates relative to the provided root element.
  *
- * 3) Job identity is never resolved here.
- *    All handlers operate relative to an already-resolved ActiveTag
- *    root element (`el`).
  *
- * 4) Sub-delegation is first-class.
- *    When a sub-selector is present, boundary semantics are evaluated
- *    relative to that sub-target, not the entire ActiveTag element.
+ * SUB-DELEGATION
+ * --------------
+ * When a sub-selector is present, semantic boundary checks are evaluated
+ * relative to the matched sub-target rather than the entire root element.
  *
- * 5) Order matters.
- *    Handlers are evaluated sequentially. The first handler to return
- *    `true` is considered to have consumed the event.
  *
- * Usage:
- * ------
- * The EventController imports `SPECIAL_EVENT_HANDLERS` and iterates
- * over them during event dispatch. This keeps the main event handling
- * logic generic and prevents semantic edge cases from polluting
- * controller code.
+ * EXTENSIBILITY
+ * -------------
+ * Additional semantic handlers may be appended to
+ * SPECIAL_EVENT_HANDLERS.
  *
- * Future Work:
- * ------------
- * This module is intentionally isolated to allow:
- *   - controller-level overrides
- *   - per-job or per-event handler policies
- *   - additional semantic handlers (e.g. dragenter/dragleave)
+ * Ordering matters.
+ * Earlier handlers have priority over later ones.
  *
- * without changing the EventController’s core logic.
+ *
+ * NON-RESPONSIBILITIES
+ * --------------------
+ * Does not normalize event types.
+ * Does not perform event delegation.
+ * Does not interact with the Engine.
  */
-
 
 /**
  * Hover Semantic Handler
- * ---------------------
+ * ----------------------
  *
- * Normalizes `pointerover` / `pointerout` (and mouseover/mouseout equivalents)
- * into *semantic hover enter / hover leave* behavior.
+ * Provides semantic boundary filtering for delegated hover events.
  *
- * Problem:
+ * CONTRACT
  * --------
- * Raw hover events fire repeatedly during internal DOM transitions
- * (e.g. moving between child elements), which makes them unsuitable
- * to trigger pipelines directly.
+ * Suppresses pointerover and pointerout events that represent internal
+ * movement within the same semantic hover boundary.
  *
- * This handler suppresses events that represent internal movement
- * within the same semantic boundary.
+ * If the event represents a true boundary enter or leave, returns false.
+ * If the event represents internal movement and should be ignored,
+ * returns true.
  *
- * Sub-delegation:
- * ---------------
- * When a sub-selector is present, hover boundaries are evaluated
- * relative to the sub-target, not the entire ActiveTag element.
  *
- * Example:
- *   - tag → button        : allowed (enter)
- *   - button → tag        : allowed (leave)
- *   - button child → child: suppressed
- *
- * Design Notes:
+ * APPLICABILITY
  * -------------
- * - This handler does NOT enqueue work.
- * - It only decides whether the event should be ignored.
- * - Job identity is already resolved upstream.
+ * Only applies to:
+ *   pointerover
+ *   pointerout
  *
- * Future Work:
+ * All other event types return false immediately.
+ *
+ *
+ * INPUT
+ * -----
+ * @param {Object} ctx
+ * @param {Element} ctx.el
+ *   The resolved ActiveTag root element.
+ *
+ * @param {Event} ctx.e
+ *   The DOM event object.
+ *
+ * @param {string} ctx.eventType
+ *   Normalized event type string.
+ *
+ * @param {string|null} ctx.subSelector
+ *   Optional sub-delegation selector used to narrow hover boundaries.
+ *
+ *
+ * SEMANTIC RULES
+ * --------------
+ * Tag-level semantics
+ *   Without subSelector, the boundary is the entire ActiveTag element.
+ *   If relatedTarget is contained within el, the movement is internal
+ *   and the event is suppressed.
+ *
+ * Sub-delegation semantics
+ *   When subSelector is provided, boundaries are evaluated relative to
+ *   the matched sub-target element.
+ *
+ *   The event is suppressed only if:
+ *     Both the current target and relatedTarget resolve to the same
+ *     sub-target within el.
+ *
+ *   Movement between different sub-targets or into or out of the
+ *   ActiveTag boundary is allowed.
+ *
+ *
+ * RETURN VALUE
  * ------------
- * - Extend to support dragenter / dragleave using the same
- *   boundary semantics if needed.
+ * @returns {boolean}
+ *   true  if the event should be consumed and ignored
+ *   false if normal processing should continue
+ *
+ *
+ * SIDE EFFECTS
+ * ------------
+ * None.
+ *
+ *
+ * DESIGN CONSTRAINTS
+ * ------------------
+ * Must remain pure.
+ * Must not enqueue pipelines.
+ * Must not mutate controller or Job state.
  */
+
 export function handleHover({ el, e, eventType, subSelector }) {
     if (eventType !== "pointerover" && eventType !== "pointerout") return false;
     if (!e || !el) return false;
@@ -115,29 +173,88 @@ export function handleHover({ el, e, eventType, subSelector }) {
     return hitOk && rhitOk && hit === rhit;
 }
 
+
 /**
- * Focus / Blur Semantic Handler
- * -----------------------------
+ * Focus Semantic Handler
+ * ----------------------
  *
- * NOTE / TODO:
- * Focus events (`focus` / `blur`) do not bubble and require normalization
- * to `focusin` / `focusout` for delegated handling.
+ * Provides semantic boundary filtering for delegated focus events.
  *
- * At present, normalization is assumed to occur at registration time
- * (i.e. before the delegator subscribes). If focus/blur are registered
- * without this normalization, the handler may never be invoked.
+ * CONTRACT
+ * --------
+ * Suppresses focusin and focusout events that represent internal focus
+ * transitions within the same semantic boundary.
  *
- * This handler only addresses *semantic boundary behavior* (internal
- * focus shifts vs true enter/leave) and intentionally does NOT perform
- * event type normalization itself.
+ * If the event represents a true boundary enter or leave, returns false.
+ * If the event represents internal focus movement and should be ignored,
+ * returns true.
  *
- * Future work:
- * - Decide whether focus normalization should:
- *   a) always occur during event registration, or
- *   b) be enforced here with defensive duplication.
  *
- * Until then, focus-related configuration should use `focusin` /
- * `focusout` explicitly or ensure registration-time normalization.
+ * APPLICABILITY
+ * -------------
+ * Only applies to:
+ *   focusin
+ *   focusout
+ *
+ * All other event types return false immediately.
+ *
+ * Event type normalization from focus and blur to focusin and focusout
+ * must occur before this handler is invoked.
+ * This handler does not perform event type normalization.
+ *
+ *
+ * INPUT
+ * -----
+ * @param {Object} ctx
+ * @param {Element} ctx.el
+ *   The resolved ActiveTag root element.
+ *
+ * @param {Event} ctx.e
+ *   The DOM event object.
+ *
+ * @param {string} ctx.eventType
+ *   Normalized event type string.
+ *
+ * @param {string|null} ctx.subSelector
+ *   Optional sub-delegation selector used to narrow focus boundaries.
+ *
+ *
+ * SEMANTIC RULES
+ * --------------
+ * Tag-level semantics
+ *   Without subSelector, the boundary is the entire ActiveTag element.
+ *   If relatedTarget is contained within el, the focus shift is internal
+ *   and the event is suppressed.
+ *
+ * Sub-delegation semantics
+ *   When subSelector is provided, boundaries are evaluated relative to
+ *   the matched sub-target element.
+ *
+ *   The event is suppressed only if:
+ *     Both the current target and relatedTarget resolve to the same
+ *     sub-target within el.
+ *
+ *   Focus movement between different sub-targets or into or out of the
+ *   ActiveTag boundary is allowed.
+ *
+ *
+ * RETURN VALUE
+ * ------------
+ * @returns {boolean}
+ *   true  if the event should be consumed and ignored
+ *   false if normal processing should continue
+ *
+ *
+ * SIDE EFFECTS
+ * ------------
+ * None.
+ *
+ *
+ * DESIGN CONSTRAINTS
+ * ------------------
+ * Must remain pure.
+ * Must not enqueue pipelines.
+ * Must not mutate controller or Job state.
  */
 export function handleFocus({ el, e, eventType, subSelector }) {
     if (eventType !== "focusin" && eventType !== "focusout") return false;

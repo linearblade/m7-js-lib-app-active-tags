@@ -1,3 +1,65 @@
+/**
+ * OP (Operation Normalizer)
+ * ==========================
+ * Formalizes and normalizes raw stage return values into canonical StageResult objects.
+ *
+ * Role
+ * ----
+ * - Converts arbitrary user function return values into explicit
+ *   helpers.SR_* StageResults.
+ * - Eliminates implicit continuation semantics.
+ * - Enforces explicit control flow signaling for OK / WAIT / ERROR / COMPLETE.
+ *
+ * Architectural Position
+ * ----------------------
+ * Engine
+ *   → Tick (lifecycle + scheduling)
+ *       → VM (single-stage execution)
+ *           → OP (return normalization only)
+ *
+ * OP does NOT:
+ * - Execute stage functions
+ * - Mutate tickets
+ * - Manage phase transitions
+ * - Emit hooks
+ * - Perform scheduling
+ *
+ * Design Philosophy
+ * -----------------
+ * - Control flow must be explicit.
+ * - Truthy values do NOT imply continuation.
+ * - Legacy behavior is recognized but coerced into explicit helpers.SR_* results.
+ * - All outcomes are reduced to helpers.STAGE_STATUS.*.
+ *
+ * Normalization Rules (v1)
+ * ------------------------
+ * Scalar values:
+ *   - If lib.bool.yes(value) → helpers.SR_ok (continue)
+ *   - Otherwise              → helpers.SR_error
+ *
+ * Object values:
+ *   - If `status` is an intentional bool (lib.bool.isIntent) →
+ *       coerced to helpers.STAGE_STATUS.OK or ERROR
+ *   - If `status` is already in helpers.STAGE_STATUS_RANGE →
+ *       passed through (cloned)
+ *   - If `{ wait: true }` →
+ *       coerced to helpers.SR_wait (legacy compatibility)
+ *
+ * All other values:
+ *   → helpers.SR_error
+ *
+ * Guarantees
+ * ----------
+ * - Always returns a StageResult-like object.
+ * - Never throws.
+ * - Never mutates ticket or engine state.
+ * - Preserves `pipelineKey` and `op` metadata when provided.
+ *
+ * Notes
+ * -----
+ * - This module is intentionally coercive and opinionated.
+ */
+
 import helpers from '../helpers.js';
 
 export class OP {
@@ -5,6 +67,24 @@ export class OP {
 	this.lib = lib;
     }
 
+    /**
+     * Produce a stable, human-readable label for an operation.
+     *
+     * Used for logging, tracing, and hook metadata.
+     * Returns a best-effort string representation based on:
+     *   - string ops → returned directly
+     *   - function ops → function name or "(anonymous fn)"
+     *   - object ops → constructor name or "(object op)"
+     *   - null / other types → descriptive fallback
+     *
+     * Does not mutate input.
+     *
+     * @param {*} op
+     *   Operation identifier (string | function | object | null).
+     *
+     * @returns {string}
+     *   Safe label suitable for logs and diagnostics.
+     */
     _opLabel(op) {
 	// Prefer stable human-readable labels for logs/hooks.
 	if (typeof op === "string") return op;
@@ -25,48 +105,52 @@ export class OP {
 	return `(${typeof op} op)`;
     }
 
-
     /**
-     * Normalize a stage return value into a StageResult.
+     * Normalize a raw stage return value into a canonical StageResult.
      *
-     * This function formalizes legacy return semantics and removes all
-     * implicit behavior. Continuation, waiting, and completion must be
-     * expressed explicitly.
+     * This method enforces explicit control-flow signaling by coercing
+     * arbitrary return values into helpers.SR_* objects.
      *
-     * Normalization rules:
-     * - Scalar values:
-     *   - If `lib.bool.yes(value)` → OK (continue)
-     *   - Otherwise               → ERROR
+     * Normalization rules
+     * -------------------
+     * 1) Scalar values:
+     *    - If `lib.bool.yes(value)` → helpers.SR_ok
+     *    - Otherwise                → helpers.SR_error
      *
-     * - Object values:
-     *   - If `status` is an intentional value (`lib.bool.isIntent`) →
-     *     treated as an explicit StageResult and passed through.
-     *   - If `{ wait: true }` →
-     *     WAIT (explicit legacy wait token).
+     * 2) Object values:
+     *    - If `status` is a bool-intent (`lib.bool.isIntent`) →
+     *        coerced to:
+     *          helpers.STAGE_STATUS.OK
+     *          helpers.STAGE_STATUS.ERROR
      *
-     * - All other values:
-     *   - ERROR (no recognized continuation semantics).
+     *    - If `status` is already in helpers.STAGE_STATUS_RANGE →
+     *        returned as a shallow clone.
      *
-     * Notes:
-     * - Implicit legacy WAIT semantics have been removed.
-     * - Truthy values do NOT imply continuation unless explicitly
-     *   recognized by `lib.bool.yes`.
-     * - This function is coercive and opinionated by design; it enforces
-     *   explicit control flow signaling.
+     *    - If `{ wait: true }` →
+     *        coerced to helpers.SR_wait (legacy compatibility).
+     *
+     * 3) All other values:
+     *    → helpers.SR_error
+     *
+     * Guarantees
+     * ----------
+     * - Always returns a StageResult-like object.
+     * - Never throws.
+     * - Does not mutate ticket or engine state.
+     * - Preserves `pipelineKey` and `op` metadata when provided.
      *
      * @param {*} res
-     *     Raw value returned by a stage function.
+     *   Raw value returned by a stage function.
      *
      * @param {Object} [opts]
      * @param {string} [opts.pipelineKey]
-     *     Pipeline identifier for diagnostics.
+     *   Pipeline identifier for diagnostics.
      * @param {*} [opts.op]
-     *     Operation identifier for diagnostics.
+     *   Operation identifier for diagnostics.
      *
      * @returns {Object}
-     *     A StageResult object produced via `helpers.SR_*`.
-     */
-    
+     *   A StageResult object produced via helpers.SR_ok / SR_wait / SR_error.
+     */    
     _normalizeReturn(res, { pipelineKey, op } = {}) {
 	if (this.lib.utils.isScalar(res)) {
 
@@ -100,7 +184,7 @@ export class OP {
 		return {...res};
 
 	    
-	    console.log('invalid status... ', res.status);
+	    //console.log('invalid status... ', res.status);
 	    // Explicit legacy wait
 	    if (res.wait === true) {
 		return helpers.SR_wait({
@@ -119,40 +203,6 @@ export class OP {
         );
     }
     
-    _oldnormalizeReturn(res, { pipelineKey, op } = {}) {
-
-	// Already a StageResult
-	if (res && typeof res === "object" && res.status) {
-	    return res;
-	}
-
-	// ---- Legacy / implied semantics ----
-	// v098 rules (formalized):
-	// - falsy        -> ERROR
-	// - true / 1     -> OK
-	// - truthy other -> WAIT
-
-	// Falsy => ERROR
-	if (!res) {
-	    return helpers.SR_error(
-		new Error("Stage returned falsy"),
-		{ pipelineKey, op, legacy: true }
-	    );
-	}
-
-	// Explicit success
-	if (res === true || res === 1) {
-	    return helpers.SR_ok({ pipelineKey, op, legacy: true });
-	}
-
-	// Any other truthy value => WAIT
-	return helpers.SR_wait({
-	    pipelineKey,
-	    op,
-	    legacy: true,
-	    value: res
-	});
-    }
 
 }
 
