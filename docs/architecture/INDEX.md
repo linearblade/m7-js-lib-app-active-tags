@@ -8,6 +8,7 @@ This section documents internal architecture and subsystem boundaries.
 For implementation-level API references, see:
 
 * **API Index** -> [../api/INDEX.md](../api/INDEX.md)
+* **What Makes ActiveTags Different** -> [../WHAT_MAKES_US_DIFFERENT.md](../WHAT_MAKES_US_DIFFERENT.md)
 
 For usage-first onboarding, see:
 

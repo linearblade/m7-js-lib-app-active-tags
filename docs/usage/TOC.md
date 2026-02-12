@@ -8,6 +8,7 @@ This section contains practical, user-facing guides for integrating and operatin
 If you are looking for API-oriented references, see:
 
 * **API Index** -> [../api/INDEX.md](../api/INDEX.md)
+* **What Makes ActiveTags Different** -> [../WHAT_MAKES_US_DIFFERENT.md](../WHAT_MAKES_US_DIFFERENT.md)
 
 If you are new, read top-to-bottom.
 
