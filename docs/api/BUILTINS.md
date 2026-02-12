@@ -1,0 +1,58 @@
+# API Reference — Builtins Surface
+
+Builtins root export:
+
+* [../../src/builtins/index.js](../../src/builtins/index.js)
+
+---
+
+## Namespaces
+
+### `form`
+
+* collect
+* prepare
+* submit
+* headers
+
+### `dom`
+
+* patch
+
+### `error`
+
+* dump
+* fail
+
+### `buffer`
+
+* set
+* get
+* clear
+* traverse
+
+### `target`
+
+* reset
+* set
+* fromBuffer
+* toBuffer
+* closest
+* find
+* parent
+* child
+
+### `http`
+
+* send
+
+---
+
+## Operation contract posture
+
+Operations are designed to return normalized stage-like responses for VM dispatch.
+
+Reference status helpers:
+
+* [../../src/class/engine/helpers.js](../../src/class/engine/helpers.js)
+

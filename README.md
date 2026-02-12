@@ -1,183 +1,147 @@
-# m7-js-lib-tree
+# m7-js-lib-active-tags
 
-**Runtime JavaScript Tree Inspector & Console**
+A deterministic, DOM-driven workflow runtime for backend-hydrated UI behavior.
 
-A lightweight developer tool for **exploring, scanning, and reverse‑engineering large JavaScript object graphs at runtime**. Designed for the **M7 library ecosystem**, but fully usable as a standalone inspector for any JavaScript object.
+ActiveTags turns configured DOM elements into registered Jobs, compiles configuration into normalized schemas, and executes runtime work through a ticket-based Engine/VM lifecycle.
 
----
-
-## 🔍 Overview
-
-M7 represents **over 25 years of accumulated JavaScript libraries** — modular, battle‑tested, and still actively used. The ecosystem favors:
-
-* incremental runtime loading
-* large, composable APIs
-* reuse over reinvention
-
-Over time, this produces **very large object graphs** that are difficult to reason about using traditional tooling.
-
-**m7-js-tree** exists to make it easy to **find what already exists**.
-
-The goal is not deep static analysis, but **rapid discovery**:
-
-* locate functions, utilities, and subsystems
-* browse API surfaces when documentation is missing or outdated
-* inspect runtime‑assembled structures
-* avoid rewriting code that already exists
-
-This tool reflects **what is actually loaded at runtime**, but the inspected tree represents a **static snapshot** of that state until **Reparse** is explicitly triggered — which is critical for safely exploring large, on‑demand systems.
+It is a runtime primitive, not a UI framework.
 
 ---
 
-## 🧪 Intended Use Cases
+## Navigation
 
-* Exploring undocumented or legacy APIs
-* Rapidly locating functions, utilities, and classes without guessing in a console
-* Inspecting large libraries on **mobile devices** where a developer console is unavailable or impractical
-* Copying stable object paths quickly for reuse, documentation, or debugging
-* Navigating complex runtime‑assembled graphs more reliably than ad‑hoc `console.log`
-* Working around browser dev‑console limitations (clutter, instability, excessive memory use)
-* Lightweight, on‑demand inspection that can be enabled during development and removed for production
-* Internal developer tooling
+If you are new to the project, the recommended reading order is:
+
+1. **Quick Start** -> [docs/usage/QUICKSTART.md](docs/usage/QUICKSTART.md)
+2. **Usage TOC** -> [docs/usage/TOC.md](docs/usage/TOC.md)
+3. **Architecture Index** -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
+4. **API Index** -> [docs/api/INDEX.md](docs/api/INDEX.md)
+
+Related documents:
+
+* **DOM Observer API Contract** -> [docs/vendor_api_contracts/DOM_CHANGE_OBSERVER_API_CONTRACT.md](docs/vendor_api_contracts/DOM_CHANGE_OBSERVER_API_CONTRACT.md)
+* **Event Delegator API Contract** -> [docs/vendor_api_contracts/DOM_EVENT_DELEGATOR_API_CONTRACT.md](docs/vendor_api_contracts/DOM_EVENT_DELEGATOR_API_CONTRACT.md)
+* **Interval API Contract** -> [docs/vendor_api_contracts/INTERVAL_API_CONTRACT.md](docs/vendor_api_contracts/INTERVAL_API_CONTRACT.md)
+* **Log API Contract** -> [docs/vendor_api_contracts/LOG_API_CONTRACT.md](docs/vendor_api_contracts/LOG_API_CONTRACT.md)
+* **Use Policy** -> [docs/USE_POLICY.md](docs/USE_POLICY.md)
+* **AI Disclosure** -> [docs/AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md)
 
 ---
 
-## 🖥 Usage
+## Why this exists
 
-Open the console by calling:
+Most server-rendered systems accumulate custom glue code between:
+
+* DOM events
+* request/response handling
+* timed behavior
+* DOM mutation handling
+* state handoff across async boundaries
+
+ActiveTags centralizes these concerns into one deterministic runtime model.
+
+---
+
+## What this library guarantees
+
+* Top-level runtime config is compiled before activation
+* Discovered elements are registered as stable Jobs
+* Per-job schema is compiled before trigger execution
+* Events, intervals, and observer signals become enqueue sources
+* VM stage results are normalized (`ok`, `wait`, `error`, `complete`)
+* Runtime dataflow is explicit via ticket-local `buffer` and `target`
+
+These are design guarantees, not informal conventions.
+
+---
+
+## Quick example
 
 ```js
-lib.tree.console(path);
-```
+import ActiveTags from "./src/ActiveTags.js";
 
-Where `path` can be **any object or dot‑path** you want to inspect. You can change or reset this later.
+const AT = new ActiveTags(window.lib, {
+  boot: {
+    observeDom: true,
+    events: true,
+    intervals: true,
+  }
+});
 
-### Controls
-
-* **`~` or <code>`</code>** — open / close the console panel
-* **Target** — sets the base path (root) for inspection
-* **Reparse** (top bar) — re‑parses the current target
-* **Tree** — opens the tree navigation menu
-* **Copy path / Copy value** — copies the selected node’s path or value
-
-### Navigation
-
-* **`../` (tree view)** — changes the current root path
-* **`../` (detail view)** — navigates upward *within* the current path
-
-![m7-js-tree console screenshot](./demo.png)
-
----
-
-## 📦 Installation
-
-### Option 1: With M7 libraries (recommended)
-
-```html
-<script type="module" src="https://static.m7.org/vendor/m7-js-lib-tree/src/auto.js"></script>
-```
-
-Automatically registers the tree console as:
-
-```js
-lib.tree.console(lib);
+await AT.start();
 ```
 
 ---
 
-### Option 2: Standalone / direct import
+## Core concepts
 
-```js
-import openConsole from "./m7-js-tree/index.js";
+### Job model
 
-openConsole(window.lib); // or any object
-```
+A Job is a runtime identity anchored to a DOM element, with compiled config and lifecycle state.
 
-No bootstrap or framework required.
+### Compile-first posture
 
----
+ActiveTags compiles both runtime config (`AT.conf`) and per-job schema before runtime execution.
 
-## ✅ Requirements
+### Deterministic execution
 
-* **Required:** modern browser with ES module support
-* **Optional:** `m7-js-lib` for automatic registration and integration
+Engine runtime executes tickets stage-by-stage through `tick()` / `drain()` and explicit status transitions.
 
-This tool does **not** require M7 libraries — any JavaScript object can be inspected.
+### Buffer/target conveyor
 
----
-
-## 🧠 How It Works
-
-m7-js-tree traverses live JavaScript values and produces an enriched tree representation of:
-
-* objects / hashes
-* arrays
-* functions
-* classes
-* scalar values
-* circular references
-
-The resulting structure can be used as:
-
-* a collapsible navigation tree
-* a searchable index
-* an inspection surface for functions and classes
-
-The inline console UI is intentionally minimal and dependency‑free, designed for **debugging, archaeology, and discovery** rather than end‑user presentation.
+Pipeline operations pass data and DOM focus explicitly through ticket-local conveyor channels.
 
 ---
 
-## 🛠 Current Features
+## What this library does not do
 
-* Runtime tree parsing
-* Collapsible tree view
-* Absolute path‑based inspection
-* Substring & predicate search (`find`)
-* Function signature extraction
-* Circular reference detection
-* Inline DOM console (toggleable)
-* Works with `window`, `lib`, or any object root
+It does not:
 
----
-
-## 🧭 Roadmap
-
-* Improved UI and keyboard navigation
-
-* Optional persistence of tree state
-
-* Linking nodes to external documentation
-
-* Repository‑backed package search via **m7BootStrap**
+* own rendering or templating
+* implement a virtual DOM
+* provide reactive state management
+* replace backend domain logic
+* hide workflow semantics behind implicit framework behavior
 
 ---
 
-## 📜 License
+## Documentation map
 
-See [`LICENSE.md`](LICENSE.md) for full terms.
-
-* Free for personal, non‑commercial use
-* Commercial licensing available under the **M7 Moderate Team License (MTL‑10)**
+* Usage docs -> [docs/usage/TOC.md](docs/usage/TOC.md)
+* Architecture docs -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
+* API docs -> [docs/api/INDEX.md](docs/api/INDEX.md)
+* Source entry -> [src/ActiveTags.js](src/ActiveTags.js)
+* Examples -> [examples/](examples/)
 
 ---
 
-## 🤖 AI Usage Disclosure
+## Philosophy
+
+> "Declare behavior in DOM/config. Execute deterministically in one runtime."
+
+---
+
+## License
+
+See [LICENSE.md](LICENSE.md) for full terms.
+
+* Free for personal, non-commercial use
+* Commercial licensing available under the M7 Moderate Team License (MTL-10)
+
+---
+
+## AI Usage Disclosure
 
 See:
 
-* [`docs/AI_DISCLOSURE.md`](docs/AI_DISCLOSURE.md)
-* [`docs/USE_POLICY.md`](docs/USE_POLICY.md)
+* [docs/AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md)
+* [docs/USE_POLICY.md](docs/USE_POLICY.md)
 
-For permitted use of AI in derivative tools or automation layers.
+for permitted use of AI in derivative tools or automation layers.
 
 ---
 
-## 📬 Contact
+## Feedback / Security
 
-**Author & Maintainer:** M7 Development Team
-
-* **Website:** [https://m7.org](https://m7.org)
-* **Email:** [support@m7.org](mailto:support@m7.org)
-* **Legal:** [legal@m7.org](mailto:legal@m7.org)
-* **Security:** [security@m7.org](mailto:security@m7.org)
-* **GitHub:** [https://github.com/linearblade](https://github.com/linearblade)
+* General inquiries: [legal@m7.org](mailto:legal@m7.org)
+* Security issues: [security@m7.org](mailto:security@m7.org)

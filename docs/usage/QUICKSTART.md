@@ -1,0 +1,90 @@
+# Quick Start — ActiveTags
+
+This guide gets you from zero to a running ActiveTags instance quickly.
+
+---
+
+## 1) Load required dependencies
+
+ActiveTags expects `window.lib` plus required services to be available.
+
+In this repository's example setup, service modules are loaded before ActiveTags:
+
+* event delegator
+* interval manager
+* DOM change observer
+* log service
+* form service
+* interpolation helper
+
+See: [../../examples/test1.html](../../examples/test1.html)
+
+---
+
+## 2) Import and construct
+
+```js
+import ActiveTags from "../../src/ActiveTags.js";
+
+const AT = new ActiveTags(window.lib, {
+  boot: {
+    observeDom: true,
+    events: true,
+    intervals: true,
+  }
+});
+```
+
+Construction performs:
+
+* top-level config compilation
+* service resolution
+* subsystem instantiation
+
+No discovery or runtime triggers are active yet.
+
+---
+
+## 3) Start runtime
+
+```js
+await AT.start();
+```
+
+`start()` performs:
+
+* initial DOM scan via discover controller
+* optional observer start
+* event/interval registration
+* event/interval activation per boot flags
+
+---
+
+## 4) Mark active elements
+
+At minimum, ActiveTags scans for:
+
+```html
+<div data-activetag></div>
+```
+
+Default selector is configured in top-level schema (`boot.selector`).
+
+---
+
+## 5) Validate with repository example
+
+Use these files as first references:
+
+* Boot page -> [../../examples/test1.html](../../examples/test1.html)
+* Example config -> [../../examples/test-job.js](../../examples/test-job.js)
+* Example pipelines -> [../../examples/testPipe.js](../../examples/testPipe.js)
+
+---
+
+## Next steps
+
+* Configuration guide -> [CONFIGURATION.md](./CONFIGURATION.md)
+* Runtime lifecycle -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
+* Builtins guide -> [OPERATIONS_BUILTINS.md](./OPERATIONS_BUILTINS.md)
+* API index -> [../api/INDEX.md](../api/INDEX.md)
