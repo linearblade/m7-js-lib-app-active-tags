@@ -1,5 +1,8 @@
 # Subsystem — Discover
 
+[README](../../../README.md) -> [Architecture Index](../INDEX.md) -> [Subsystems](../SUBSYSTEMS.md)
+
+
 Discover bridges DOM candidates into registered Job instances.
 
 ---
@@ -34,3 +37,13 @@ Discover bridges DOM candidates into registered Job instances.
 * runtime job config policy
 * expression resolver and environment
 
+
+---
+
+## See also
+
+* [Subsystem Map](../SUBSYSTEMS.md)
+* [Architecture Index](../INDEX.md)
+* [Usage TOC](../../usage/TOC.md)
+* [API Index](../../api/INDEX.md)
+* [README](../../../README.md)

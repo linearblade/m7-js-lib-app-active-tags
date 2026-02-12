@@ -1,5 +1,8 @@
 # Configuration Model — ActiveTags
 
+[README](../../README.md) -> [Usage TOC](./TOC.md)
+
+
 ActiveTags uses two configuration layers.
 
 ---
@@ -72,3 +75,12 @@ Avoid reading uncompiled raw inputs for runtime decisions.
 
 * Runtime lifecycle -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
 * Architecture -> [../architecture/INDEX.md](../architecture/INDEX.md)
+
+---
+
+## See also
+
+* [Usage TOC](./TOC.md)
+* [Architecture Index](../architecture/INDEX.md)
+* [API Index](../api/INDEX.md)
+* [README](../../README.md)

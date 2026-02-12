@@ -1,5 +1,8 @@
 # API Index — ActiveTags
 
+[README](../../README.md) -> [API Index](./INDEX.md) -> [Usage TOC](../usage/TOC.md) -> [Architecture Index](../architecture/INDEX.md)
+
+
 This directory contains API-oriented references for ActiveTags runtime surfaces.
 
 If you are new to the project, start with:
@@ -22,9 +25,9 @@ If you are new to the project, start with:
 
 ## Contracts
 
-* **ActiveTags API Contract (planned)** -> [ACTIVE_TAGS_API_CONTRACT.md](./ACTIVE_TAGS_API_CONTRACT.md)
+* **ActiveTags API Contract (LLM/tooling-safe)** -> [ACTIVE_TAGS_API_CONTRACT.md](./ACTIVE_TAGS_API_CONTRACT.md)
 
-This contract page is intentionally a placeholder and will be authored last.
+Source-independent behavioral guarantees intended for tooling, integration layers, and LLM guidance.
 
 ---
 
@@ -32,3 +35,15 @@ This contract page is intentionally a placeholder and will be authored last.
 
 * Usage docs -> [../usage/TOC.md](../usage/TOC.md)
 * Architecture docs -> [../architecture/INDEX.md](../architecture/INDEX.md)
+
+---
+
+## See also
+
+* [ActiveTags Class](./ACTIVE_TAGS.md)
+* [Engine Runtime](./ENGINE.md)
+* [Controllers](./CONTROLLERS.md)
+* [Builtins Surface](./BUILTINS.md)
+* [Usage TOC](../usage/TOC.md)
+* [Architecture Index](../architecture/INDEX.md)
+* [README](../../README.md)

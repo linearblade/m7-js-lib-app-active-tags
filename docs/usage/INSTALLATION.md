@@ -1,5 +1,8 @@
 # Installation & Dependencies — ActiveTags
 
+[README](../../README.md) -> [Usage TOC](./TOC.md)
+
+
 ActiveTags is a browser-oriented runtime module.
 
 ---
@@ -76,3 +79,12 @@ If any dependency is missing, constructor/startup will throw.
 
 * Quick start -> [QUICKSTART.md](./QUICKSTART.md)
 * Troubleshooting -> [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+
+---
+
+## See also
+
+* [Usage TOC](./TOC.md)
+* [Architecture Index](../architecture/INDEX.md)
+* [API Index](../api/INDEX.md)
+* [README](../../README.md)

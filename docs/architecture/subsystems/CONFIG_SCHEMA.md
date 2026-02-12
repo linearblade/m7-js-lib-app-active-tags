@@ -1,5 +1,8 @@
 # Subsystem — Config Schema
 
+[README](../../../README.md) -> [Architecture Index](../INDEX.md) -> [Subsystems](../SUBSYSTEMS.md)
+
+
 This subsystem compiles runtime and job configuration into normalized, executable shapes.
 
 ---
@@ -36,3 +39,13 @@ Produces `job.config.schema` for event/interval/pipeline registration.
 * No execution stepping
 * No queue/scheduling control
 * No direct DOM side-effects beyond config extraction
+
+---
+
+## See also
+
+* [Subsystem Map](../SUBSYSTEMS.md)
+* [Architecture Index](../INDEX.md)
+* [Usage TOC](../../usage/TOC.md)
+* [API Index](../../api/INDEX.md)
+* [README](../../../README.md)

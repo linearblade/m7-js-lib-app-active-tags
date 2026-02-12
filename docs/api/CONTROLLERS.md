@@ -1,5 +1,8 @@
 # API Reference — Controllers
 
+[README](../../README.md) -> [API Index](./INDEX.md)
+
+
 Controller surfaces instantiated by `ActiveTags`:
 
 * Discover -> [../../src/class/discover/Controller.js](../../src/class/discover/Controller.js)
@@ -49,3 +52,12 @@ Primary methods:
 * `stop()`
 * selector configuration updates (service pass-through)
 
+
+---
+
+## See also
+
+* [API Index](./INDEX.md)
+* [Usage TOC](../usage/TOC.md)
+* [Architecture Index](../architecture/INDEX.md)
+* [README](../../README.md)

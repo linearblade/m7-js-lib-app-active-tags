@@ -1,5 +1,8 @@
 # API Reference — Engine Runtime
 
+[README](../../README.md) -> [API Index](./INDEX.md)
+
+
 Engine runtime files:
 
 * [../../src/class/engine/Engine.js](../../src/class/engine/Engine.js)
@@ -39,3 +42,12 @@ Canonical ticket states are defined in engine helpers.
 
 Ticket data includes pipeline key, cursor, buffer, target, and runtime metadata.
 
+
+---
+
+## See also
+
+* [API Index](./INDEX.md)
+* [Usage TOC](../usage/TOC.md)
+* [Architecture Index](../architecture/INDEX.md)
+* [README](../../README.md)

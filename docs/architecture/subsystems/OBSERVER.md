@@ -1,5 +1,8 @@
 # Subsystem — Observer Controller
 
+[README](../../../README.md) -> [Architecture Index](../INDEX.md) -> [Subsystems](../SUBSYSTEMS.md)
+
+
 Observer controller translates DOM mutation batches into discover/register/unregister signals.
 
 ---
@@ -32,3 +35,13 @@ Related vendor contract:
 
 Observer is reporting/translation layer; it does not execute pipelines directly.
 
+
+---
+
+## See also
+
+* [Subsystem Map](../SUBSYSTEMS.md)
+* [Architecture Index](../INDEX.md)
+* [Usage TOC](../../usage/TOC.md)
+* [API Index](../../api/INDEX.md)
+* [README](../../../README.md)

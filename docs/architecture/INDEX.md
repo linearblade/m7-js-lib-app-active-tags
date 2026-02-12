@@ -1,5 +1,8 @@
 # Architecture Documentation — ActiveTags
 
+[README](../../README.md) -> [Architecture Index](./INDEX.md) -> [Usage TOC](../usage/TOC.md) -> [API Index](../api/INDEX.md)
+
+
 This section documents internal architecture and subsystem boundaries.
 
 For implementation-level API references, see:
@@ -38,3 +41,13 @@ For usage-first onboarding, see:
 * Usage TOC -> [../usage/TOC.md](../usage/TOC.md)
 * API Index -> [../api/INDEX.md](../api/INDEX.md)
 * Project README -> [../../README.md](../../README.md)
+
+---
+
+## See also
+
+* [System Overview](./SYSTEM_OVERVIEW.md)
+* [Subsystem Map](./SUBSYSTEMS.md)
+* [Usage TOC](../usage/TOC.md)
+* [API Index](../api/INDEX.md)
+* [README](../../README.md)

@@ -1,5 +1,8 @@
 # Builtins & Operations — ActiveTags
 
+[README](../../README.md) -> [Usage TOC](./TOC.md)
+
+
 Builtins are VM-callable operation functions used inside pipeline stages.
 
 Root builtin export:
@@ -76,3 +79,12 @@ See helper contract shapes in:
 
 * Runtime lifecycle -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
 * Builtins subsystem notes -> [../architecture/subsystems/BUILTINS_BUFFER_TARGET.md](../architecture/subsystems/BUILTINS_BUFFER_TARGET.md)
+
+---
+
+## See also
+
+* [Usage TOC](./TOC.md)
+* [Architecture Index](../architecture/INDEX.md)
+* [API Index](../api/INDEX.md)
+* [README](../../README.md)

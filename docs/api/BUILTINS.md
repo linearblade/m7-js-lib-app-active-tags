@@ -1,5 +1,8 @@
 # API Reference — Builtins Surface
 
+[README](../../README.md) -> [API Index](./INDEX.md)
+
+
 Builtins root export:
 
 * [../../src/builtins/index.js](../../src/builtins/index.js)
@@ -56,3 +59,12 @@ Reference status helpers:
 
 * [../../src/class/engine/helpers.js](../../src/class/engine/helpers.js)
 
+
+---
+
+## See also
+
+* [API Index](./INDEX.md)
+* [Usage TOC](../usage/TOC.md)
+* [Architecture Index](../architecture/INDEX.md)
+* [README](../../README.md)

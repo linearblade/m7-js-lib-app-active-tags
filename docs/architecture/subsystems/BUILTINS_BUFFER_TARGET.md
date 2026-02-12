@@ -1,5 +1,8 @@
 # Subsystem — Builtins, Buffer, Target Conveyor
 
+[README](../../../README.md) -> [Architecture Index](../INDEX.md) -> [Subsystems](../SUBSYSTEMS.md)
+
+
 Builtins are stage operations; buffer and target form explicit ticket-local conveyor channels.
 
 ---
@@ -45,3 +48,13 @@ Reference: [../../../src/builtins/target/index.js](../../../src/builtins/target/
 ## Why this matters
 
 This conveyor model reduces implicit state coupling and keeps complex workflows inspectable and deterministic.
+
+---
+
+## See also
+
+* [Subsystem Map](../SUBSYSTEMS.md)
+* [Architecture Index](../INDEX.md)
+* [Usage TOC](../../usage/TOC.md)
+* [API Index](../../api/INDEX.md)
+* [README](../../../README.md)

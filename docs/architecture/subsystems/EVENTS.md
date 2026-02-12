@@ -1,5 +1,8 @@
 # Subsystem — Event Controller
 
+[README](../../../README.md) -> [Architecture Index](../INDEX.md) -> [Subsystems](../SUBSYSTEMS.md)
+
+
 Event controller maps job event schema into delegated DOM handlers.
 
 ---
@@ -34,3 +37,13 @@ Related vendor contract:
 * does not execute pipelines directly
 * does not own scheduler policy
 
+
+---
+
+## See also
+
+* [Subsystem Map](../SUBSYSTEMS.md)
+* [Architecture Index](../INDEX.md)
+* [Usage TOC](../../usage/TOC.md)
+* [API Index](../../api/INDEX.md)
+* [README](../../../README.md)

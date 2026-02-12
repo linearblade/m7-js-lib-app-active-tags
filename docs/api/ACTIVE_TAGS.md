@@ -1,5 +1,8 @@
 # API Reference — ActiveTags Class
 
+[README](../../README.md) -> [API Index](./INDEX.md)
+
+
 Primary runtime class:
 
 * [../../src/ActiveTags.js](../../src/ActiveTags.js)
@@ -45,3 +48,12 @@ Source: [../../src/traits/job.js](../../src/traits/job.js)
 
 Source: [../../src/traits/engine.js](../../src/traits/engine.js)
 
+
+---
+
+## See also
+
+* [API Index](./INDEX.md)
+* [Usage TOC](../usage/TOC.md)
+* [Architecture Index](../architecture/INDEX.md)
+* [README](../../README.md)

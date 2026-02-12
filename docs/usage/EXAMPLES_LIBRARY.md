@@ -1,5 +1,8 @@
 # Examples Library — ActiveTags
 
+[README](../../README.md) -> [Usage TOC](./TOC.md)
+
+
 This page maps key repository examples to runtime concepts.
 
 ---
@@ -50,3 +53,12 @@ Demonstrates user-defined callable stage functions used by example pipelines.
 ## Usage note
 
 Some files in `examples/` are iterative or backup variants (`~` suffix). Use the non-suffixed files as current references.
+
+---
+
+## See also
+
+* [Usage TOC](./TOC.md)
+* [Architecture Index](../architecture/INDEX.md)
+* [API Index](../api/INDEX.md)
+* [README](../../README.md)

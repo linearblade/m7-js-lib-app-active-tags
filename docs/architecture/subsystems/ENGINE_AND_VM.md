@@ -1,5 +1,8 @@
 # Subsystem — Engine & VM
 
+[README](../../../README.md) -> [Architecture Index](../INDEX.md) -> [Subsystems](../SUBSYSTEMS.md)
+
+
 The deterministic execution spine of ActiveTags.
 
 ---
@@ -42,3 +45,13 @@ Ticket-local state includes:
 
 Errors are normalized into stage responses and routed through error-phase semantics when configured.
 
+
+---
+
+## See also
+
+* [Subsystem Map](../SUBSYSTEMS.md)
+* [Architecture Index](../INDEX.md)
+* [Usage TOC](../../usage/TOC.md)
+* [API Index](../../api/INDEX.md)
+* [README](../../../README.md)

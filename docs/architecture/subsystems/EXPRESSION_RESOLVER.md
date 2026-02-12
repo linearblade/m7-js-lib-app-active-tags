@@ -1,5 +1,8 @@
 # Subsystem — Expression Resolver
 
+[README](../../../README.md) -> [Architecture Index](../INDEX.md) -> [Subsystems](../SUBSYSTEMS.md)
+
+
 Expression resolver provides target parsing/evaluation for runtime interpolation and stage argument materialization.
 
 ---
@@ -25,3 +28,13 @@ Expression resolver provides target parsing/evaluation for runtime interpolation
 * current runtime file is `ExpressionResolver.js`
 * legacy `ExpressionResolver.098.js` is inactive/reference-only
 
+
+---
+
+## See also
+
+* [Subsystem Map](../SUBSYSTEMS.md)
+* [Architecture Index](../INDEX.md)
+* [Usage TOC](../../usage/TOC.md)
+* [API Index](../../api/INDEX.md)
+* [README](../../../README.md)

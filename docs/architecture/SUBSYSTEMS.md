@@ -1,5 +1,8 @@
 # Subsystem Map — ActiveTags
 
+[README](../../README.md) -> [Architecture Index](./INDEX.md)
+
+
 This map aligns runtime subsystems to responsibilities.
 
 ---
@@ -55,3 +58,12 @@ Responsibilities:
 * Expression resolver -> [../../src/class/expressions/ExpressionResolver.js](../../src/class/expressions/ExpressionResolver.js)
 * Builtins root -> [../../src/builtins/index.js](../../src/builtins/index.js)
 
+
+---
+
+## See also
+
+* [Architecture Index](./INDEX.md)
+* [Usage TOC](../usage/TOC.md)
+* [API Index](../api/INDEX.md)
+* [README](../../README.md)
