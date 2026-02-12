@@ -2,7 +2,9 @@
  * Observer/Controller
  * ------------------
  *
- * This controller owns the **ActiveTags-facing policy and lifecycle** around the
+ * ActiveTags-facing policy and lifecycle wrapper for the shared DOM observer service.
+ *
+ * This controller owns the **ActiveTags policy layer** around the
  * shared DOM change observer service (`AT.svc.domObserver`).
  *
  * It does NOT implement `MutationObserver` itself.
@@ -39,17 +41,9 @@
  * - Does NOT mutate the DOM
  * - Does NOT guarantee ordering of mutation processing
  *
- * This controller is intentionally minimal and policy-driven.
- * Complexity should only be added when runtime behavior demands it.
+ * @todo Revisit instance freezing strategy if mutable state grows.
+ * @todo Clarify start/stop ownership semantics when observer service is shared.
  */
-
-/*
-  TODO
-  1/ the freeze bit
-  2/ it appears in this code we start / stop the service itself.
-  -We probably want to start it if its not on,
-  -but we probably dont want to stop it if its already running. but rather clear our use of it.
-*/
 export default class Controller {
     /**
      * Create an Observer/Controller bound to an ActiveTags instance.
@@ -133,7 +127,7 @@ export default class Controller {
      *     - attribute observation enabled
      * - Binds the observer callback to this controller (`onEvent → _onDomChanges`)
      *
-     * IDempotency:
+     * Idempotency:
      * - This method is idempotent only to the extent that the underlying observer
      *   service is idempotent. Repeated calls may re-install selector specs and/or
      *   restart observation depending on service behavior.
@@ -234,7 +228,7 @@ export default class Controller {
      *   not to this controller.
      * - This allows observation to be restarted later without re-creating the service.
      *
-     * IDempotency:
+     * Idempotency:
      * - Safe to call multiple times.
      * - Calling `stop()` when the observer is already stopped is a no-op
      *   (subject to observer service behavior).

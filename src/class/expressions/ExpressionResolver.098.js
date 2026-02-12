@@ -1,4 +1,20 @@
 /**
+ * ---------------------------------------------------------------------------
+ * LEGACY / INACTIVE FILE - NOT USED BY ACTIVE TAGS RUNTIME
+ * ---------------------------------------------------------------------------
+ * @internal
+ *
+ * This file represents an older compatibility implementation ("098").
+ * It is retained for historical/reference purposes only and is not part of
+ * the active runtime execution path.
+ *
+ * Maintenance policy:
+ * - Do not treat this file as source of truth for current behavior.
+ * - Do not use this file for user/public documentation generation.
+ * - Prefer `ExpressionResolver.js` for current runtime behavior.
+ * ---------------------------------------------------------------------------
+ */
+/**
  * Expressions / Interpolation Trait
  * --------------------------------
  *

@@ -1,4 +1,17 @@
 import freezeDeep from '../helpers/freezeDeep.js';
+/**
+ * ActiveTags default configuration baseline.
+ *
+ * This module exports a deep-frozen runtime default config used as the schema
+ * compiler baseline (`def_conf`).
+ *
+ * Contract:
+ * - Values here are defaults, not runtime state.
+ * - Runtime behavior is activated by the compiled snapshot (`AT.conf`), not by
+ *   mutating this object directly.
+ * - Consumers should override via constructor config, not by editing frozen
+ *   references at runtime.
+ */
 export const DEFAULT_CONFIG = freezeDeep(
     {
 	// ---------------------------------------------------------------------------
@@ -20,8 +33,8 @@ export const DEFAULT_CONFIG = freezeDeep(
 
 	// ---------------------------------------------------------------------------
 	// Environment (optional; inferred if omitted)
-	// m7-lib does a good job of inferring this. you dont really need to configure env.
-	// under normal browser environments probably just leave it.
+	// m7-lib usually infers this automatically.
+	// In normal browser environments this can typically be left empty.
 	// ---------------------------------------------------------------------------
 	//example:
 	//env: { window, document, root: window },
@@ -64,8 +77,8 @@ export const DEFAULT_CONFIG = freezeDeep(
 		importEnabled: true,
 		importPath: ["/vendor/m7-js-lib-active-tags/examples/"],
 		// --- capture attrs on configuration ---
-		//this is at present a convenience and hold over from legacy AT versions. it does not get used, it is here for convenience.
-		//id or name will probably be added for failovers to the job.name key , but may also be used later for 'resetting' a mutated form at runtime.
+		// Presently retained as a compatibility/convenience capture list.
+		// May later support fallback naming or reset workflows.
 		capture_attrs : [ "id",
 				  "name",
 				  "action",

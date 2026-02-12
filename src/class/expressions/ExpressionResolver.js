@@ -1,11 +1,9 @@
 /**
- * Expressions / Interpolation Class
- * --------------------------------
+ * ExpressionResolver
+ * ------------------
  *
- * This trait implements Active Tags’ **expression resolution and interpolation
- * system**. It is responsible for resolving symbolic target expressions
- * (e.g. `job:id`, `config:confirm.text`, `target:innerHTML`, `find:.title`)
- * into live runtime values using a provided execution context.
+ * Class responsible for parsing and resolving ActiveTags expression targets
+ * (for example: `job:id`, `target:innerHTML`, `find:.title`) against runtime context.
  *
  * Core responsibilities:
  * - Parse target expressions of the form `type:locator`
@@ -18,9 +16,9 @@
  *     - configuration schema
  *     - transaction records
  * - Provide a single evaluation entry point (`eval(ctx, target)`)
- * - Support higher-level interpolation via a separate walker/compiler
+ * - Support higher-level interpolation via a dedicated interpolator
  *
- * What this trait does NOT do:
+ * What this class does NOT do:
  * - It does NOT execute jobs, stacks, or pipelines
  * - It does NOT schedule, queue, or control execution flow
  * - It does NOT mutate job or ticket state
@@ -50,9 +48,9 @@
  * Security & discipline notes:
  * - DOM-based resolution (e.g. `find`, `closest`, `this`, `target`) is powerful
  *   and must only be used with trusted configuration
- * - This trait should remain deterministic, explicit, and boring
+ * - This class should remain deterministic, explicit, and boring
  *
- * This trait must remain:
+ * This class must remain:
  * - Context-driven (never global)
  * - Side-effect free
  * - Centrally authoritative for expression resolution
@@ -60,13 +58,14 @@
 
 
 /**
-   this.expr = new ExpressionResolver({
-   lib: this.lib,
-   toJob: (x) => this.toJob(x),
-   logger: this.logger,
-   env: { window, document }
-   });
-*/
+ * Example:
+ *   this.expr = new ExpressionResolver({
+ *     lib: this.lib,
+ *     toJob: (x) => this.toJob(x),
+ *     logger: this.logger,
+ *     env: { window, document }
+ *   });
+ */
 import CONSTANTS    from '../../constants.js';
 import Interpolator from './Interpolator.js';
 import buildDispatch from './dispatch.js';

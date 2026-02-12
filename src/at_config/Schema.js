@@ -1,34 +1,34 @@
 // at_config/Schema.js
 /**
  * ActiveTags Configuration Schema
- * --------------------------------
+ * -------------------------------
  *
- * This module defines the canonical configuration compiler for ActiveTags.
+ * Canonical configuration compiler for ActiveTags runtime configuration.
  *
- * PURPOSE:
+ * Purpose:
  * - Normalize, merge, and validate configuration inputs into a single
  *   deterministic runtime configuration object.
  * - Establish clear precedence rules between defaults, user config,
  *   and system safety nets.
  *
- * THIS IS NOT:
+ * This module is not:
  * - A JSON Schema
  * - A runtime controller
  * - A configuration loader
  * - A validation framework that enforces business semantics
  *
- * WHAT THIS MODULE DOES:
+ * This module does:
  * - Accepts factory defaults (`def_conf`)
  * - Accepts optional user configuration
  * - Compiles configuration transactionally into `active`
  * - Guarantees stable shapes and types for downstream systems
  *
- * CONFIGURATION SOURCES (high level):
+ * Configuration sources (high level):
  *   1) Factory defaults (def_conf)
  *   2) User configuration (constructor / merge input)
  *   3) Constants (final safety net only)
  *
- * DESIGN PRINCIPLES:
+ * Design principles:
  * - Deterministic: same inputs always produce the same output
  * - Transactional: no partial state is committed on failure
  * - Declarative: normalize first, interpret later
@@ -50,7 +50,7 @@
  * - Contributors adding new configuration fields
  * - Anyone needing to understand how config precedence works
  *
- * EXPECTATION FOR CONTRIBUTORS:
+ * Expectations for contributors:
  * - New config fields must be normalized here
  * - Do NOT introduce runtime behavior into this module
  * - Constants may be used ONLY as final safety nets

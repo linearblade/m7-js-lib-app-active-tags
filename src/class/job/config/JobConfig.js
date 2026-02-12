@@ -21,7 +21,7 @@
  *        { report, schema }
  *    - `schema` is groomed and ready for runtime consumption.
  *
- * No artifact derivation is performed at this stage.
+ * No runtime artifact derivation is performed at this stage.
  *
  *
  * WHAT JOBCONFIG STORES (PUBLIC, STABLE)
@@ -38,7 +38,7 @@
  * ----------------------------------------
  * - No scheduling decisions — handled by runtime controllers.
  * - No pipeline execution — handled by Engine / VM.
- * - No stack or interval artifact derivation.
+ * - No event or interval registration.
  * - No direct runtime mutation.
  *
  *
@@ -57,7 +57,7 @@
  *
  * LIFECYCLE NOTES
  * ---------------
- * - Safe to call build() multiple times; each call regenerates inputs and schema.
+ * - Safe to call `build()` multiple times; each call regenerates inputs and schema.
  * - JobConfig is job-bound and assumes a stable DOM element and ExpressionResolver.
  *
  *
@@ -175,7 +175,7 @@ export class JobConfig {
 	this.schema       = null; // exported groomed schema
 
 
-	// legacy compatibility (keep for now; can delete once runner is finalized)
+	// Reserved compatibility placeholders (not part of active v1 behavior).
 	//this.artifacts = null;
 	//this.artifactsBuilt = false;
 	this.error = null;
@@ -192,7 +192,7 @@ export class JobConfig {
      *   1) Read DOM inputs and resolve config bindings into a merged output object
      *   2) Compile the merged output into a canonical schema
      *
-     * Artifact derivation is intentionally not performed in the current v1 path.
+     * Artifact derivation is intentionally out of scope for the current build path.
      *
      *
      * PIPELINE
@@ -222,7 +222,7 @@ export class JobConfig {
      *     this.error is set to the exported schema report
      *     build() returns ERROR_SCHEMA
      *
-     * In either error state, the Job should be treated as non-runnable.
+     * In either error state, the Job should be treated as not ready for execution.
      *
      *
      * INPUT

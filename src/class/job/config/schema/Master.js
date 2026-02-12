@@ -28,25 +28,20 @@
  *   (Behavioral concerns such as confirmation are expressed explicitly via
  *   pipeline operations, not top-level schema keys.)
  *
- * - Buckets: normalize 3 "block" families using a shared procedure:
+ * - Buckets: normalize 4 block families using a shared procedure:
  *     - Requests:  `request` + `requests` + `request_shape`  -> `requests` bucket
- *         - NOTE: the `requests` bucket is reserved for upcoming transport /
- *           request-layer expansion and is minimally normalized in v1.
  *     - Intervals: `interval` + `intervals` + `interval_shape` -> `intervals` bucket
  *     - Pipelines: `pipeline` + `pipelines` + `pipeline_shape` -> `pipelines` bucket
+ *     - Events:    `event` + `events` + `event_shape`         -> `events` bucket
  *
  * - Each bucket item is produced as:
  *     `effectiveItem = merge(shape, item)`
  *   and then passed through an item normalizer.
  *
- * LLM integration notes (reset-proofing):
- * - Do NOT read or depend on internal workspace artifacts (e.g. `_effective*`)
- *   outside of this module. Only the returned `{ schema, report }` is stable.
- * - Diagnostics must be written to the provided Report instance; do not throw
- *   for user-config errors except for missing `lib` (programmer error).
- * - All coercion helpers are lib-native:
- *     - `lib.hash.to`, `lib.hash.merge`, `lib.hash.keys`
- *     - `lib.array.to`, `lib.bool.yes/no`, `lib.utils.baseType/isEmpty`
+ * Stability notes:
+ * - Internal workspace fields (for example `_effective*`) are compiler internals.
+ * - External callers should consume only `{ schema, report }`.
+ * - User config issues should be reported through `Report`; they are not hard throws.
  *
  * Versioning:
  * - This module defines Schema Compiler behavior for ActiveTags v1.
@@ -102,7 +97,7 @@ export default class Master {
      * - Input is coerced to a hash before processing.
      * - Normalization proceeds in deterministic phases:
      *     1) Basics (name, require, enabled, autorun, env)
-     *     2) Block normalization (requests, intervals, pipelines)
+     *     2) Block normalization (requests, intervals, pipelines, events)
      * - All intermediate artifacts remain internal and are not exposed.
      *
      * @param {*} input

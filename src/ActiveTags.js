@@ -133,6 +133,24 @@ import DiscoverController from './class/discover/Controller.js';
 import atSchema           from './at_config/Schema.js';
 import DEFAULT_CONFIG     from './at_config/DEFAULT_CONFIG.js';
 class ActiveTags {
+    /**
+     * Construct an ActiveTags runtime instance.
+     *
+     * Contract:
+     * - Compiles top-level runtime config from defaults + user overrides.
+     * - Resolves required m7 dependencies/services.
+     * - Instantiates runtime subsystems (registry, engine, controllers).
+     * - Does not start scanning/listening/executing until `start()` is called.
+     *
+     * @param {Object} lib
+     * Required m7 lib instance.
+     *
+     * @param {Object} [conf={}]
+     * Optional user configuration merged over `DEFAULT_CONFIG`.
+     *
+     * @throws {Error}
+     * If `lib` is missing or required services/dependencies cannot be resolved.
+     */
     constructor(lib, conf = {}) {
 	if (!lib) {
             throw new Error('[activeTags] constructor requires lib as first argument');

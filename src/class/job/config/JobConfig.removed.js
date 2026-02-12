@@ -1,4 +1,18 @@
-//this is not presently used, and was removed from the iteration process. left here in case I want to go back to it.
+/**
+ * ---------------------------------------------------------------------------
+ * LEGACY / INACTIVE FILE - NOT USED BY ACTIVE TAGS RUNTIME
+ * ---------------------------------------------------------------------------
+ * @internal
+ *
+ * This file is retained for historical/reference purposes only.
+ * It is not imported by the current runtime path and is not part of v1 execution.
+ *
+ * Maintenance policy:
+ * - Do not treat this file as source of truth for current behavior.
+ * - Do not use this file for user/public documentation generation.
+ * - Prefer `JobConfig.js` and related active schema modules instead.
+ * ---------------------------------------------------------------------------
+ */
 
 /* ------------------------------------------------------------
      * Private section methods 
