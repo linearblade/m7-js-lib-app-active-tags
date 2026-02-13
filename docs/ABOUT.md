@@ -112,6 +112,17 @@ ActiveTags is transport-agnostic and workflow-centric. It can be used with:
 
 It fits legacy MVC systems, progressive enhancement flows, and framework-hosted pages.
 
+## Compatibility
+
+ActiveTags is written in standard JavaScript and follows an ES6+ runtime posture.
+
+Compatibility notes:
+
+* targets modern browser environments with ES module support
+* may require modern runtime features in older/legacy browsers
+* no external third-party libraries required beyond the m7 runtime/services it integrates with
+* no known compatibility conflicts with other scripting on the same page when integration boundaries are respected
+
 ---
 
 ## See also
