@@ -1,10 +1,14 @@
 # m7-js-lib-active-tags
 
-A deterministic, DOM-driven workflow runtime for backend-hydrated UI behavior.
+ActiveTags is a workflow-orchestration runtime for DOM components in MVC-style applications.
 
-ActiveTags turns configured DOM elements into registered Jobs, compiles configuration into normalized schemas, and executes runtime work through a ticket-based Engine/VM lifecycle.
+It turns ordinary HTML elements into drop-in interactive components by compiling declarative pipelines (events, intervals, DOM mutations, and actions) and executing them deterministically through a custom DSL and miniature VM.
 
-It is a runtime primitive, not a UI framework.
+This removes ad hoc glue code across DOM events, timers, observers, and request/response flow, making behavior more organized, reusable, and easier to reason about in moderate-to-high complexity components and websites.
+
+ActiveTags is transport-agnostic (server-rendered HTML, JSON APIs, or mixed response models) and config-surface agnostic (inline attributes, structured JS/JSON config objects, or external references), so teams are not forced into inline string configuration for complex behavior.
+
+ActiveTags is not a rendering framework and does not require platform-owning architecture.
 
 ---
 
@@ -29,7 +33,11 @@ Related documents:
 
 ---
 
-## Why this exists
+## Motivation
+
+Why should every interactive widget require custom event wiring?
+Why should timers, observers, and event handlers live in separate glue code?
+Why should reusable behavior be scattered across files instead of encoded with the component?
 
 Most server-rendered systems accumulate custom glue code between:
 
@@ -39,7 +47,7 @@ Most server-rendered systems accumulate custom glue code between:
 * DOM mutation handling
 * state handoff across async boundaries
 
-ActiveTags centralizes these concerns into one deterministic runtime model.
+ActiveTags removes those constraints by compiling DOM-bound behavior into reusable Jobs and executing them through explicit pipelines in one deterministic runtime model, without forcing a single response format.
 
 ---
 
