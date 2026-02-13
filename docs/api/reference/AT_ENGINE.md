@@ -27,4 +27,5 @@ This page is the surface index for `AT.engine` methods.
 
 * [`AT.events`](./AT_EVENTS.md)
 * [`AT.intervals`](./AT_INTERVALS.md)
+* [v098 DSL Manual](../../usage/DSL_V098.md)
 * [Reference Manual index](./INDEX.md)

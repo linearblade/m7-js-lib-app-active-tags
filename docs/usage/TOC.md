@@ -41,6 +41,9 @@ If you are new, read top-to-bottom.
 * **Configuration Model** -> [CONFIGURATION.md](./CONFIGURATION.md)
   Top-level runtime config and per-job config compile model.
 
+* **v098 DSL Manual** -> [DSL_V098.md](./DSL_V098.md)
+  Expression target grammar (`type:locator`), dispatch targets, interpolation, and compatibility notes.
+
 * **Runtime Lifecycle** -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
   From `new ActiveTags(...)` through `start()`, enqueue, tick, and drain.
 

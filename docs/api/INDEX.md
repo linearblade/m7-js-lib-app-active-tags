@@ -49,6 +49,7 @@ Source-independent behavioral guarantees intended for tooling, integration layer
 ## Related
 
 * Usage docs -> [../usage/TOC.md](../usage/TOC.md)
+* v098 DSL manual -> [../usage/DSL_V098.md](../usage/DSL_V098.md)
 * Architecture docs -> [../architecture/INDEX.md](../architecture/INDEX.md)
 
 ---
