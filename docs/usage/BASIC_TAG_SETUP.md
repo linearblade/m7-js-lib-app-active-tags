@@ -90,6 +90,7 @@ That maps to attributes like:
 Each pointer value can contain one or more source tokens.
 Tokens are resolved left-to-right and merged in order (later tokens override earlier ones).
 This token parsing path is implemented in [../../src/class/job/config/DomConfigSource.js](../../src/class/job/config/DomConfigSource.js).
+Expression target syntax details are documented in [v098 DSL Manual](./DSL_V098.md).
 
 ---
 
@@ -247,6 +248,7 @@ This split helps you quickly decide if the issue is:
 
 * [Quick Start](./QUICKSTART.md)
 * [Configuration Model](./CONFIGURATION.md)
+* [v098 DSL Manual](./DSL_V098.md)
 * [Examples Library](./EXAMPLES_LIBRARY.md)
 * [../../examples/test1.html](../../examples/test1.html)
 * [../../src/class/job/config/DomConfigSource.js](../../src/class/job/config/DomConfigSource.js)
