@@ -15,7 +15,8 @@ Error pattern:
 
 Fix:
 
-* Ensure `window.lib` is loaded before ActiveTags import/construct.
+* Ensure a valid `lib` instance is available and passed as the first constructor argument.
+* If using `auto.js`, ensure `window.lib` exists before auto-registration executes.
 
 ---
 

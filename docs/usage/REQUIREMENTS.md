@@ -13,7 +13,9 @@ ActiveTags requires:
 
 ## Required runtime surface
 
-At runtime, `window.lib` must be available with these dependency keys:
+At runtime, a valid m7 `lib` instance must be available with these dependency keys.
+The reference may come from an import, DI container, or any stored variable.
+No global `window.lib` binding is required.
 
 * [hash](/hash/...)
 * [primitive.workspace](/primitive.workspace/...)
@@ -52,7 +54,7 @@ Including ActiveTags directly should not negatively affect minified installation
 
 Before constructing ActiveTags, verify:
 
-* `window.lib` exists
+* a valid `lib` instance is available for `new ActiveTags(lib, ...)`
 * `lib.require.all(...)` resolves core dependencies
 * `lib.require.service(...)` resolves required services
 * `lib.site.form.collect` and `lib.site.form.submit` are available when form/HTTP builtins are used

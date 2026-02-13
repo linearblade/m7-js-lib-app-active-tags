@@ -17,6 +17,7 @@ If you are new to the project, start with:
 ## Core surfaces
 
 * **ActiveTags Class** -> [ACTIVE_TAGS.md](./ACTIVE_TAGS.md)
+* **Reference Manual (method-level)** -> [reference/INDEX.md](./reference/INDEX.md)
 * **Engine Runtime** -> [ENGINE.md](./ENGINE.md)
 * **Controllers** -> [CONTROLLERS.md](./CONTROLLERS.md)
 * **Builtins Surface** -> [BUILTINS.md](./BUILTINS.md)

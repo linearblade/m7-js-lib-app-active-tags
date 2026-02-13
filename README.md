@@ -73,8 +73,9 @@ These are design guarantees, not informal conventions.
 
 ```js
 import ActiveTags from "./src/ActiveTags.js";
+import lib from "/m7-js-lib/...";
 
-const AT = new ActiveTags(window.lib, {
+const AT = new ActiveTags(lib, {
   boot: {
     observeDom: true,
     events: true,

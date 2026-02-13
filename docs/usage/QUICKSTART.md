@@ -9,7 +9,8 @@ This guide gets you from zero to a running ActiveTags instance quickly.
 
 ## 1) Load required dependencies
 
-ActiveTags expects `window.lib` plus required services to be available.
+ActiveTags expects a valid `lib` instance plus required services to be available.
+The `lib` reference can come from an import, DI container, or any stored variable.
 
 In this repository's example setup, service modules are loaded before ActiveTags:
 
@@ -28,8 +29,9 @@ See: [../../examples/test1.html](../../examples/test1.html)
 
 ```js
 import ActiveTags from "../../src/ActiveTags.js";
+import lib from "/m7-js-lib/...";
 
-const AT = new ActiveTags(window.lib, {
+const AT = new ActiveTags(lib, {
   boot: {
     observeDom: true,
     events: true,

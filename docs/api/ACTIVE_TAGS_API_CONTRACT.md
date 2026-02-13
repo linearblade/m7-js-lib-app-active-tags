@@ -92,7 +92,7 @@ Primary source entry:
 
 When used in browser + m7-lib environment, `src/auto.js`:
 
-* validates `window.lib`
+* validates `window.lib` (auto mode only)
 * validates `lib.hash.set`
 * registers constructor at `lib.site.activeTags`
 
@@ -105,7 +105,7 @@ When used in browser + m7-lib environment, `src/auto.js`:
 Required environment:
 
 * browser DOM (`document` with `body` for startup)
-* `window.lib` runtime
+* m7 `lib` runtime instance passed to `new ActiveTags(lib, conf?)`
 
 Required dependency keys:
 

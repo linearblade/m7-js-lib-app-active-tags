@@ -15,7 +15,7 @@ For canonical dependency/version requirements, see:
 
 ActiveTags requires:
 
-1. `window.lib`
+1. A valid m7 `lib` instance (import, DI container, or any stored variable)
 2. Core utility dependencies:
    * `hash`
    * `primitive.workspace`
@@ -71,7 +71,7 @@ This file demonstrates loading supporting m7 modules before creating `ActiveTags
 
 Before calling `new ActiveTags(...)`, verify:
 
-* `window.lib` exists
+* a valid `lib` instance is available in scope for `new ActiveTags(lib, ...)`
 * `lib.require.all(...)` can resolve dependencies
 * `lib.require.service(...)` returns all required services
 
