@@ -10,16 +10,16 @@ This page is the surface index for `AT.intervals` methods.
 
 ## Methods
 
-* `destroy()`
-* `registerAll()`
-* `register(jobLike)`
-* `remove(jobLike)`
-* `listJob(jobLike)`
-* `listJobs(name = true)`
-* `on(jobLike?, intervalName?)`
-* `off(jobLike?, intervalName?)`
-* `enable(jobLike, intervalName?)`
-* `disable(jobLike, intervalName?)`
+* [`destroy()`](./at-intervals/destroy.md)
+* [`registerAll()`](./at-intervals/register-all.md)
+* [`register(jobLike)`](./at-intervals/register.md)
+* [`remove(jobLike)`](./at-intervals/remove.md)
+* [`listJob(jobLike)`](./at-intervals/list-job.md)
+* [`listJobs(name = true)`](./at-intervals/list-jobs.md)
+* [`on(jobLike?, intervalName?)`](./at-intervals/on.md)
+* [`off(jobLike?, intervalName?)`](./at-intervals/off.md)
+* [`enable(jobLike, intervalName?)`](./at-intervals/enable.md)
+* [`disable(jobLike, intervalName?)`](./at-intervals/disable.md)
 
 ---
 

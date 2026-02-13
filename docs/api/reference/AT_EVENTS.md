@@ -10,16 +10,16 @@ This page is the surface index for `AT.events` methods.
 
 ## Methods
 
-* `destroy()`
-* `registerAll()`
-* `register(jobLike)`
-* `remove(jobLike)`
-* `listJob(jobLike)`
-* `listJobs(name = true)`
-* `enable(jobLike, eventName?)`
-* `disable(jobLike, eventName?)`
-* `on(jobLike?, eventName?)`
-* `off(jobLike?, eventName?)`
+* [`destroy()`](./at-events/destroy.md)
+* [`registerAll()`](./at-events/register-all.md)
+* [`register(jobLike)`](./at-events/register.md)
+* [`remove(jobLike)`](./at-events/remove.md)
+* [`listJob(jobLike)`](./at-events/list-job.md)
+* [`listJobs(name = true)`](./at-events/list-jobs.md)
+* [`enable(jobLike, eventName?)`](./at-events/enable.md)
+* [`disable(jobLike, eventName?)`](./at-events/disable.md)
+* [`on(jobLike?, eventName?)`](./at-events/on.md)
+* [`off(jobLike?, eventName?)`](./at-events/off.md)
 
 ---
 

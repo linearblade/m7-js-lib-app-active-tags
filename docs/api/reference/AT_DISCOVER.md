@@ -10,9 +10,9 @@ This page is the surface index for `AT.discover` methods.
 
 ## Methods
 
-* `scan(sel?, opts?)`
-* `registerJobs(list, opts?)`
-* `sweep(sel?)`
+* [`scan(sel?, opts?)`](./at-discover/scan.md)
+* [`registerJobs(list, opts?)`](./at-discover/register-jobs.md)
+* [`sweep(sel?)`](./at-discover/sweep.md)
 
 ---
 

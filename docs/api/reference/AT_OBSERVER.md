@@ -10,9 +10,9 @@ This page is the surface index for `AT.observer` methods.
 
 ## Methods
 
-* `start()`
-* `stop()`
-* `setSelectors(selectorSpecs)`
+* [`start()`](./at-observer/start.md)
+* [`stop()`](./at-observer/stop.md)
+* [`setSelectors(selectorSpecs)`](./at-observer/set-selectors.md)
 
 ---
 

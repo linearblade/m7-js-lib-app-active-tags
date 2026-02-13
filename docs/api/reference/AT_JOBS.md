@@ -10,19 +10,19 @@ This page is the surface index for `AT.jobs` methods.
 
 ## Methods
 
-* `resolve(x)`
-* `nextId()`
-* `hasElement(el)`
-* `getIdByElement(el)`
-* `getById(id)`
-* `getByElement(el)`
-* `getByName(name)`
-* `list()`
-* `listByStatus(status)`
-* `listByName(name)`
-* `register(job)`
-* `unregister(jobOrIdOrEl, opts?)`
-* `setName(job, name)`
+* [`resolve(x)`](./at-jobs/resolve.md)
+* [`nextId()`](./at-jobs/next-id.md)
+* [`hasElement(el)`](./at-jobs/has-element.md)
+* [`getIdByElement(el)`](./at-jobs/get-id-by-element.md)
+* [`getById(id)`](./at-jobs/get-by-id.md)
+* [`getByElement(el)`](./at-jobs/get-by-element.md)
+* [`getByName(name)`](./at-jobs/get-by-name.md)
+* [`list()`](./at-jobs/list.md)
+* [`listByStatus(status)`](./at-jobs/list-by-status.md)
+* [`listByName(name)`](./at-jobs/list-by-name.md)
+* [`register(job)`](./at-jobs/register.md)
+* [`unregister(jobOrIdOrEl, opts?)`](./at-jobs/unregister.md)
+* [`setName(job, name)`](./at-jobs/set-name.md)
 
 ---
 
