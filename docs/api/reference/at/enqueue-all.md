@@ -39,8 +39,8 @@ const count = AT.enqueueAll("boot");
 
 ### Related methods
 
-* [`AT.engine.enqueue()`](../at-engine/INDEX.md)
-* [`AT.jobs.list()`](../at-jobs/INDEX.md)
+* [`AT.engine.enqueue()`](../at-engine/enqueue.md)
+* [`AT.jobs.list()`](../at-jobs/list.md)
 
 ---
 

@@ -36,7 +36,7 @@ if (!job) return;
 
 ### Related methods
 
-* [`AT.jobs.resolve()`](../at-jobs/INDEX.md)
+* [`AT.jobs.resolve()`](../at-jobs/resolve.md)
 
 ---
 

@@ -36,7 +36,7 @@ if (!job) return;
 
 ### Related methods
 
-* [`toJob(ref)`](../at/INDEX.md)
+* [`toJob(ref)`](../at/to-job.md)
 * [`getById(id)`](./get-by-id.md)
 * [`getByElement(el)`](./get-by-element.md)
 

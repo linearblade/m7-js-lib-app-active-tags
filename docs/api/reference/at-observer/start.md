@@ -42,7 +42,7 @@ AT.observer.start();
 
 * [`stop()`](./stop.md)
 * [`setSelectors(selectorSpecs)`](./set-selectors.md)
-* [`AT.discover.registerJobs(...)`](../at-discover/INDEX.md)
+* [`AT.discover.registerJobs(...)`](../at-discover/register-jobs.md)
 
 ---
 

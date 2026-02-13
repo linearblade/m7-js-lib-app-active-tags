@@ -44,7 +44,7 @@ const jobs = await AT.discover.registerJobs(nodeList, {
 ### Related methods
 
 * [`scan(sel?, opts?)`](./scan.md)
-* [`AT.jobs.register(job)`](../at-jobs/INDEX.md)
+* [`AT.jobs.register(job)`](../at-jobs/register.md)
 
 ---
 

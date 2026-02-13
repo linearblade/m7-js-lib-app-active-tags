@@ -36,7 +36,7 @@ const nodes = AT.discover.sweep(["[at]", "[data-at]"]);
 ### Related methods
 
 * [`scan(sel?, opts?)`](./scan.md)
-* [`AT.observer.start()`](../at-observer/INDEX.md)
+* [`AT.observer.start()`](../at-observer/start.md)
 
 ---
 

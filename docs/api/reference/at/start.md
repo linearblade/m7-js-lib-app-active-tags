@@ -40,10 +40,10 @@ await AT.start();
 
 ### Related methods
 
-* [`AT.discover.scan()`](../at-discover/INDEX.md)
-* [`AT.observer.start()`](../at-observer/INDEX.md)
-* [`AT.events.registerAll()`](../at-events/INDEX.md)
-* [`AT.intervals.registerAll()`](../at-intervals/INDEX.md)
+* [`AT.discover.scan()`](../at-discover/scan.md)
+* [`AT.observer.start()`](../at-observer/start.md)
+* [`AT.events.registerAll()`](../at-events/register-all.md)
+* [`AT.intervals.registerAll()`](../at-intervals/register-all.md)
 
 ---
 
