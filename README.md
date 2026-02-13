@@ -1,5 +1,7 @@
 # m7-js-lib-active-tags
 
+![ActiveTags Logo](logo.png)
+
 *Deterministic Workflow Orchestration for DOM Components*
 
 ## Introduction
@@ -38,19 +40,15 @@ Related documents:
 
 ## Motivation
 
-Why should every interactive widget require custom event wiring?
-Why should timers, observers, and event handlers live in separate glue code?
-Why should reusable behavior be scattered across files instead of encoded with the component?
+ActiveTags was built to solve practical problems in real-world MVC systems:
 
-Most server-rendered systems accumulate custom glue code between:
+1. Deliver SPA-like behavior without adopting a platform-owning framework.
+2. Build complex components (for example, chat interfaces) without monolithic JavaScript glue.
+3. Orchestrate multi-source workflows (requests, sockets, heartbeats, status updates) in one deterministic pipeline model.
+4. Configure components quickly via JSON-style config and admin controls, instead of hardwiring behavior repeatedly in backend code.
+5. Keep behavior reusable and portable across legacy PHP sites, JavaScript-driven pages, and framework-hosted environments, while preserving clear HTML/CSS/logic role boundaries.
 
-* DOM events
-* request/response handling
-* timed behavior
-* DOM mutation handling
-* state handoff across async boundaries
-
-ActiveTags removes those constraints by compiling DOM-bound behavior into reusable Jobs and executing them through explicit pipelines in one deterministic runtime model, without forcing a single response format.
+In short: ActiveTags is ruthless about killing glue code.
 
 ---
 
