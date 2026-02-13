@@ -1,5 +1,8 @@
 # m7-js-lib-active-tags
 
+*Deterministic Workflow Orchestration for DOM Components*
+
+## Introduction
 ActiveTags is a workflow-orchestration runtime for DOM components in MVC-style applications.
 
 It turns ordinary HTML elements into drop-in interactive components by compiling declarative pipelines (events, intervals, DOM mutations, and actions) and executing them deterministically through a custom DSL and miniature VM.
