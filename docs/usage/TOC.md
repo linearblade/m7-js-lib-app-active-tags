@@ -28,6 +28,9 @@ If you are new, read top-to-bottom.
 * **Installation & Dependencies** -> [INSTALLATION.md](./INSTALLATION.md)
   Required m7 services, module loading, and runtime prerequisites.
 
+* **Requirements** -> [REQUIREMENTS.md](./REQUIREMENTS.md)
+  Version baseline, required dependency keys/services, and minified distribution posture.
+
 ---
 
 ## Configuration & Runtime

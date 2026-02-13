@@ -36,6 +36,7 @@ Related documents:
 * **Log API Contract** -> [docs/vendor_api_contracts/LOG_API_CONTRACT.md](docs/vendor_api_contracts/LOG_API_CONTRACT.md)
 * **Use Policy** -> [docs/USE_POLICY.md](docs/USE_POLICY.md)
 * **AI Disclosure** -> [docs/AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md)
+* **Requirements** -> [docs/usage/REQUIREMENTS.md](docs/usage/REQUIREMENTS.md)
 * **About ActiveTags** -> [docs/ABOUT.md](docs/ABOUT.md)
 * **What Makes ActiveTags Different** -> [docs/WHAT_MAKES_US_DIFFERENT.md](docs/WHAT_MAKES_US_DIFFERENT.md)
 

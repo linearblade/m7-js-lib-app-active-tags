@@ -5,6 +5,10 @@
 
 ActiveTags is a browser-oriented runtime module.
 
+For canonical dependency/version requirements, see:
+
+* [REQUIREMENTS.md](./REQUIREMENTS.md)
+
 ---
 
 ## Required runtime surface
