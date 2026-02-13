@@ -59,7 +59,7 @@ Example:
 
 ## 3) Disabling inline attributes during iteration
 
-In `examples/test1.html`, some attributes are intentionally disabled by prefixing a leading `d` on the attribute name, for example:
+In `examples/test1.html`, some attributes are intentionally disabled during iteration by prefixing a leading `d` on the attribute name, for example:
 
 ```html
 <div
@@ -70,7 +70,8 @@ In `examples/test1.html`, some attributes are intentionally disabled by prefixin
 </div>
 ```
 
-`ddata-*` (or similar) is not a recognized ActiveTags prefix, so it is ignored by config extraction. This is a convenient way to keep alternatives in markup without deleting them.
+`ddata-*` (or similar) is not a recognized ActiveTags prefix, so it is ignored by config extraction.
+This is just an iteration/debug convention to keep alternate references in place without deleting them.
 
 ---
 
@@ -131,6 +132,12 @@ Imports are policy-gated by:
 
 * `job.config.importEnabled`
 * `job.config.importPath` allow-list rules
+
+Performance note:
+
+* Import-based config resolution is awaited during job config read/compile.
+* If many tags each import config, startup/configuration time can increase.
+* For large setups, prefer importing once outside ActiveTags boot and then reference the in-memory object via `window:...` (or equivalent environment path).
 
 See setup example in [../../examples/test1.html](../../examples/test1.html), where import support is explicitly enabled.
 
@@ -200,6 +207,39 @@ const AT = new ActiveTags(lib, {
 ```
 
 Use `new ActiveTags(lib, conf)` with a valid `lib` instance. A global `window.lib` is optional and not required by contract.
+
+---
+
+## 9) Debugging config-read failures quickly
+
+If an external config reference fails (for example bad `find:`, `window:`, or `import:` target), the job still has DOM-derived attributes available.
+So in failure cases you often still get inline dataset config, but not the expected external config object.
+
+A practical debugging pattern is to always set a name in DOM attributes:
+
+```html
+<div at-name="test-link" at-config-at="xyz"></div>
+```
+
+Then inspect directly:
+
+```js
+const job = AT.toJob("test-link");
+```
+
+Useful report surfaces:
+
+* `job.config.inputs`:
+  DOM read snapshot (`dataSet`, `attrs`, resolved `at` list, resolved `config`, merged `output`).
+* `job.config.inputs.report`:
+  source-read/resolve/parse diagnostics (common place for config source errors).
+* `job.config.schemaReport`:
+  schema compile/normalization diagnostics (shape/format/data-structure issues after inputs are read).
+
+This split helps you quickly decide if the issue is:
+
+1. Source resolution/loading/parsing (`inputs.report`)
+2. Schema structure/typing (`schemaReport`)
 
 ---
 
