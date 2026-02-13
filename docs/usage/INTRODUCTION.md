@@ -39,6 +39,39 @@ Without a unified runtime, advanced behavior usually turns into scattered event 
 
 ActiveTags replaces that pattern with declarative pipelines: define `run x -> y -> z` once, let the runtime orchestrate it, and keep behavior consistent across components.
 
+## How it works
+
+ActiveTags behaves like an assembly line:
+
+1. A stage receives the current work product.
+2. It transforms or validates that work.
+3. It passes the result to the next stage.
+
+At runtime, this is modeled with two core conveyor concepts:
+
+* `buffer`: the current work product moving through the pipeline
+* `target`: the current DOM focus where work is applied
+
+This makes stage behavior explicit: what data is being processed, where output should go, and what to do when validation fails.
+
+Example flow:
+
+1. Fetch API response (`buffer` becomes response payload).
+2. Validate shape/status.
+3. Traverse to the required subtree.
+4. Validate again for downstream expectations.
+5. Hand off to a rendering/apply stage.
+
+If the next operation needs a different DOM destination, move `target` and continue. That avoids one-off conditional glue code and keeps each operation reusable.
+
+Authoring can stay lightweight or structured:
+
+* inline DSL strings for quick local behavior
+* structured config parameters for larger workflows
+* literal function references or symbolic lookups for callable stages
+
+The result is portable workflow logic: operations can be reused across components instead of rewritten per page.
+
 ## Example: Template + data stitching
 
 Another common case is rendering a component by combining:
