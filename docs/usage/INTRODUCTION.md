@@ -2,6 +2,10 @@
 
 [README](../../README.md) -> [Usage TOC](./TOC.md)
 
+> **Version notice**
+> ActiveTags 1.0 is the spiritual successor to prior versions. It shares core ideas, but the runtime/process model has been substantially streamlined and is not backward compatible at this time.
+> ActiveTags 0.99 and lower differ substantially from the current model.
+
 ActiveTags exists to close a common gap: HTML and JavaScript often do not compose cleanly at scale.
 
 For simple behavior, inline attributes can be enough. For example, a link can declare a pipeline directly:
