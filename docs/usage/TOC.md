@@ -16,6 +16,9 @@ If you are new, read top-to-bottom.
 
 ## Getting Started
 
+* **Introduction** -> [INTRODUCTION.md](./INTRODUCTION.md)
+  Problem framing, inline vs external config posture, and why ActiveTags exists.
+
 * **Quick Start** -> [QUICKSTART.md](./QUICKSTART.md)
   Minimal boot flow and first active job.
 
