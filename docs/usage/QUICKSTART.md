@@ -89,6 +89,7 @@ Use these files as first references:
 
 ## Next steps
 
+* Basic tag setup -> [BASIC_TAG_SETUP.md](./BASIC_TAG_SETUP.md)
 * Configuration guide -> [CONFIGURATION.md](./CONFIGURATION.md)
 * Runtime lifecycle -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
 * Builtins guide -> [OPERATIONS_BUILTINS.md](./OPERATIONS_BUILTINS.md)

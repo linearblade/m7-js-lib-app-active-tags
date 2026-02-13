@@ -25,6 +25,9 @@ If you are new, read top-to-bottom.
 * **Quick Start** -> [QUICKSTART.md](./QUICKSTART.md)
   Minimal boot flow and first active job.
 
+* **Basic Tag Setup** -> [BASIC_TAG_SETUP.md](./BASIC_TAG_SETUP.md)
+  Practical setup patterns for one `data-activetag` element, including `data-*`/`at-*` config sources and layered references.
+
 * **Installation & Dependencies** -> [INSTALLATION.md](./INSTALLATION.md)
   Required m7 services, module loading, and runtime prerequisites.
 
