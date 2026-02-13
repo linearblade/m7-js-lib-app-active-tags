@@ -2,28 +2,17 @@
 
 [README](../../../README.md) -> [API Index](../INDEX.md) -> [Reference Manual](./INDEX.md)
 
-Primary source:
+This page is the surface index for `AT.observer` methods.
 
-* [../../../src/class/observer/Controller.js](../../../src/class/observer/Controller.js)
+## Deep reference
+
+* [`AT.observer` deep reference](./at-observer/INDEX.md)
 
 ## Methods
 
-### `start() -> void`
-
-Builds selector specs from config, applies them to the observer service, and starts DOM observation.
-
-### `stop() -> void`
-
-Stops DOM observation through the injected observer service.
-
-### `setSelectors(selectorSpecs) -> void`
-
-Replaces observer selector specs directly (advanced runtime override).
-
-## Notes
-
-* `AT.observer` is policy/lifecycle around a shared observer service.
-* Observation callbacks translate DOM changes into discover/register/unregister signals.
+* `start()`
+* `stop()`
+* `setSelectors(selectorSpecs)`
 
 ---
 
@@ -31,4 +20,4 @@ Replaces observer selector specs directly (advanced runtime override).
 
 * [`AT.discover`](./AT_DISCOVER.md)
 * [`AT.jobs`](./AT_JOBS.md)
-* [API Index](../INDEX.md)
+* [Reference Manual index](./INDEX.md)
