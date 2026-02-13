@@ -19,6 +19,9 @@ If you are new, read top-to-bottom.
 * **Introduction** -> [INTRODUCTION.md](./INTRODUCTION.md)
   Problem framing, inline vs external config posture, and why ActiveTags exists.
 
+* **About ActiveTags** -> [../ABOUT.md](../ABOUT.md)
+  Internal model overview: compiler/VM pipeline, buffer/target conveyor, and runtime architecture posture.
+
 * **Quick Start** -> [QUICKSTART.md](./QUICKSTART.md)
   Minimal boot flow and first active job.
 
@@ -63,6 +66,7 @@ If you are new, read top-to-bottom.
 * **API Index** -> [../api/INDEX.md](../api/INDEX.md)
 * **Use Policy** -> [../USE_POLICY.md](../USE_POLICY.md)
 * **AI Disclosure** -> [../AI_DISCLOSURE.md](../AI_DISCLOSURE.md)
+* **About ActiveTags** -> [../ABOUT.md](../ABOUT.md)
 * **Project README** -> [../../README.md](../../README.md)
 
 ---

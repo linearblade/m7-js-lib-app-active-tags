@@ -21,11 +21,12 @@ ActiveTags is not a rendering framework and does not require platform-owning arc
 
 If you are new to the project, the recommended reading order is:
 
-1. **Introduction** -> [docs/usage/INTRODUCTION.md](docs/usage/INTRODUCTION.md)
-2. **Quick Start** -> [docs/usage/QUICKSTART.md](docs/usage/QUICKSTART.md)
-3. **Usage TOC** -> [docs/usage/TOC.md](docs/usage/TOC.md)
-4. **Architecture Index** -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
-5. **API Index** -> [docs/api/INDEX.md](docs/api/INDEX.md)
+1. **About ActiveTags** -> [docs/ABOUT.md](docs/ABOUT.md)
+2. **Introduction** -> [docs/usage/INTRODUCTION.md](docs/usage/INTRODUCTION.md)
+3. **Quick Start** -> [docs/usage/QUICKSTART.md](docs/usage/QUICKSTART.md)
+4. **Usage TOC** -> [docs/usage/TOC.md](docs/usage/TOC.md)
+5. **Architecture Index** -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
+6. **API Index** -> [docs/api/INDEX.md](docs/api/INDEX.md)
 
 Related documents:
 
@@ -35,6 +36,7 @@ Related documents:
 * **Log API Contract** -> [docs/vendor_api_contracts/LOG_API_CONTRACT.md](docs/vendor_api_contracts/LOG_API_CONTRACT.md)
 * **Use Policy** -> [docs/USE_POLICY.md](docs/USE_POLICY.md)
 * **AI Disclosure** -> [docs/AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md)
+* **About ActiveTags** -> [docs/ABOUT.md](docs/ABOUT.md)
 * **What Makes ActiveTags Different** -> [docs/WHAT_MAKES_US_DIFFERENT.md](docs/WHAT_MAKES_US_DIFFERENT.md)
 
 ---
@@ -119,6 +121,7 @@ It does not:
 ## Documentation map
 
 * Usage docs -> [docs/usage/TOC.md](docs/usage/TOC.md)
+* About -> [docs/ABOUT.md](docs/ABOUT.md)
 * Introduction -> [docs/usage/INTRODUCTION.md](docs/usage/INTRODUCTION.md)
 * Architecture docs -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
 * API docs -> [docs/api/INDEX.md](docs/api/INDEX.md)
