@@ -39,6 +39,32 @@ Without a unified runtime, advanced behavior usually turns into scattered event 
 
 ActiveTags replaces that pattern with declarative pipelines: define `run x -> y -> z` once, let the runtime orchestrate it, and keep behavior consistent across components.
 
+## Example: Template + data stitching
+
+Another common case is rendering a component by combining:
+
+* a reusable template file
+* data loaded from an API
+* component-specific CSS assets
+
+Teams often push this work to server-side fragments, but that can create friction:
+
+* HTML designers need backend-template knowledge to edit fragments
+* backend developers must repeatedly slice or rewire designer output
+* fragment logic and fragment styling drift apart across different files and ownership boundaries
+
+A cleaner model is:
+
+1. Keep templates generic and reusable.
+2. Load data from a REST-style API.
+3. Configure ActiveTags to fetch template + data, stitch them, and attach required CSS/resources as part of one workflow.
+
+This keeps concerns tidy while reducing duplicated rendering logic across backend and frontend layers.
+
+```txt
+<insert example here> (template + data + stitch pipeline code block)
+```
+
 ## Result
 
 You get:
