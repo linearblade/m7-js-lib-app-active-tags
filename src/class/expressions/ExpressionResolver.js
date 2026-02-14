@@ -442,6 +442,10 @@ export class ExpressionResolver {
             }
 
             // string shorthand: "op" or "op:a,b,c"
+	    if (lib.func.get(item) ) {
+		out.push({op:item, args: []});
+		continue;
+	    }
             if (lib.str.is(item)) {
 		const raw = item;
 

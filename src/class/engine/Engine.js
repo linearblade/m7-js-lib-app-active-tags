@@ -166,7 +166,7 @@ export class Engine {
      * If `lib` is not provided.
      */
 
-    constructor({ lib, jobRegistry, vm, scheduler, conf = {},expr } = {}) {
+    constructor({ lib, jobRegistry, vm, scheduler, conf = {},expr,AT } = {}) {
 	if (!lib) throw new Error("Engine requires lib");
 	this.lib = lib;
 	const hooks    = lib.hash.to(conf.hooks);
@@ -177,7 +177,7 @@ export class Engine {
 	// subsystems
 	this.state = new EngineState({ lib });
 	this.scheduler = scheduler || new Scheduler({ lib,engine:this });
-	this.vm = vm || new VM({ lib, builtins,expr });
+	this.vm = vm || new VM({ lib, builtins,expr,AT });
 
 	// hooks (optional)
 	this.hooks = {

@@ -202,7 +202,8 @@ class ActiveTags {
 	this.jobCounter = 0;
 
 	// workspace + scheduler
-	this.ws = new lib.primitive.workspace.WorkSpace();
+	//this.ws = new lib.primitive.workspace.WorkSpace();
+	this.ctx = {};
 
 	this.jobs = new JobRegistry({ lib , conf: this.conf.job, env:this.conf.env});
 
@@ -210,6 +211,7 @@ class ActiveTags {
 	//this.engine = new Engine({lib,jobRegistry: this.jobs});
 
 	this.engine = new Engine({
+	    AT           : this,
 	    lib,
 	    jobRegistry  : this.jobs,
 	    conf         : this.conf.engine,

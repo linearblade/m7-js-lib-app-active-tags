@@ -106,8 +106,9 @@ import Validate from './Validate.js';
 import OP       from './OP.js';
 
 export class VM {
-    constructor({ lib, builtins,expr } = {}) {
+    constructor({ lib, builtins,expr,AT } = {}) {
 	if(!lib)       throw new Error("PASS lib :) ");
+	this.AT = AT;
 	this.lib       = lib ;
 	this.builtins  = builtins || {}; //this is unnecessary but the AI bitches when I lint, b/c it seems to have trouble reading my libs.
 	this.validator = new Validate({lib,builtins});
