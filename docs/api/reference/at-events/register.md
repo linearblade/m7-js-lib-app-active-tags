@@ -23,6 +23,7 @@ Number of event entries added/replaced for that job.
 * Reads `job.config.schema.events`.
 * Stores normalized entries with runtime state fields (`enabled`, `on`, `runtimeTag`, `offFn`).
 * Re-registering replaces definitions and resets `on` state in the registry entry.
+* Keeps per-event `selector` definitions (optional trigger filter within the job element).
 
 ### Failure modes
 

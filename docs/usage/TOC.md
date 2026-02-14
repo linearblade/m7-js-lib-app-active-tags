@@ -41,6 +41,24 @@ If you are new, read top-to-bottom.
 * **Configuration Model** -> [CONFIGURATION.md](./CONFIGURATION.md)
   Top-level runtime config and per-job config compile model.
 
+* **Top-Level Job Config** -> [TOP_LEVEL_CONFIG.md](./TOP_LEVEL_CONFIG.md)
+  What one job config contains, organized into Basics, Pipelines, Intervals, Events, and Requests.
+
+* **Basics** -> [BASICS.md](./BASICS.md)
+  Non-block top-level keys: `name`, `require`, `enabled`, `autorun`, and `env`.
+
+* **Pipelines** -> [PIPELINES.md](./PIPELINES.md)
+  Defining `pipeline` / `pipelines` blocks, step formats, key selection, and trigger wiring.
+
+* **Events** -> [EVENTS.md](./EVENTS.md)
+  Defining event bindings, delegated trigger filters, and enqueue behavior.
+
+* **Intervals** -> [INTERVALS.md](./INTERVALS.md)
+  Defining interval timers, policy mapping, and tick enqueue behavior.
+
+* **Requests** -> [REQUESTS.md](./REQUESTS.md)
+  Defining normalized request blocks (`request`, `requests`, `request_shape`) for builtins and user functions.
+
 * **v098 DSL Manual** -> [DSL_V098.md](./DSL_V098.md)
   Expression target grammar (`type:locator`), dispatch targets, interpolation, and compatibility notes.
 

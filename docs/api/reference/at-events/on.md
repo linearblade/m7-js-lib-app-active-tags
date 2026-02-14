@@ -23,6 +23,9 @@ Number of delegated handlers successfully installed.
 
 * Installs handlers via `delegator.on(...)` for enabled, currently-off bindings.
 * Records runtime state (`on`, `runtimeTag`, `offFn`) per binding.
+* Selector behavior is per-event and optional:
+  * no selector -> trigger at job element context
+  * selector set -> trigger only for matching descendants inside the job element
 
 ### Failure modes
 

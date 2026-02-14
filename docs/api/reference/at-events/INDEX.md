@@ -8,6 +8,12 @@ Primary source:
 
 * [../../../../src/class/event/Controller.js](../../../../src/class/event/Controller.js)
 
+Selector note:
+
+* Per-event `selector` is optional.
+* If omitted, event handling applies at the job element context.
+* If provided, it filters to matching descendants inside the job element.
+
 ---
 
 ## Method Pages

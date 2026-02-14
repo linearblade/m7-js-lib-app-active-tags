@@ -91,6 +91,10 @@ Use these files as first references:
 
 * Basic tag setup -> [BASIC_TAG_SETUP.md](./BASIC_TAG_SETUP.md)
 * Configuration guide -> [CONFIGURATION.md](./CONFIGURATION.md)
+* Pipelines guide -> [PIPELINES.md](./PIPELINES.md)
+* Events guide -> [EVENTS.md](./EVENTS.md)
+* Intervals guide -> [INTERVALS.md](./INTERVALS.md)
+* Requests guide -> [REQUESTS.md](./REQUESTS.md)
 * Runtime lifecycle -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
 * Builtins guide -> [OPERATIONS_BUILTINS.md](./OPERATIONS_BUILTINS.md)
 * API index -> [../api/INDEX.md](../api/INDEX.md)

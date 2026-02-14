@@ -37,6 +37,20 @@ This layer produces normalized job-level schema blocks (pipelines, events, inter
 
 ---
 
+## What is inside one job config
+
+This page explains compile model and source layering.
+For key-by-key shape documentation, use:
+
+* [Top-Level Job Config](./TOP_LEVEL_CONFIG.md)
+* [Basics](./BASICS.md)
+* [Pipelines](./PIPELINES.md)
+* [Events](./EVENTS.md)
+* [Intervals](./INTERVALS.md)
+* [Requests](./REQUESTS.md)
+
+---
+
 ## Merge posture
 
 Top-level and per-job compilation both follow coercion/normalization-first posture:
@@ -73,6 +87,12 @@ Avoid reading uncompiled raw inputs for runtime decisions.
 
 ## Related
 
+* Top-level job shape -> [TOP_LEVEL_CONFIG.md](./TOP_LEVEL_CONFIG.md)
+* Basics -> [BASICS.md](./BASICS.md)
+* Pipelines -> [PIPELINES.md](./PIPELINES.md)
+* Events -> [EVENTS.md](./EVENTS.md)
+* Intervals -> [INTERVALS.md](./INTERVALS.md)
+* Requests -> [REQUESTS.md](./REQUESTS.md)
 * Runtime lifecycle -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
 * Architecture -> [../architecture/INDEX.md](../architecture/INDEX.md)
 
