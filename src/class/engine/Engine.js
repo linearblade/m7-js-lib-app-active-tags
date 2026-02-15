@@ -101,6 +101,10 @@ export class Engine {
      * Required core utility library. Used for hashing, coercion,
      * defensive guards, and internal helpers.
      *
+     * @param {ActiveTags} [args.AT]
+     * Optional owning ActiveTags instance.
+     * When provided, it is forwarded to VM constructor as runtime context anchor.
+     *
      * @param {JobRegistry} [args.jobRegistry]
      * Optional external job registry used to resolve job-like references
      * into canonical Job instances.
@@ -152,6 +156,7 @@ export class Engine {
      *
      * @property {VM} vm
      * Pipeline execution virtual machine.
+     * Receives optional `AT` runtime anchor via constructor injection.
      *
      * @property {EngineManager} manager
      * Policy + coordination layer (enqueue, cancel, locks, etc.).

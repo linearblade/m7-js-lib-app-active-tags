@@ -51,6 +51,7 @@
  * ---------------------
  * After construction, the instance exposes:
  *
+ *   this.ctx
  *   this.engine
  *   this.jobs
  *   this.events
@@ -69,6 +70,16 @@
  *   this.conf
  *
  * Runtime subsystems must treat this configuration as authoritative.
+ *
+ *
+ * CONTEXT MODEL
+ * -------------
+ * ActiveTags exposes a global runtime context bag at:
+ *
+ *   this.ctx
+ *
+ * This is intended for application-level shared runtime context.
+ * It is distinct from per-run `ctx` values passed to `engine.tick()`/`engine.drain()`.
  *
  *
  * LIFECYCLE
@@ -140,6 +151,8 @@ class ActiveTags {
      * - Compiles top-level runtime config from defaults + user overrides.
      * - Resolves required m7 dependencies/services.
      * - Instantiates runtime subsystems (registry, engine, controllers).
+     * - Initializes global ActiveTags runtime context at `this.ctx`.
+     * - Passes this ActiveTags instance to Engine as `AT`.
      * - Does not start scanning/listening/executing until `start()` is called.
      *
      * @param {Object} lib

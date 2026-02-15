@@ -67,8 +67,7 @@ function set_ctx_error(ctx, message) {
   }
 }
 
-function get_header_job() {
-  const AT = (typeof window !== "undefined") ? window.AT : null;
+function get_header_job({ AT } = {}) {
   if (!AT || typeof AT.toJob !== "function") return null;
   return AT.toJob("header");
 }
@@ -84,8 +83,8 @@ function sync_header_portfolio({ headerJob, balance, stock } = {}) {
   if (stockEl) stockEl.textContent = `Stock: ${Number(stock)}`;
 }
 
-function require_logged_in({ lib, ctx } = {}) {
-  const headerJob = get_header_job();
+function require_logged_in({ lib, ctx, AT } = {}) {
+  const headerJob = get_header_job({ AT });
   if (!headerJob) {
     set_ctx_error(ctx, "Header job unavailable. Please refresh.");
     return false;
@@ -100,8 +99,8 @@ function require_logged_in({ lib, ctx } = {}) {
   return true;
 }
 
-function get_trade_inputs({ job, lib, ctx } = {}) {
-  const headerJob = get_header_job();
+function get_trade_inputs({ job, lib, ctx, AT } = {}) {
+  const headerJob = get_header_job({ AT });
   if (!headerJob) {
     set_ctx_error(ctx, "Header job unavailable. Please refresh.");
     return null;
@@ -132,8 +131,8 @@ function get_trade_inputs({ job, lib, ctx } = {}) {
   return { headerJob, qty, price, balance, stock };
 }
 
-function buy_stock({ job, lib, ctx } = {}) {
-  const state = get_trade_inputs({ job, lib, ctx });
+function buy_stock({ job, lib, ctx, AT } = {}) {
+  const state = get_trade_inputs({ job, lib, ctx, AT });
   if (!state) return false;
 
   const cost = Number((state.qty * state.price).toFixed(2));
@@ -156,8 +155,8 @@ function buy_stock({ job, lib, ctx } = {}) {
   return true;
 }
 
-function sell_stock({ job, lib, ctx } = {}) {
-  const state = get_trade_inputs({ job, lib, ctx });
+function sell_stock({ job, lib, ctx, AT } = {}) {
+  const state = get_trade_inputs({ job, lib, ctx, AT });
   if (!state) return false;
 
   if (state.stock < state.qty) {

@@ -53,6 +53,12 @@ If you are new, read top-to-bottom.
 * **Pipelines** -> [PIPELINES.md](./PIPELINES.md)
   Defining `pipeline` / `pipelines` blocks, step formats, key selection, and trigger wiring.
 
+* **Pipeline Handlers (User Code)** -> [PIPELINE_HANDLERS.md](./PIPELINE_HANDLERS.md)
+  Function-step call shape, return contract, and runtime context usage (`ctx`, `AT`, `target`, `e`).
+
+* **Engine Event Hooks** -> [ENGINE_HOOKS.md](./ENGINE_HOOKS.md)
+  Hook names, emit timing, and payload contracts (`onEnqueue` vs Tick trace hooks).
+
 * **Events** -> [EVENTS.md](./EVENTS.md)
   Defining event bindings, delegated trigger filters, and enqueue behavior.
 
@@ -84,6 +90,9 @@ If you are new, read top-to-bottom.
 ---
 
 ## Operational Guidance
+
+* **Reviewing Logs** -> [REVIEWING_LOGS.md](./REVIEWING_LOGS.md)
+  How ActiveTags integrates with `primitive.log`, bucket setup, and practical log review flow.
 
 * **Troubleshooting** -> [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
   Common boot/config/runtime errors and resolution patterns.

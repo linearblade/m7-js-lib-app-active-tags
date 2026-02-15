@@ -106,6 +106,20 @@ import Validate from './Validate.js';
 import OP       from './OP.js';
 
 export class VM {
+    /**
+     * Create a VM instance.
+     *
+     * @param {Object} args
+     * @param {Object} args.lib
+     * Required utility library.
+     * @param {Object} [args.builtins]
+     * Optional builtin operation surface.
+     * @param {Object} [args.expr]
+     * Optional expression resolver/materializer.
+     * @param {ActiveTags} [args.AT]
+     * Optional owning ActiveTags runtime instance.
+     * Stored on `this.AT` as runtime context anchor.
+     */
     constructor({ lib, builtins,expr,AT } = {}) {
 	if(!lib)       throw new Error("PASS lib :) ");
 	this.AT = AT;
@@ -144,6 +158,10 @@ export class VM {
      * 3) Stage execution (when applicable)
      *    - Materializes arguments via `expr.materialize`.
      *    - Invokes the resolved stage function.
+     *    - Current invocation payload shape is:
+     *      `{ job, lib, args, buffer, inputs, trigger, ticket, ctx, AT, step }`.
+     *    - `AT` runtime anchor is injected into VM (`this.AT`) by constructor.
+     *      It is forwarded to each stage as top-level `AT`.
      *    - Catches thrown errors and converts them to `helpers.SR_error`.
      *    - Normalizes return value via `OP._normalizeReturn`.
      *
@@ -251,8 +269,12 @@ export class VM {
 		    buffer : ticket.buffer,
 		    inputs: ticket.inputs,
 		    trigger,
+		    target :  ticket.target,
+		    e : job.e,
 		    ticket,
 		    ctx,
+		    AT:this.AT,
+
 		    step: v.stepRec,
 		});
 	    } catch (err) {
