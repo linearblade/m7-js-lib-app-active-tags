@@ -196,8 +196,8 @@ These are intended runtime integration surfaces.
 The Engine facade provides stable runtime control methods including:
 
 * `enqueue(jobLike, key?, opts?)`
-* `tick({ ctx?, ticket? })`
-* `drain({ max?, ticket?, ctx? })`
+* `tick({ ctx?, ticket?, requireJob? })`
+* `drain({ max?, ticket?, requireJob?, ctx? })`
 * `cancel(...)`
 * `lock(...)` / `unlock(...)`
 

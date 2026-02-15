@@ -46,7 +46,7 @@ const ticket = AT.engine.enqueue(job, "default", {
 ### Related methods
 
 * [`getTicketByJob(jobLike, key?)`](./get-ticket-by-job.md)
-* [`drain({ max?, ticket?, ctx? } = {})`](./drain.md)
+* [`drain({ max?, ticket?, requireJob?, ctx? } = {})`](./drain.md)
 
 ---
 

@@ -130,8 +130,8 @@ export class Tick {
  * @returns {Promise<Object>}
  *   Normalized tick trace describing the outcome of this step.
  */
-    async tick({ ctx = {} ,ticket=null} = {}) {
-        const v = this._validateTick({ ctx, ticket });
+    async tick({ ctx = {}, ticket = null, requireJob = undefined } = {}) {
+        const v = this._validateTick({ ctx, ticket, requireJob });
         if (v.done) return v.res;
 
         const finalize = this._makeFinalize(v);
@@ -255,10 +255,10 @@ export class Tick {
      * @returns {Object}
      *   Validation descriptor for the current tick.
      */
-    _validateTick({  ctx = {},ticket=null } = {}) {
+    _validateTick({ ctx = {}, ticket = null, requireJob = undefined } = {}) {
 	return ticket ?
-	    this._validateTickNamed({ctx,ticket}):
-	    this._validateTickNext({ctx});
+	    this._validateTickNamed({ ctx, ticket }):
+	    this._validateTickNext({ ctx, requireJob });
     }
 
     /**
@@ -510,10 +510,10 @@ export class Tick {
 	return this._makeRunnable({ jobId, job, st, ticket: st.active, ctx });
     }
     
-    _validateTickNext({ ctx = {} } = {}) {
-        const jobId = this.engine.scheduler.nextRunnable();
+    _validateTickNext({ ctx = {}, requireJob = undefined } = {}) {
+        const jobId = this.engine.scheduler.nextRunnable({ requireJob });
         if (!jobId)
-	    return { done: true, res: this.response._makeTickTrace({ flags: { didWork: false, reason: "noRunnable" } }) };
+            return { done: true, res: this.response._makeTickTrace({ flags: { didWork: false, reason: "noRunnable" } }) };
 	
 	// Resolve job (jobId is the stringified identity) 
 	const job = this._resolveJobSafe(jobId);

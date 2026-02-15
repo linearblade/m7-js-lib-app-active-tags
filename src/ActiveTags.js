@@ -58,6 +58,7 @@
  *   this.intervals
  *   this.observer
  *   this.discover
+ *   this.runtime
  *
  * Each subsystem is independently responsible for its own runtime behavior.
  *
@@ -140,6 +141,7 @@ import IntervalController from './class/interval/Controller.js';
 import ObserverController from './class/observer/Controller.js';
 import EventController    from './class/event/Controller.js';
 import DiscoverController from './class/discover/Controller.js';
+import RuntimeController  from './class/runtime/Controller.js';
 
 import atSchema           from './at_config/Schema.js';
 import DEFAULT_CONFIG     from './at_config/DEFAULT_CONFIG.js';
@@ -256,6 +258,11 @@ class ActiveTags {
 	    lib: this.lib,
 	    toJob: (x) => this.toJob(x),
 	});
+
+	this.runtime = new RuntimeController({
+	    AT: this,
+	    lib: this.lib,
+	});
 	
     }
 
@@ -341,11 +348,15 @@ class ActiveTags {
 	this.events.registerAll();
 
 	// on by default; falsy disables
-	if (!lib.bool.no(this.conf.boot.intervals))
-            this.intervals.on();
+	if (!lib.bool.no(this.conf.boot.intervals)) {
+            const conditionalCount = await this.intervals.conditionalOn();
+            //if (conditionalCount > 0) await this.engine.drain();
+	}
 
 	if (!lib.bool.no(this.conf.boot.events))
-            this.events.on();
+            await this.events.conditionalOn();
+	//just fire the thing right away. we need to drain the autoruns anyhow
+	await this.engine.drain();
     }
 }
 

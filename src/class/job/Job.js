@@ -416,6 +416,31 @@ export default class Job {
 	return this;
     }
 
+    /**
+     * Build or rebuild this Job's configuration from a provided config object.
+     *
+     * CONTRACT
+     * --------
+     * configureFrom() mirrors configure(), but delegates to JobConfig.buildFrom()
+     * to skip DOM-source reads and compile directly from the provided object.
+     *
+     * @param {Object} [opts]
+     *   Optional configuration object/overrides merged with this.opts.conf.config.
+     *
+     * @returns {Promise<Job>}
+     *   Resolves to this instance for chaining.
+     */
+    async configureFrom(opts) {
+	const lib = this.lib;
+	const cOpts = lib.hash.merge(lib.hash.to(this.opts.conf.config), lib.hash.to(opts));
+	const status = await this.config.buildFrom({ ...cOpts });
+	if (status !== JOB_CONFIG_STATUS.READY) {
+	    this.status = JOB_STATUS.ERROR;
+	    this.error = status;
+	}
+	return this;
+    }
+
     // ---- End Configuration Aliases ----
     
 

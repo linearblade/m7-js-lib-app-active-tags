@@ -611,12 +611,32 @@ export default class Registry {
      * - job is missing or job.e is missing
      * - an id collision is detected with an existing registered Job
      */
-    register(job) {
-	if (!job || !job.e) throw new Error("[Scheduler] register(job) requires job.e");
+    register(job, opts = {}) {
+	opts = this.lib.hash.to(opts, "indexElement returnExisting");
+	const indexElement = !this.lib.bool.no(opts.indexElement);
+	const returnExisting = this.lib.bool.yes(opts.returnExisting);
+	if (!job || (indexElement && !job.e)) {
+	    throw new Error("[Scheduler] register(job) requires job.e");
+	}
+
+	// Optional reuse path (id/name) for synthetic/internal registrations.
+	if (returnExisting) {
+	    if (job.id) {
+		const byId = this.getById(job.id);
+		if (byId) return byId;
+	    }
+
+	    if (job.name) {
+		const byName = this.listByName(job.name);
+		if (this.lib.array.len(byName)) return byName[0];
+	    }
+	}
 
 	// Already registered element => return existing job
-	const existing = this.getByElement(job.e);
-	if (existing) return existing;
+	if (indexElement) {
+	    const existing = this.getByElement(job.e);
+	    if (existing) return existing;
+	}
 
 	// Respect pre-seeded identity if present; otherwise assign
 	let id = job.id || this.nextId();
@@ -636,6 +656,7 @@ export default class Registry {
 	*/
 	//hard
 	if (taken && taken !== job) {
+	    if (returnExisting) return taken;
 	    throw new Error(`[Scheduler] register(): id collision "${id}"`);
 	}
 
@@ -645,7 +666,7 @@ export default class Registry {
 	job.setIdentity({ id, createdAt });
 
 	this.byId.set(job.id, job);
-	this.byEl.set(job.e, job.id);
+	if (indexElement && job.e) this.byEl.set(job.e, job.id);
 
 	// Metadata index (redundant if job carries it, but you use it in unregister)
 	this.createdAt.set(job.id, createdAt);

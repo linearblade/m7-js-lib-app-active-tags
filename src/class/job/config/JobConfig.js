@@ -296,6 +296,43 @@ export class JobConfig {
 	return this.status   = JOB_CONFIG_STATUS.READY;	
     }
 
+    /**
+     * Build or rebuild this Job configuration directly from a provided object.
+     *
+     * CONTRACT
+     * --------
+     * buildFrom() is similar to build(), but it does NOT invoke DomConfigSource.
+     * It compiles the provided input directly into a normalized schema.
+     *
+     * @param {Object} [opts={}]
+     *   Raw configuration object to compile.
+     *
+     * @returns {Promise<number>}
+     *   One of JOB_CONFIG_STATUS values.
+     */
+    async buildFrom(opts = {}) {
+	opts = this.lib.hash.to(opts);
+
+	// Synthetic/manual source: maintain the same inputs shape without DOM read.
+	this.inputs = DomConfigSource.emptyReadShape();
+	this.inputs.output = opts;
+
+	this.name = this.lib.hash.getUntilNotEmpty(opts, "name");
+
+	const schemaService = new Schema({ lib: this.lib, expr: this.expr });
+	const schemaResp = schemaService.compile(opts);
+	this.schemaReport = schemaResp.report;
+	this.schema = schemaResp.schema;
+
+	if (!this.schemaReport.ok) {
+	    this.error = this.schemaReport;
+	    return this.status = JOB_CONFIG_STATUS.ERROR_SCHEMA;
+	}
+
+	this.name = this.lib.utils.isEmpty(this.schema.name) ? 'unnamed job' : this.schema.name;
+	return this.status = JOB_CONFIG_STATUS.READY;
+    }
+
 
     
     

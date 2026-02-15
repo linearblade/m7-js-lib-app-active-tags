@@ -1,12 +1,12 @@
-# Method — `tick({ ctx?, ticket? } = {})`
+# Method — `tick({ ctx?, ticket?, requireJob? } = {})`
 
-[README](../../../../README.md) -> [API Index](../../INDEX.md) -> [Reference Manual](../INDEX.md) -> [`AT.engine` Deep Reference](./INDEX.md) -> [`tick({ ctx?, ticket? } = {})`](./tick.md)
+[README](../../../../README.md) -> [API Index](../../INDEX.md) -> [Reference Manual](../INDEX.md) -> [`AT.engine` Deep Reference](./INDEX.md) -> [`tick({ ctx?, ticket?, requireJob? } = {})`](./tick.md)
 
-## `tick({ ctx?, ticket? } = {})`
+## `tick({ ctx?, ticket?, requireJob? } = {})`
 
 ### Signature
 
-`tick({ ctx?, ticket? } = {}) -> Promise<Object>`
+`tick({ ctx?, ticket?, requireJob? } = {}) -> Promise<Object>`
 
 ### Parameters
 
@@ -14,6 +14,7 @@
 |---|---|---|---|
 | `ctx` | `Object` | No | Execution context forwarded to VM operations. |
 | `ticket` | `string|Ticket|null` | No | Optional targeted ticket id/object. When omitted, scheduler-selected execution is used. |
+| `requireJob` | `Job|string|Element|Object` | No | Optional scheduler filter used only when `ticket` is omitted. Limits next-runnable selection to tickets whose `ticket.require` includes this dependency. |
 
 ### Returns
 
@@ -42,7 +43,7 @@ if (!trace.didWork) {
 
 ### Related methods
 
-* [`drain({ max?, ticket?, ctx? } = {})`](./drain.md)
+* [`drain({ max?, ticket?, requireJob?, ctx? } = {})`](./drain.md)
 * [`enqueue(jobLike, key = "default", opts?)`](./enqueue.md)
 
 ---

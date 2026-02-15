@@ -14,8 +14,8 @@ Primary source:
 
 ## Method Pages
 
-* [`tick({ ctx?, ticket? } = {})`](./tick.md)
-* [`drain({ max?, ticket?, ctx? } = {})`](./drain.md)
+* [`tick({ ctx?, ticket?, requireJob? } = {})`](./tick.md)
+* [`drain({ max?, ticket?, requireJob?, ctx? } = {})`](./drain.md)
 * [`getTicketByJob(jobLike, key?)`](./get-ticket-by-job.md)
 * [`enqueue(jobLike, key = "default", opts?)`](./enqueue.md)
 * [`lockTicket(ticketId, lock?)`](./lock-ticket.md)

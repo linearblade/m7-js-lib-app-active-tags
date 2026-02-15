@@ -205,16 +205,17 @@ export class Engine {
     // Public execution façade
     // ---------------------------------------------------------------------------
 
-    tick({ ctx = {},ticket=null } = {}) {
-	return this._tick.tick({ ctx,ticket });
+    tick({ ctx = {}, ticket = null, requireJob = undefined } = {}) {
+	return this._tick.tick({ ctx, ticket, requireJob });
     }
 
 
-    async drain({ max = 1000, ticket = undefined, ctx = {}} = {}) {
+    async drain({ max = 1000, ticket = undefined, requireJob = undefined, ctx = {}} = {}) {
 	let did = 0;
+	const requireFilter = ticket ? undefined : requireJob;
 
 	while (did < max) {
-            const res = await this._tick.tick({ ctx, ticket });
+            const res = await this._tick.tick({ ctx, ticket, requireJob: requireFilter });
             if (!res?.didWork) break;
             did++;
 	}

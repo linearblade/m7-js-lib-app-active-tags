@@ -828,6 +828,142 @@ export class Controller {
     }
 
     /**
+     * Internal helper: enqueue a synthetic require-gated conditional-on ticket for one event binding.
+     *
+     * @param {Object} job
+     * @param {*} eventName
+     * @param {Object} [opts]
+     * @returns {Promise<number>}
+     *   1 when a conditional ticket was enqueued, otherwise 0.
+     */
+    async _conditionalOnOne(job, eventName, opts = {}) {
+	const lib = this.lib;
+	const engine = this.engine;
+	if (!job || !job.id) return 0;
+
+	eventName = lib.str.to(eventName, true).trim();
+	if (!eventName) return 0;
+
+	const jobEntry = this.registry.get(job.id);
+	if (!jobEntry) return 0;
+
+	const entry = jobEntry.get(eventName);
+	if (!entry) return 0;
+
+	// Mirror _onOne gates as closely as possible.
+	if (lib.bool.no(entry.enabled)) return 0;
+	if (lib.bool.yes(entry.on)) return 0;
+
+	const rec = entry.def || {};
+	let eventType = lib.str.to(lib.hash.get(rec, "event"), true).trim().toLowerCase();
+	eventType = normalizeEventType(eventType);
+	const pipeline = lib.str.to(lib.hash.get(rec, "pipeline"), true).trim();
+	if (!eventType || !pipeline) return 0;
+
+	const internalKey = `__eventController_event_${job.id}_${eventName}`;
+
+	const runHandler = ({ inputs } = {}) => {
+	    const targetJob = this.toJob(inputs?.jobId || job.id) || job;
+	    const targetEvent = lib.str.to(inputs?.eventName, true).trim() || eventName;
+	    this.on(targetJob, targetEvent);
+	    return true;
+	};
+
+	const errorHandler = ({ inputs } = {}) => {
+	    if (inputs && typeof inputs === "object") {
+		inputs.eventControllerError = true;
+	    }
+	    return true;
+	};
+
+	const optHash = lib.hash.to(opts);
+	const sourceRequire = lib.array.to(lib.hash.get(job, "config.schema.require"));
+	const extraRequire = lib.array.to(lib.hash.get(optHash, "require"));
+	const require = Array.from(new Set([...sourceRequire, ...extraRequire]));
+
+	const def = {
+	    enabled: true,
+	    autorun: true,
+	    require,
+	    pipeline: {
+		run: [runHandler],
+		error: [errorHandler],
+	    },
+	};
+
+	const runtime = this.AT && this.AT.runtime;
+	if (!runtime || typeof runtime.createInternalJob !== "function") return 0;
+
+	const internal = await runtime.createInternalJob(internalKey, def, { domain: "event", e: job.e });
+	if (!internal || !internal.job || !internal.job.id) return 0;
+
+	const ticket = engine.enqueue(internal.job, "default", {
+	    inputs: {
+		reason: "event.conditionalOn",
+		jobId: job.id,
+		eventName,
+	    },
+	    meta: {
+		source: "event-controller",
+		type: "conditionalOn",
+		identifier: internal.identifier,
+	    },
+	});
+
+	return ticket ? 1 : 0;
+    }
+
+    /**
+     * Conditionally install event bindings through synthetic require-gated tickets.
+     *
+     * Behavior mirrors on():
+     * - Global mode when no jobLike is provided.
+     * - Single-binding mode when eventName is provided.
+     * - All-bindings mode for a resolved job otherwise.
+     *
+     * Instead of calling _onOne(), this delegates to _conditionalOnOne().
+     *
+     * @param {Object|string|Element|null} [jobLike]
+     * @param {string} [eventName]
+     * @param {Object} [opts]
+     * @returns {Promise<number>}
+     *   Number of event bindings for which a conditional ticket enqueue succeeded.
+     */
+    async conditionalOn(jobLike, eventName, opts = {}) {
+	const lib = this.lib;
+
+	// GLOBAL: conditionally turn on all events for all jobs
+	if (!jobLike) {
+	    let count = 0;
+	    for (const jobId of this.registry.keys()) {
+		const job = this.toJob(jobId);
+		if (!job || !job.id) continue;
+		count += await this.conditionalOn(job, eventName, opts);
+	    }
+	    return count;
+	}
+
+	const job = this.toJob(jobLike);
+	if (!job || !job.id) return 0;
+
+	const jobEntry = this.registry.get(job.id);
+	if (!jobEntry) return 0;
+
+	// single event
+	if (lib.str.to(eventName, true).trim()) {
+	    return await this._conditionalOnOne(job, eventName, opts);
+	}
+
+	// all events for this job
+	let count = 0;
+	for (const name of jobEntry.keys()) {
+	    count += await this._conditionalOnOne(job, name, opts);
+	}
+
+	return count;
+    }
+
+    /**
      * Install delegated event handlers for registered event bindings.
      *
      * CONTRACT
@@ -1145,7 +1281,10 @@ export class Controller {
      *   subSelector  selector string or null
      *
      * Drain is scheduled asynchronously to avoid reentrancy and allow coalescing:
-     *   Promise.resolve().then(() => AT.engine.drain({ ticket, ctx: {} }))
+     *   Promise.resolve().then(async () => {
+     *     await AT.engine.drain({ ticket, ctx: {} });
+     *     await AT.engine.drain({ requireJob: job, ctx: {}, max: 25 });
+     *   })
      *
      *
      * RETURN VALUE
@@ -1219,11 +1358,12 @@ export class Controller {
             });
 
             // pass trigger through ctx for ops/runtime use
-            Promise.resolve().then(() =>
-		AT.engine.drain({ ticket, ctx: { } })
-            );
-	};
-    }
+            Promise.resolve().then(async () => {
+		await AT.engine.drain({ ticket, ctx: {} });
+		await AT.engine.drain({ requireJob: job, ctx: {}, max: 25 });
+            });
+		};
+	    }
 
     /**
      * Developer note

@@ -124,6 +124,105 @@ export class Scheduler {
     }
 
     /**
+     * Determine whether a specific ticket is currently runnable.
+     *
+     * This method evaluates only ticket-level dependency gating
+     * (`ticket.require`) and does not inspect queue membership.
+     *
+     * Input can be:
+     * - ticket object
+     * - ticket id string (resolved via EngineState index)
+     *
+     * Notes:
+     * - This method does NOT inspect lock state; lock gating is handled
+     *   later in Tick.
+     * - This method does NOT enqueue/dequeue or alter `_ready` / `_present`.
+     *
+     * @param {Object|string} ticketLike
+     *   Runtime ticket object or ticket id.
+     *
+     * @returns {boolean}
+     *   True if this ticket passes dependency gating; otherwise false.
+     */
+    isRunnable(ticketLike) {
+	const engine = this.engine;
+	const registry = engine.jobRegistry;
+	const ticket = engine.state.getTicket(ticketLike) || ticketLike;
+
+	if (!ticket || typeof ticket !== "object") return false;
+
+	if (ticket.require && ticket.require.length) {
+	    for (const reqJobLike of ticket.require) {
+		const dep = registry.resolve(reqJobLike);
+		if (!dep || !dep.flags || dep.flags.hasRun !== true) {
+		    return false;
+		}
+	    }
+	}
+
+	return true;
+    }
+
+    /**
+     * Determine whether a specific job is currently runnable.
+     *
+     * This mirrors the non-mutating eligibility gate used by
+     * `nextRunnable()` for a single resolved job.
+     *
+     * Gating rules:
+     * - job must resolve from registry
+     * - job must have an active ticket or queued head ticket
+     * - selected ticket must pass `isRunnable(ticket|ticketId)`
+     *
+     * Notes:
+     * - This method does NOT inspect lock state; lock gating is handled
+     *   later in Tick.
+     * - This method does NOT enqueue/dequeue or alter `_ready` / `_present`.
+     *
+     * @param {*} jobLike
+     *   Job id, element, name, or job-like value supported by registry.resolve.
+     *
+     * @returns {boolean}
+     *   True if this job passes runnable gating; otherwise false.
+     */
+    isJobRunnable(jobLike) {
+	const engine = this.engine;
+	const registry = engine.jobRegistry;
+	const job = registry.resolve(jobLike);
+
+	if (!job || !job.id) return false;
+
+	const st = engine.state.jobState(job.id);
+	const ticket = st.active || (st.queue && st.queue.length ? st.queue[0] : null);
+	if (!ticket) return false;
+
+	return this.isRunnable(ticket);
+    }
+
+    /**
+     * Determine whether a ticket explicitly requires a specific job id.
+     *
+     * When no requiredJobId is provided, this returns true (no filter).
+     *
+     * @param {Object} [args]
+     * @param {Object} args.ticket
+     * @param {Object} args.registry
+     * @param {string|null|undefined} args.requiredJobId
+     * @returns {boolean}
+     */
+    _matchesRequiredDependency({ ticket, registry, requiredJobId } = {}) {
+	if (!requiredJobId) return true;
+
+	const reqs = Array.isArray(ticket?.require) ? ticket.require : [];
+	for (const req of reqs) {
+	    const dep = registry.resolve(req);
+	    if (dep && dep.id === requiredJobId) return true;
+	}
+
+	return false;
+    }
+
+    /**
      * Select the next runnable job id from the ready queue.
      *
      * This method implements the Scheduler’s gating logic and returns
@@ -167,9 +266,12 @@ export class Scheduler {
      * @returns {string|null}
      *   The next runnable job id, or null if none are eligible.
      */
-    nextRunnable() {
+    nextRunnable({ requireJob = undefined } = {}) {
 	const engine = this.engine;
 	const registry = engine.jobRegistry;
+	const required = requireJob ? registry.resolve(requireJob) : null;
+	const requiredJobId = required && required.id ? required.id : null;
+	if (requireJob && !requiredJobId) return null;
 
 	for (let i = 0; i < this._ready.length; i++) {
             const jobId = this._ready[i];
@@ -195,25 +297,18 @@ export class Scheduler {
 	    if (!ticket) {
 		// nothing to run; jobId should not be in scheduler
 		this._ready.splice(i, 1);
-		this._present.delete(jobId);
-		i--;
+		    this._present.delete(jobId);
+		    i--;
+		    continue;
+	    }
+
+	    // Optional filter: only consider tickets that require requiredJobId.
+	    if (!this._matchesRequiredDependency({ ticket, registry, requiredJobId })) {
 		continue;
 	    }
 	    
             // REQUIRE GATE (live, no global registry)
-            if (ticket.require && ticket.require.length) {
-		let ok = true;
-
-		for (const reqJobLike of ticket.require) {
-                    const dep = registry.resolve(reqJobLike);
-                    if (!dep || !dep.flags || dep.flags.hasRun !== true) {
-			ok = false;
-			break;
-                    }
-		}
-
-		if (!ok) continue; // cock blocked (requirements not met)
-            }
+            if (!this.isRunnable(ticket)) continue; // cock blocked (requirements not met)
 
             // Runnable — remove from queue and return
             this._ready.splice(i, 1);
@@ -270,6 +365,3 @@ export class Scheduler {
 	if (jobId) this._present.delete(jobId);
     }
 }
-
-
-

@@ -10,8 +10,8 @@ This page is the surface index for `AT.engine` methods.
 
 ## Methods
 
-* [`tick({ ctx?, ticket? } = {})`](./at-engine/tick.md)
-* [`drain({ max?, ticket?, ctx? } = {})`](./at-engine/drain.md)
+* [`tick({ ctx?, ticket?, requireJob? } = {})`](./at-engine/tick.md)
+* [`drain({ max?, ticket?, requireJob?, ctx? } = {})`](./at-engine/drain.md)
 * [`getTicketByJob(jobLike, key?)`](./at-engine/get-ticket-by-job.md)
 * [`enqueue(jobLike, key = "default", opts?)`](./at-engine/enqueue.md)
 * [`lockTicket(ticketId, lock?)`](./at-engine/lock-ticket.md)

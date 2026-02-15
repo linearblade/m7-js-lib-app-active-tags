@@ -146,6 +146,97 @@ export class Controller {
 	this.registry = new Map();
 	Object.freeze(this);
     }
+
+    /**
+     * Internal helper: enqueue a synthetic conditional-on ticket for one interval.
+     *
+     * The generated pipeline run/error handlers are function steps attached to
+     * an internal synthetic job keyed by
+     * `__intervalController_interval_${job.id}_${intervalName}`.
+     *
+     * @param {Object} job
+     * @param {*} intervalName
+     * @param {Object} [opts]
+     * @returns {Promise<number>}
+     *   1 when a conditional ticket was enqueued, otherwise 0.
+     */
+    async _conditionalOnOne(job, intervalName, opts = {}) {
+	const lib = this.lib;
+	const engine = this.engine;
+	if (!job || !job.id) return 0;
+
+	intervalName = lib.str.to(intervalName, true).trim();
+	if (!intervalName) return 0;
+
+	const jobEntry = this.registry.get(job.id);
+	if (!jobEntry) return 0;
+
+	const entry = jobEntry.get(intervalName);
+	if (!entry) return 0;
+
+	// Mirror _onOne gates as closely as possible.
+	if (lib.bool.no(entry.enabled)) return 0;
+	if (lib.bool.yes(entry.on)) return 0;
+
+	const rec = entry.def || {};
+	const everyMs = Number(lib.hash.get(rec, "repeat") || 0);
+	const pipeline = lib.str.to(lib.hash.get(rec, "pipeline"), true).trim();
+	if (!pipeline) return 0;
+	if (!Number.isFinite(everyMs) || everyMs <= 0) return 0;
+
+	const internalKey = `__intervalController_interval_${job.id}_${intervalName}`;
+
+	const runHandler = ({ inputs } = {}) => {
+	    const targetJob = this.toJob(inputs?.jobId || job.id) || job;
+	    const targetInterval = lib.str.to(inputs?.intervalName, true).trim() || intervalName;
+	    this.on(targetJob, targetInterval);
+	    return true;
+	};
+
+	const errorHandler = ({ inputs } = {}) => {
+	    // Keep error path non-throwing; preserve context in inputs for diagnostics.
+	    if (inputs && typeof inputs === "object") {
+		inputs.intervalControllerError = true;
+	    }
+	    return true;
+	};
+
+	const optHash = lib.hash.to(opts);
+	const sourceRequire = lib.array.to(lib.hash.get(job, "config.schema.require"));
+	const extraRequire = lib.array.to(lib.hash.get(optHash, "require"));
+	const require = Array.from(new Set([...sourceRequire, ...extraRequire]));
+
+	const def = {
+	    enabled: true,
+	    autorun: true,
+	    require,
+	    pipeline: {
+		run: [runHandler],
+		error: [errorHandler],
+	    },
+	};
+
+	const runtime = this.AT && this.AT.runtime;
+	if (!runtime || typeof runtime.createInternalJob !== "function") return 0;
+
+	const internal = await runtime.createInternalJob(internalKey, def, { domain: "interval", e: job.e });
+	if (!internal || !internal.job || !internal.job.id) return 0;
+
+	const ticket = engine.enqueue(internal.job, "default", {
+	    inputs: {
+		reason: "interval.conditionalOn",
+		jobId: job.id,
+		intervalName,
+	    },
+	    meta: {
+		source: "interval-controller",
+		type: "conditionalOn",
+		identifier: internal.identifier,
+	    },
+	});
+
+	return ticket ? 1 : 0;
+    }
     /**
      * Destroy the Interval Controller.
      *
@@ -604,6 +695,56 @@ export class Controller {
 
 	return out;
     }    
+
+    /**
+     * Conditionally activate intervals through synthetic require-gated tickets.
+     *
+     * Behavior mirrors on():
+     * - Global mode when no jobLike is provided.
+     * - Single-interval mode when intervalName is provided.
+     * - All-intervals mode for a resolved job otherwise.
+     *
+     * Instead of calling _onOne(), this delegates to _conditionalOnOne().
+     *
+     * @param {Object|string|Element|null} [jobLike]
+     * @param {string} [intervalName]
+     * @param {Object} [opts]
+     * @returns {Promise<number>}
+     *   Number of interval entries for which a conditional ticket enqueue succeeded.
+     */
+    async conditionalOn(jobLike, intervalName, opts = {}) {
+	const lib = this.lib;
+
+	// GLOBAL: conditionally turn on all intervals for all jobs
+	if (!jobLike) {
+            let count = 0;
+            for (const jobId of this.registry.keys()) {
+		const job = this.toJob(jobId);
+		if (!job || !job.id) continue;
+		count += await this.conditionalOn(job, intervalName, opts);
+            }
+            return count;
+	}
+
+	const job = this.toJob(jobLike);
+	if (!job || !job.id) return 0;
+
+	const jobEntry = this.registry.get(job.id);
+	if (!jobEntry) return 0;
+
+	// single interval
+	if (lib.str.to(intervalName, true).trim()) {
+            return await this._conditionalOnOne(job, intervalName, opts);
+	}
+
+	// all intervals for job
+	let count = 0;
+	for (const name of jobEntry.keys()) {
+            count += await this._conditionalOnOne(job, name, opts);
+	}
+
+	return count;
+    }
     
     /**
      * Activate interval timers for registered interval definitions.
