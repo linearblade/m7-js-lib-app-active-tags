@@ -53,3 +53,8 @@
 - [ ] Internal job name normalization note: `RuntimeController.createInternalJob(...)` currently mutates `rec.name` (sets it to internal identifier) before `configureFrom(...)`.
   This prevents configuration build from overwriting internal job naming with `"none given"` when record name is empty.
   It is internal and non-problematic for now; cleanup is likely straightforward but currently paperwork-heavy.
+- [ ] Roll up `trait_job.js` (`toJob`) into `ActiveTags.js` and remove trait indirection for this surface.
+- [ ] Roll up remaining trait responsibilities into runtime controller surfaces where behavior is runtime-oriented.
+- [ ] Evaluate runtime-start boundary: consider `runtime.start(...)` as lifecycle entry instead of main `ActiveTags.start()` owning startup orchestration directly.
+- [ ] Evaluate controller initialization ownership: move initialization/wiring currently done in `ActiveTags` constructor into controller-owned init flows where practical.
+- [ ] Reorganize source layout: `src/class/` naming no longer matches current architecture posture; either split by subsystem with clearer boundaries or collapse `class/` into `src/`.

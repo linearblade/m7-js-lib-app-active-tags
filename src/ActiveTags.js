@@ -172,7 +172,7 @@ class ActiveTags {
 	}
 	this.schema = new atSchema({lib, def_conf:DEFAULT_CONFIG, user_conf: conf});
 	this.opts = this.conf   = this.schema.snapShot();
-	console.log(this.conf);
+	//console.log(this.conf);
 
 	// allow helpers to assume this.lib exists
 	this.lib = lib;
@@ -194,7 +194,7 @@ class ActiveTags {
 
 	if (this.svc.log && this.conf.log.enabled) {
 	    for (const key in this.conf.log.buckets) {
-		console.log(` creating ${key} `,this.conf.log.policy);
+		//console.log(` creating ${key} `,this.conf.log.policy);
 		this.svc.log.createBucket(this.conf.log.buckets[key], this.conf.log.policy);
 	    }
 	}
