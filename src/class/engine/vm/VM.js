@@ -125,7 +125,7 @@ export class VM {
 	this.AT = AT;
 	this.lib       = lib ;
 	this.builtins  = builtins || {}; //this is unnecessary but the AI bitches when I lint, b/c it seems to have trouble reading my libs.
-	this.validator = new Validate({lib,builtins});
+	this.validator = new Validate({lib,builtins,AT});
 	this.op        = new OP({lib});
 	this.expr      = expr;
     }
@@ -280,7 +280,7 @@ export class VM {
 	    } catch (err) {
 		res = helpers.SR_error(err, { pipelineKey: v.pipelineKey, op: v.op, step: v.stepRec });
 	    }
-
+	    
 	    // normalize only for real op execution
 	    res = this.op._normalizeReturn(res, { pipelineKey: v.pipelineKey, op: v.op });
 	}
@@ -303,7 +303,6 @@ export class VM {
 	    [helpers.STAGE_STATUS.ERROR]:    this._responseError,   // <- critical: now runs for v.err too
 	    [helpers.STAGE_STATUS.COMPLETE]: this._responseComplete,
 	};
-
 	const handler = disp[res?.status] || this._responseUnknown;
 	const rv = handler.call(this, env);
 

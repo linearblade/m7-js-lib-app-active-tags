@@ -38,6 +38,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 	},
 	engine: {
 	    // hooks: true
+	    opResolution : {
+		auto: true
+	    }
 	},
 	// job-default config (this is what gets sliced + passed into Job.configure)
 	job: {

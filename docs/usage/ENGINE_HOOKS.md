@@ -54,7 +54,8 @@ const AT = new ActiveTags(lib, {
 Behavior notes from schema compile:
 
 * `engine.hooks: true` -> uses built-in `testHooks`.
-* `engine.hooks: false | null | undefined` -> disables hooks.
+* `engine.hooks: false | null` -> explicitly disables hooks.
+* omitted/undefined `engine.hooks` -> keeps default compiled behavior from runtime defaults (currently `false`).
 * `engine.hooks: { ... }` -> function map (non-function values are filtered out).
 
 ---
@@ -167,4 +168,3 @@ engine: {
 * [Builtins & Operations](./OPERATIONS_BUILTINS.md)
 * [Usage TOC](./TOC.md)
 * [README](../../README.md)
-

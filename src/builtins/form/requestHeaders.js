@@ -1,5 +1,6 @@
-// builtins/requestHeaders.js
-// Op name: "request.headers"
+// builtins/form/requestHeaders.js
+// Builtin op path: `form.headers`
+// Detail op label used in status payload: `request.headers`
 /**
  * Attach HTTP request headers to the current buffer context.
  *

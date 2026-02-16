@@ -1,4 +1,33 @@
 // builtins/httpSend.js
+/**
+ * `http.send` builtin.
+ *
+ * Convenience transport stage that delegates to `lib.site.form.submit`
+ * and mirrors response payload into `inputs.response`.
+ *
+ * Source resolution:
+ * 1) `trigger`
+ * 2) `job.e`
+ *
+ * Args:
+ * - hash args are treated as request overrides
+ * - `ajax` is forced to `true`
+ *
+ * Side effects:
+ * - Writes `inputs.response`
+ * - Stores a lightweight request record on `job.requests[requestName]`
+ *
+ * @param {Object} params
+ * @param {Object} params.job
+ * @param {Object} params.lib
+ * @param {*} [params.args]
+ * @param {*} [params.trigger]
+ * @param {Object} [params.inputs]
+ * @param {*} [params.step]
+ *
+ * @returns {Promise<Object>}
+ *   StageResult-like object (`ok` | `error`).
+ */
 export default async function httpSend({ job, lib, args, trigger, inputs, step } = {}) {
   try {
     const submit = lib.site.form.submit;

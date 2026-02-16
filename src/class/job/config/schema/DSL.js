@@ -281,8 +281,8 @@ export class DSL {
 
 	//console.log(`scrubbing pipeline ${ctx.key}`);
 	
-	p.run     = this.expr.parseList(p.run);
-	p.error = this.expr.parseList(p.error);
+	p.run     = this.expr.parseOpList(p.run);
+	p.error = this.expr.parseOpList(p.error);
 
 	return p;
     }

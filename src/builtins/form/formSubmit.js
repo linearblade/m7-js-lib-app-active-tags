@@ -80,6 +80,19 @@ export default async function formSubmit({ job, lib, args, trigger, buffer, step
     }
 }
 
+/**
+ * Build final submit options by merging runtime args with staged buffer meta.
+ *
+ * Precedence:
+ * - staged buffer meta overrides runtime args
+ * - staged headers override runtime headers
+ *
+ * @param {Object} deps
+ * @param {Object} deps.lib
+ * @param {Object} deps.buffer
+ * @param {*} [deps.args]
+ * @returns {Object} Final options hash for `lib.site.form.submit`.
+ */
 function makeOpts({ lib, buffer, args } = {}) {
     const staged = buffer.meta() || {};
     const runtime = lib.hash.is(args) ? args : {};

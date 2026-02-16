@@ -1,3 +1,32 @@
+/**
+ * `error.dump` builtin.
+ *
+ * Captures current ticket error context into a diagnostic payload, optionally
+ * logs it to console, stores it on `inputs.errors`, and can rethrow for stack
+ * trace debugging.
+ *
+ * Options (via `args` hash):
+ * - `includeInputs` (default true)
+ * - `includeCtx` (default false)
+ * - `console` (default true)
+ * - `level` ("warn" | default error)
+ * - `printStack` (default true)
+ * - `debugger` (default false)
+ * - `throw` (default false)
+ *
+ * @param {Object} params
+ * @param {Object} params.job
+ * @param {Object} params.lib
+ * @param {*} [params.args]
+ * @param {*} [params.trigger]
+ * @param {Object} [params.ticket]
+ * @param {Object} [params.inputs]
+ * @param {Object} [params.ctx]
+ * @param {*} [params.step]
+ *
+ * @returns {Promise<Object>}
+ *   StageResult-like object (`ok` | `error`).
+ */
 export default async function errorDump({ job, lib, args, trigger, ticket, inputs, ctx, step } = {}) {
   try {
     const opts = (args && typeof args === "object") ? args : {};

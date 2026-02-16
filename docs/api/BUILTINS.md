@@ -11,6 +11,10 @@ Builtins root export:
 
 ## Namespaces
 
+### Root
+
+* confirm
+
 ### `form`
 
 * collect

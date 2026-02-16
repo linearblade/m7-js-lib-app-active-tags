@@ -74,9 +74,10 @@
 import helpers from '../helpers.js';
 
 export class Validate {
-    constructor({lib,builtins} ) {
+    constructor({lib,builtins,AT} ) {
 	this.lib = lib;
 	this.builtins = builtins;
+	this.fnPolicy = lib.hash.get(AT.conf.engine.opResolution);
     }
 
     //leaving this 'raw', b/c I havent decided if I will make tickets an class entity rather than a raw hash.
@@ -165,7 +166,7 @@ export class Validate {
 	// - "request.submit"
 	// - { op:"request.submit", ... }
 	let rec = this.lib.hash.to(step, "op");
-	return { op: rec.op || null, args: rec.args || null, raw: step };
+	return { op: rec.op || null, args: rec.args || null, raw: step,builtin:rec.builtin };
     }
 
     /**
@@ -177,10 +178,72 @@ export class Validate {
      *
      * Returns the resolved function or null/undefined if not found.
      */
-    _getFn(fn){
+    _getFnold(fn){
 	const builtin = this.lib.hash.get(this.builtins,fn,null);
 	if(builtin) return builtin;
 	return this.lib.func.get(fn);
+    }
+
+    /**
+     * Next-gen op resolver (staged, not yet the default call path).
+     *
+     * Rules:
+     * - If builtin === true: strict builtin lookup only.
+     * - If builtin !== true and fnPolicy.auto === true:
+     *     use ordered lookup from fnPolicy.order.
+     * - If builtin !== true and fnPolicy.auto !== true:
+     *     user lookup only.
+     *
+     * Ordered lookup keys:
+     * - "user"    -> `lib.func.get(fn)`
+     * - "lib"     -> resolves `lib.*` paths against this Validate instance root
+     *                (`lib.func.get(fn, { root: this })`)
+     * - "builtin" -> ActiveTags builtin map lookup
+     *
+     * @param {*} fn
+     * @param {boolean} [builtin]
+     * @returns {Function|null}
+     */
+    _getFn(fn, builtin = undefined) {
+	const lib = this.lib;
+	if (typeof fn === "function") return fn;
+
+	const lookupBuiltin = () => lib.hash.get(this.builtins, fn, null);
+	const lookupUser = () => lib.func.get(fn);
+	const lookupLib = () => {
+	    if (!lib.str.is(fn)) return null;
+	    const token = fn.trim();
+	    if (token.indexOf("lib.") !== 0) return null;
+	    return lib.func.get(token, { root: this });
+	};
+
+	// explicit builtin path (strict)
+	if (builtin === true) {
+	    const rv =  lookupBuiltin();
+	    //console.log('try builting for ',fn,rv);
+	    return rv;
+	}
+
+	const policy = lib.hash.slice(lib.hash.to(this.fnPolicy), "order auto");
+	const auto = lib.bool.yes(policy.auto);
+	if (!auto) return lookupUser();
+
+	const scan = lib.array.to(policy.order, helpers.ARR_TO_OPTS);
+	const dispatch = {
+	    user: lookupUser,
+	    lib: lookupLib,
+	    builtin: lookupBuiltin,
+	};
+
+	for (const item of scan) {
+	    const key = lib.str.to(item, true).trim().toLowerCase();
+	    const resolver = dispatch[key];
+	    if (!resolver) continue;
+	    const hit = resolver();
+	    if (hit) return hit;
+	}
+
+	return null;
     }
 
     /**
@@ -304,7 +367,7 @@ export class Validate {
 		steps,
 	    };
 	}
-	const { op, args } = this._resolveStage(stepRec);
+	const { op, args,builtin } = this._resolveStage(stepRec);
 	if (!op) {
 	    return {
 		err: helpers.SR_error(new Error("Invalid pipeline step (missing op)"), { pipelineKey, step: stepRec }),
@@ -315,7 +378,7 @@ export class Validate {
 	    };
 	}
 
-	const fn = this._getFn(op);
+	const fn = this._getFn(op,builtin);
 	if (!fn) {
 	    return {
 		err: helpers.SR_error(new Error(`Unknown op '${op}'`), { pipelineKey, op, step: stepRec }),

@@ -579,7 +579,6 @@ export class Tick {
             jobId, job, ticket, res, summary,
             flags: { didWork: true, terminal: true, error: true }
 	});
-
 	// uniform terminal hooks (same payload)
 	this._emitHook(helpers.HOOKS.ERROR, trace);
 	this._emitHook(helpers.HOOKS.DONE, trace);

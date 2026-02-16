@@ -2,6 +2,8 @@
 // StageResult helpers
 // -----------------------------------------------------------------------------
 import Buffer from './Buffer.js';
+export { ARR_TO_OPTS } from '../../constants.js';
+
 export const STAGE_STATUS_RANGE = ['ok','wait','error','complete']; 
 export const STAGE_STATUS = Object.freeze({
     OK: "ok",

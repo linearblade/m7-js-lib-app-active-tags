@@ -21,9 +21,8 @@
  *  2) `trigger`        — engine-provided trigger element
  *  3) `job.e`          — the job’s bound element (typically the `<form>`)
  *
- * The resolved element is asserted to be a valid DOM element and written
- * to the ticket buffer. This prepares the pipeline for `form.collect`,
- * which expects a form element or one of its descendants.
+ * The resolved element is asserted to be a valid DOM element and stored
+ * as `ticket.trigger` for downstream form stages.
  *
  * This stage performs **no submission, collection, or network activity**.
  * It exists purely to normalize and stage submit context.
@@ -39,11 +38,11 @@
  *                                  Engine-provided trigger element
  * @param {Object|null} params.inputs
  *                                  User-provided inputs (may be null/undefined)
- * @param {Object} params.buffer     Ticket buffer (submit context staging)
+ * @param {Object} params.ticket     Current ticket (trigger slot is updated)
  * @param {Object} params.step       Pipeline step metadata
  *
  * @returns {StageResultLike}
- *   `{ status: "ok" }` after staging the submitter,
+ *   `{ status: "ok" }` after staging the submitter onto `ticket.trigger`,
  *   or `{ status: "error" }` if resolution or assertion fails.
  */
 

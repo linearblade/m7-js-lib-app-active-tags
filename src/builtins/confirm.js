@@ -1,5 +1,37 @@
 // builtins/confirm.js
 
+/**
+ * `confirm` builtin.
+ *
+ * Shows a browser confirm dialog when enabled and controls pipeline flow
+ * from the user decision.
+ *
+ * Message resolution precedence:
+ * 1) `args.message`
+ * 2) `data-confirm` attribute
+ * 3) `data-confirm-text` / `data-confirm-message`
+ * 4) `"Are you sure?"`
+ *
+ * Enablement policy:
+ * - explicit `args.enabled`
+ * - else enabled when confirm-related DOM attributes are present
+ * - else no-op (`status: "ok", enabled:false`)
+ *
+ * Runtime behavior:
+ * - Headless/no-window environments: soft-skip as `ok`
+ * - Confirm accept: `ok`
+ * - Confirm cancel: `complete` + `inputs.cancelled = true`
+ *
+ * @param {Object} params
+ * @param {Object} params.job
+ * @param {Object} params.lib
+ * @param {*} [params.args]
+ * @param {Object} [params.inputs]
+ * @param {*} [params.step]
+ *
+ * @returns {Promise<Object>}
+ *   StageResult-like object (`ok` | `complete` | `error`).
+ */
 export default async function confirmOp({ job, lib, args, inputs, step } = {}) {
   try {
     // node/headless environments: no confirm, so treat as pass (or error if you prefer)

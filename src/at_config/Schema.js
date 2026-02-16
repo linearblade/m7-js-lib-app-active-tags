@@ -1049,21 +1049,32 @@ _configBoot(active, user) {
      * HOOKS HANDLING (`engine.hooks`):
      * - Resolved via `_boolishCoerceHash(...)`.
      * - Boolish semantics:
-     *     - Explicit opt-out on user layer => `{}` (disable all hooks)
-     *     - `true` => substitute built-in `testHooks`
-     *     - object => merged with defaults (user wins on conflicts)
+     *     - Explicit opt-out on user layer (`false` / null) => `{}` (disable all hooks)
+     *     - `true` on either layer => substitute built-in `testHooks`
+     *     - object/other => coerced to hash and merged by layer (`user` wins)
      * - Final surface:
      *     - Filtered to function values only
      *     - Shallow filtering (not deep)
+     *
+     * OP-RESOLUTION HANDLING (`engine.opResolution`):
+     * - Resolved via `_coerceOpResolution(...)`.
+     * - Normalized fields:
+     *     - `order`: allowed tokens are `"user"`, `"lib"`, and `"builtin"` only.
+     *     - `auto`: defaults to `true` when omitted.
+     * - Normalization semantics:
+     *     - `order` entries are lowercased, filtered, and de-duplicated (stable).
+     *     - empty/invalid `order` falls back to `["user", "lib", "builtin"]`.
      *
      * RESPONSIBILITIES:
      * - Normalize system and user engine config blocks.
      * - Resolve and compile the `engine.builtins` function surface.
      * - Resolve and compile the `engine.hooks` function surface.
+     * - Resolve and normalize `engine.opResolution`.
      * - Merge engine configuration deterministically.
      *
      * NON-RESPONSIBILITIES:
      * - Does NOT execute builtins or hooks.
+     * - Does NOT execute op lookups (compile-only policy normalization).
      * - Does NOT validate hook names or builtin behavior.
      * - Does NOT manage engine lifecycle or runtime state.
      *
@@ -1073,6 +1084,7 @@ _configBoot(active, user) {
      * - Contain:
      *     - `builtins`: a (possibly nested) hash of functions only.
      *     - `hooks`: a hash of functions only.
+     *     - `opResolution`: normalized `{ order, auto }` policy.
      * - Be safe for runtime invocation without additional type checks.
      *
      * @param {Object} active
@@ -1102,15 +1114,80 @@ _configBoot(active, user) {
             testHooks
 	);
 
+	// op-resolution policy (normalized runtime contract)
+	const mOpResolution = this._coerceOpResolution(
+            sysEngine.opResolution,
+            userEngine.opResolution
+	);
+	
 	// merge engine block (user overrides defaults)
 	const merged = lib.hash.merge(sysEngine, userEngine, CONSTANTS.MERGE_OPTS_V1);
 	
 	// force compiled builtins result (post-merge)
 	merged.builtins = mBuiltins;
 	merged.hooks    = mHooks;
+	merged.opResolution = mOpResolution;
 	active.engine   = merged;
     }
-    
+
+
+    /**
+     * Normalize and compile `engine.opResolution`.
+     *
+     * CONTRACT:
+     * - Accepts system/base and user/layer values.
+     * - Produces a normalized runtime policy object:
+     *     `{ order: string[], auto: boolean }`
+     * - Never throws for invalid user values; falls back to safe defaults.
+     *
+     * INPUT SEMANTICS:
+     * - `base` and `layer` are hash-coerced and merged (`layer` wins).
+     * - Only the keys `order` and `auto` are considered.
+     *
+     * NORMALIZATION:
+     * - `order`:
+     *     - normalized to array
+     *     - tokens lowercased + trimmed
+     *     - filtered to allowed values: `"user" | "lib" | "builtin"`
+     *     - stable de-duplicated
+     *     - fallback: `["user", "lib", "builtin"]` when empty/invalid
+     * - `auto`:
+     *     - if present, normalized via `lib.bool.yes(...)`
+     *     - if absent, defaults to `true`
+     *
+     * @param {*} base
+     *   System/default opResolution surface.
+     *
+     * @param {*} layer
+     *   User/config opResolution override surface.
+     *
+     * @returns {{order: string[], auto: boolean}}
+     *   Normalized op-resolution policy for VM lookup behavior.
+     */
+    _coerceOpResolution(base, layer) {
+	const { lib } = this;
+
+	const merged = lib.hash.slice(
+            lib.hash.merge(
+		lib.hash.to(base),
+		lib.hash.to(layer),
+		CONSTANTS.MERGE_OPTS_V1
+            ),
+            "order auto"
+	);
+
+	let order = lib.array.to(merged.order, CONSTANTS.ARR_TO_OPTS)
+            .map(v => lib.str.to(v, true).trim().toLowerCase())
+            .filter(v => v === "user" || v === "lib" || v === "builtin");
+
+	if (!lib.array.len(order)) order = ["user", "lib", "builtin"];
+	order = Array.from(new Set(order)); // stable de-dupe
+
+	const auto = ("auto" in merged) ? lib.bool.yes(merged.auto) : true;
+
+	return { order, auto };
+    }
+
     
     /**
      * Coerce a boolish config surface into a merged "hash of functions".

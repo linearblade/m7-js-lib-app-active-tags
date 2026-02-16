@@ -470,6 +470,172 @@ export class ExpressionResolver {
 	return out;
     }
 
+    /**
+     * Parse op list entries into normalized records with explicit builtin metadata.
+     *
+     * Supported builtin markers:
+     * - string op prefixed with "@" (for example "@dom.patch")
+     * - object op fields that include "@"
+     * - object builtin flag (for example { op: "dom.patch", builtin: true })
+     *
+     * Output record shape for normalized entries:
+     *   { op, args, raw, builtin }
+     *
+     * @param {*} input
+     * @param {Function} [err]
+     * @returns {Array<Object>}
+     */
+    parseOpList(input, err) {
+	const lib = this.lib;
+	const src = lib.array.to(lib.utils.deepCopy(input), CONSTANTS.ARR_TO_OPTS);
+	const out = [];
+	const onErr = lib.func.get(err);
+
+	for (let i = 0; i < src.length; i++) {
+	    const rec = this._normalizeOpListItem(src[i], { index: i, onErr });
+	    if (rec) out.push(rec);
+	}
+
+	return out;
+    }
+
+    /**
+     * Normalize one op-list item into canonical op metadata.
+     *
+     * @private
+     * @param {*} item
+     * @param {Object} [opts]
+     * @param {number} [opts.index=-1]
+     * @param {Function|null} [opts.onErr=null]
+     * @returns {Object|null}
+     */
+    _normalizeOpListItem(item, { index = -1, onErr = null } = {}) {
+	const lib = this.lib;
+
+	// already object-ish; normalize only if it carries an op field
+	if (lib.hash.is(item)) {
+	    const rec = lib.hash.slice(item, "op args raw builtin");
+	    // can only be a non-empty string or function at this point
+	    if (lib.utils.isEmpty(rec.op) || !lib.utils.baseType(rec.op, "string function")) return null;
+
+	    const meta = this._resolveOpSpecifier(rec.op, {
+		index,
+		onErr,
+		declaredBuiltin: rec.builtin,
+	    });
+	    if (!meta) return null;
+
+	    rec.op = meta.op;
+	    rec.builtin = meta.builtin;
+	    if (!("args" in item)) rec.args = undefined;
+	    rec.raw = (rec.raw == null) ? item : rec.raw;
+	    return rec;
+	}
+
+	// function shorthand entry
+	if (typeof item === "function") {
+	    return { op: item, args: [], raw: item, builtin: false };
+	}
+
+	// string shorthand: "op" or "op:a,b,c"
+	if (lib.str.is(item)) {
+	    const raw = item;
+	    const { fnString, argString } = this._splitFnArgString(raw);
+
+	    const meta = this._resolveOpSpecifier(fnString, { index, onErr });
+	    if (!meta) return null;
+
+	    const args = this._splitArgString(argString);
+
+	    return { op: meta.op, args, raw, builtin: meta.builtin };
+	}
+
+	if (onErr) onErr("invalid_item", { item, index });
+	return null;
+    }
+
+    /**
+     * Split a compact function call token on the first ":".
+     *
+     * @private
+     * @param {string} raw
+     * @returns {{fnString: string, argString: string}}
+     */
+    _splitFnArgString(raw) {
+	const lib = this.lib;
+	raw = lib.str.to(raw, true);
+
+	const idx = raw.indexOf(":");
+	if (idx === -1) return { fnString: raw, argString: "" };
+
+	return {
+	    fnString: raw.substr(0, idx),
+	    argString: raw.substr(idx + 1),
+	};
+    }
+
+    /**
+     * Split a compact arg segment into an array of trimmed args.
+     *
+     * @private
+     * @param {*} argString
+     * @returns {Array}
+     */
+    _splitArgString(argString) {
+	const lib = this.lib;
+	if (lib.utils.isEmpty(argString)) return [];
+	return lib.array.to(argString, { split: /,/, trim: true });
+    }
+
+    /**
+     * Resolve builtin marker semantics for one op token.
+     *
+     * @private
+     * @param {*} opLike
+     * @param {Object} [opts]
+     * @param {*} [opts.declaredBuiltin]
+     * @param {number} [opts.index=-1]
+     * @param {Function|null} [opts.onErr=null]
+     * @returns {{op: *, builtin: boolean}|null}
+     */
+    _resolveOpSpecifier(opLike, { declaredBuiltin, index = -1, onErr = null } = {}) {
+	const lib = this.lib;
+
+	if (typeof opLike === "function") {
+	    const builtin = lib.bool.yes(declaredBuiltin);
+	    return { op: opLike, builtin };
+	}
+
+	if (!lib.str.is(opLike)) {
+	    if (onErr) onErr("invalid_op", { op: opLike, index });
+	    return null;
+	}
+
+	const token = opLike.trim();
+	if (!token) {
+	    if (onErr) onErr("empty_op", { op: opLike, index });
+	    return null;
+	}
+
+	const prefixed = token.indexOf("@") === 0;
+	const stripped = prefixed ? token.substr(1).trim() : token;
+	if (!stripped) {
+	    if (onErr) onErr("empty_op", { op: opLike, index });
+	    return null;
+	}
+
+	let builtin = prefixed;
+	if (lib.bool.ish(declaredBuiltin)) {
+	    const explicit = lib.bool.yes(declaredBuiltin);
+	    if (prefixed && explicit === false && onErr) {
+		onErr("builtin_conflict", { op: opLike, index, reason: "prefix_vs_flag" });
+	    }
+	    builtin = explicit;
+	}
+
+	return { op: stripped, builtin };
+    }
+
     
     /**
      * Materialize interpolations within an arbitrary value using the provided context.

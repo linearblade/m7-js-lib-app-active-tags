@@ -1,4 +1,4 @@
-// builtins/buffer.js
+// builtins/buffer/index.js
 // Builtins: buffer.set, buffer.get, buffer.traverse, buffer.clear
 // VM signature: ({ job, lib, args, trigger, ticket, inputs, buffer, ctx, step }) => StageResultLike
 
@@ -46,9 +46,22 @@ function getBufferOrError(buffer, step) {
     return null;
 }
 
-// -----------------------------------------------------------------------------
-// buffer.set
-// -----------------------------------------------------------------------------
+/**
+ * `buffer.set` builtin.
+ *
+ * Writes value/meta onto ticket buffer. Value is normalized from args:
+ * - scalar -> `{ value: scalar }`
+ * - array  -> `{ value: args[0] }`
+ * - hash   -> `args`
+ *
+ * @param {Object} params
+ * @param {Object} params.lib
+ * @param {*} [params.args]
+ * @param {Object} [params.inputs]
+ * @param {Object} params.buffer
+ * @param {*} [params.step]
+ * @returns {Promise<Object>} StageResult-like (`ok` | `error`).
+ */
 export async function bufferSet({ lib, args, inputs, buffer, step } = {}) {
     try {
 	const bad = getBufferOrError(buffer, step);
@@ -69,9 +82,17 @@ export async function bufferSet({ lib, args, inputs, buffer, step } = {}) {
     }
 }
 
-// -----------------------------------------------------------------------------
-// buffer.get
-// -----------------------------------------------------------------------------
+/**
+ * `buffer.get` builtin.
+ *
+ * Reads current buffer value and mirrors it to `inputs.buffer`.
+ *
+ * @param {Object} params
+ * @param {Object} [params.inputs]
+ * @param {Object} params.buffer
+ * @param {*} [params.step]
+ * @returns {Promise<Object>} StageResult-like (`ok` | `error`).
+ */
 export async function bufferGet({ inputs, buffer, step } = {}) {
     try {
 	const bad = getBufferOrError(buffer, step);
@@ -88,9 +109,18 @@ export async function bufferGet({ inputs, buffer, step } = {}) {
     }
 }
 
-// -----------------------------------------------------------------------------
-// buffer.clear
-// -----------------------------------------------------------------------------
+/**
+ * `buffer.clear` builtin.
+ *
+ * Clears buffer using `buffer.clear()` when available, otherwise sets `null`.
+ * Mirrors resulting value to `inputs.buffer`.
+ *
+ * @param {Object} params
+ * @param {Object} [params.inputs]
+ * @param {Object} params.buffer
+ * @param {*} [params.step]
+ * @returns {Promise<Object>} StageResult-like (`ok` | `error`).
+ */
 export async function bufferClear({ inputs, buffer, step } = {}) {
     try {
 	const bad = getBufferOrError(buffer, step);
@@ -107,12 +137,24 @@ export async function bufferClear({ inputs, buffer, step } = {}) {
     }
 }
 
-// -----------------------------------------------------------------------------
-// buffer.traverse
-// Moves buffer.value => buffer.value[path]
-// args:
-//   { path: "a.b[0].c", required: true|false }
-// -----------------------------------------------------------------------------
+/**
+ * `buffer.traverse` builtin.
+ *
+ * Resolves a deep path from current buffer value and overwrites buffer with
+ * the resolved sub-value.
+ *
+ * Args shape:
+ * - `{ path: "a.b[0].c", required?: boolean }`
+ * - `path` may also come from `value`.
+ *
+ * @param {Object} params
+ * @param {Object} params.lib
+ * @param {*} [params.args]
+ * @param {Object} [params.inputs]
+ * @param {Object} params.buffer
+ * @param {*} [params.step]
+ * @returns {Promise<Object>} StageResult-like (`ok` | `error`).
+ */
 export async function bufferTraverse({ lib, args, inputs, buffer, step } = {}) {
     try {
 	const bad = getBufferOrError(buffer, step);

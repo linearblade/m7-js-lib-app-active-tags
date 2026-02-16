@@ -99,8 +99,8 @@ export default {
 	//login, move the target pointer (check builtins/target/index) 
 		run: [
 		    dummy_login,
-		    "buffer.traverse:data",
-		    "target.find:.tutorial-user-text",
+		    "@buffer.traverse:data",
+		    "@target.find:.tutorial-user-text",
 		    writeUser,
 		    "target.reset",
 		    "target.find:.tutorial-user-balance",
@@ -115,7 +115,7 @@ export default {
 		    "target.find:.tutorial-login-btn",
 		     hideLoginButton,
 		],
-	      error: ["error.dump"],
+	      error: ["@error.dump"],
   },
     pipelines: {
 

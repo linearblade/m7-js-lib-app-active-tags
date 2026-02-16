@@ -228,8 +228,8 @@ export const DEFAULT_CONFIG = freezeDeep(
 	// Engine configuration
 	// ---------------------------------------------------------------------------
 	//
-	// The `engine` block defines the functional surface exposed to the runtime
-	// execution engine (builtins + hooks).
+	// The `engine` block defines the functional surface and lookup policy
+	// exposed to the runtime execution engine (builtins + hooks + opResolution).
 	//
 	// This block is compiled at configuration time into a normalized,
 	// functions-only map. Non-function values are discarded.
@@ -281,10 +281,34 @@ export const DEFAULT_CONFIG = freezeDeep(
 	//   - Intended for diagnostics, instrumentation, and testing.
 	//
 	// ---------------------------------------------------------------------------
+	// opResolution
+	// ---------------------------------------------------------------------------
+	//
+	// Controls symbolic operation lookup behavior when pipeline steps are not
+	// explicitly marked as builtin.
+	//
+	// Fields:
+	//   order
+	//     → Ordered lookup sources for symbolic op names.
+	//       Allowed values are "user", "lib", and "builtin".
+	//
+	//   auto
+	//     → When true, non-explicit steps follow `order`.
+	//     → When false, non-explicit steps resolve user functions only.
+	//
+	// Notes:
+	//   - Explicit builtin steps bypass ordered fallback and use builtin lookup.
+	//   - This policy applies to symbolic op names, not direct function refs.
+	//
+	// ---------------------------------------------------------------------------
 
 	engine: {
 	    builtins: true,
-	    hooks: false
+	    hooks: false,
+	    opResolution: {
+		order: ["user", "lib", "builtin"],
+		auto: true,
+	    },
 	}
     }
 );
