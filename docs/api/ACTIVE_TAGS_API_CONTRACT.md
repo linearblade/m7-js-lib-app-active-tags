@@ -167,7 +167,7 @@ Throws if required DOM environment is not valid.
 
 Resolves a job reference through JobRegistry.
 
-### `enqueueAll(reason?) -> number`
+### `enqueueAll(opts?) -> number | { count, entries }`
 
 Enqueues autorun pipelines for eligible registered jobs.
 

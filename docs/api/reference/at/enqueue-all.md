@@ -1,22 +1,38 @@
-# Method — `enqueueAll(reason?)`
+# Method — `enqueueAll(opts?)`
 
-[README](../../../../README.md) -> [API Index](../../INDEX.md) -> [Reference Manual](../INDEX.md) -> [Top-Level `AT` Deep Reference](./INDEX.md) -> [`enqueueAll(reason?)`](./enqueue-all.md)
+[README](../../../../README.md) -> [API Index](../../INDEX.md) -> [Reference Manual](../INDEX.md) -> [Top-Level `AT` Deep Reference](./INDEX.md) -> [`enqueueAll(opts?)`](./enqueue-all.md)
 
-## `enqueueAll(reason?)`
+## `enqueueAll(opts?)`
 
 ### Signature
 
-`enqueueAll(reason?) -> number`
+`enqueueAll(opts?) -> number | { count, entries }`
 
 ### Parameters
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `reason` | `string` | No | Diagnostic reason attached to enqueue inputs. Defaults to `"none given"` when empty. |
+| `opts` | `string\|Object` | No | Legacy string reason or options object. |
+| `opts.reason` | `string` | No | Diagnostic reason attached to enqueue inputs. Defaults to `"none given"` when empty. |
+| `opts.returnMeta` | `boolean` | No | When true, `enqueueAll` returns enqueue metadata entries in addition to count. |
 
 ### Returns
 
-Number of enqueue attempts issued across all eligible jobs and autorun pipeline keys.
+Default return is number of enqueue attempts issued across all eligible jobs and autorun pipeline keys.
+
+When `opts.returnMeta` is true, return shape is:
+
+```js
+{
+  count: number,
+  entries: Array<{
+    jobId: string,
+    pipelineKey: string,
+    ticket: Ticket|null,
+    created: boolean
+  }>
+}
+```
 
 ### Side effects
 
@@ -35,6 +51,14 @@ Number of enqueue attempts issued across all eligible jobs and autorun pipeline 
 ```js
 // Enqueue all autorun pipelines discovered so far.
 const count = AT.enqueueAll("boot");
+```
+
+```js
+const out = AT.enqueueAll({
+  reason: "boot",
+  returnMeta: true
+});
+// out -> { count, entries }
 ```
 
 ### Related methods

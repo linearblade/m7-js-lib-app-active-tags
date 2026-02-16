@@ -73,6 +73,7 @@ export class Controller {
 	opts = lib.hash.to(opts);
 
 	const identifier = this._internalIdentifier(name);
+	rec.name = identifier;
 	const domainRaw = lib.str.to(lib.hash.get(opts, "domain"), true).trim().toLowerCase();
 	const domain = domainRaw || "runtime";
 	const internalElement = e || lib.hash.get(opts, "e");

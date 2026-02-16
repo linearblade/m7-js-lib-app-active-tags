@@ -6,7 +6,7 @@
 
 ### Signature
 
-`enqueue(jobLike, key = "default", opts?) -> Ticket`
+`enqueue(jobLike, key = "default", opts?) -> Ticket | { ticket, created }`
 
 ### Parameters
 
@@ -18,10 +18,19 @@
 | `opts.inputs` | `Object` | No | Runtime inputs for stage execution. |
 | `opts.priority` | `number` | No | Scheduling priority metadata. Defaults to `0`. |
 | `opts.meta` | `Object` | No | Diagnostic metadata attached to the ticket. |
+| `opts.returnMeta` | `boolean` | No | When true, returns `{ ticket, created }` instead of plain ticket. |
 
 ### Returns
 
-Ticket object for that alias. Existing active alias tickets are reused (dedupe behavior).
+Default return is the ticket object for that alias.
+Existing active alias tickets are reused (dedupe behavior).
+When `opts.returnMeta` is true, return shape is:
+
+```js
+{ ticket: Ticket, created: boolean }
+```
+
+`created` is true only when a new ticket was created.
 
 ### Side effects
 
@@ -41,6 +50,15 @@ const ticket = AT.engine.enqueue(job, "default", {
   inputs: { reason: "manual" },
   meta: { source: "api" }
 });
+```
+
+```js
+const result = AT.engine.enqueue(job, "default", {
+  inputs: { reason: "manual" },
+  meta: { source: "api" },
+  returnMeta: true
+});
+// result -> { ticket, created }
 ```
 
 ### Related methods

@@ -11,7 +11,7 @@ This page is the surface index for top-level `AT` methods.
 ## Methods
 
 * [`start()`](./at/start.md)
-* [`enqueueAll(reason?)`](./at/enqueue-all.md)
+* [`enqueueAll(opts?)`](./at/enqueue-all.md)
 * [`toJob(ref)`](./at/to-job.md)
 
 ---

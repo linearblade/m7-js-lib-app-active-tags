@@ -44,7 +44,7 @@ Source: [../../src/traits/job.js](../../src/traits/job.js)
 
 ### Engine helper trait
 
-* `enqueueAll(reason)`
+* `enqueueAll(opts)`
 
 Source: [../../src/traits/engine.js](../../src/traits/engine.js)
 

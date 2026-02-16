@@ -35,20 +35,32 @@ export const trait_engine = {
      * `engine.enqueue(job, pipelineKey, { inputs: { reason }, meta: { source: "enqueueAll" } })`
      *
      *
-     * @param {string} [reason]
-     * Optional reason label for telemetry/diagnostics.
-     * Defaults to `"none given"` when empty.
+     * @param {string|Object} [opts]
+     * Optional enqueue-all options.
      *
-     * @returns {number}
-     * Number of enqueue attempts issued.
+     * Legacy form:
+     * - string reason
+     *
+     * Object form:
+     * - opts.reason (string): diagnostic reason label (defaults to `"none given"`)
+     * - opts.returnMeta (boolean): when true, returns enqueue metadata entries
+     *
+     * @returns {number|{count: number, entries: Array}}
+     * - Default: number of enqueue attempts issued.
+     * - With `returnMeta`: `{ count, entries }` where each entry includes
+     *   `{ jobId, pipelineKey, ticket, created }`.
      */
 
-    enqueueAll(reason) {
+    enqueueAll(opts) {
 	const lib = this.lib;
 	const jobs = this.jobs.list();
-
-	if (!lib.str.to(reason, true).trim())
-            reason = 'none given';
+	opts = lib.hash.to(opts, "reason returnMeta");
+	
+	const reason = lib.str.to(opts.reason, true).trim() ?
+	      lib.str.to(opts.reason, true).trim() :
+              "none given";
+	const returnMeta = !!opts.returnMeta;
+	const entries = returnMeta ? [] : null;
 
 	let count = 0;
 	for (const job of jobs) {
@@ -58,22 +70,32 @@ export const trait_engine = {
 	    
             // autorun list
             let autorun = lib.hash.get(job, "config.schema.autorun");
+	    //console.log(enabled,autorun, job.name,job.id);
             if (!lib.array.len(autorun)) continue;
-
+	    
             for (let key of autorun) {
 		if (!key) continue;
-
+		
 		// "__DEFAULT__" -> "default"
 		if (key === "__DEFAULT__") key = "default";
 		count++;
 		const r = this.engine.enqueue(job, key, {
                     inputs: { reason },
                     meta: { source: "enqueueAll" },
+		    returnMeta,
 		});
-		console.log(r);
+		//console.log(r);
+		if (returnMeta) {
+		    entries.push({
+			jobId: job.id,
+			pipelineKey: key,
+			ticket: r && r.ticket ? r.ticket : null,
+			created: !!(r && r.created),
+		    });
+		}
             }
 	}
-	return count;
+	return returnMeta ? { count, entries } : count;
     }
 };
 

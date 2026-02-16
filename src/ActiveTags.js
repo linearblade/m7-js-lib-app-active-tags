@@ -112,7 +112,7 @@
  *   start()
  *
  * Convenience helpers:
- *   enqueueAll(reason)
+ *   enqueueAll(opts)
  *
  * Job interaction helpers:
  *   Provided via trait_job

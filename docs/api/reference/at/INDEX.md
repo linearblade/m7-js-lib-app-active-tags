@@ -15,7 +15,7 @@ Primary source:
 ## Method Pages
 
 * [`start()`](./start.md)
-* [`enqueueAll(reason?)`](./enqueue-all.md)
+* [`enqueueAll(opts?)`](./enqueue-all.md)
 * [`toJob(ref)`](./to-job.md)
 
 ---

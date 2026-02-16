@@ -50,6 +50,10 @@ Declares prerequisite jobs.
 * Useful for prerequisite/bootstrap ordering.
 * Invalid non-empty types emit warning `W101_REQUIRE_INVALID` and normalize to `[]`.
 
+Detailed guide:
+
+* [Require Dependencies](./REQUIRE.md)
+
 ### `enabled`
 
 Controls whether the job is eligible to run.
@@ -145,6 +149,7 @@ Compiled basics:
 ## See also
 
 * [Top-Level Job Config](./TOP_LEVEL_CONFIG.md)
+* [Require Dependencies](./REQUIRE.md)
 * [Pipelines](./PIPELINES.md)
 * [Intervals](./INTERVALS.md)
 * [Events](./EVENTS.md)

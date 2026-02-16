@@ -4,7 +4,7 @@
 - [x] Setting up intervals (dedicated page)
 - [x] Setting up events (dedicated page)
 - [x] Setting up requests (dedicated page)
-- [ ] How to use `require`
+- [x] How to use `require`
 - [ ] How to use builtins
 - [x] `autorun` and `enabled`
 - [x] Pipeline handlers (user code)
@@ -23,13 +23,18 @@
 - [ ] Revisit `dom.patch` naming and contract:
   keep compatibility for now, but either rename to a clearer modern API or rework behavior/documentation so it is not treated as the long-term DOM write primitive.
 - [ ] Add a `dom.set` builtin (for example `dom.set:attr,val` or object args) to support direct attribute/property writes without requiring custom user functions for simple UI updates.
-- [ ] Require-gating policy harmonization: `IntervalController.conditionalOn(...)` and `EventController.conditionalOn(...)` now provide require-gated activation paths, while legacy `on()` remains ungated.
-  Decide whether to migrate all activation/boot entrypoints to conditional paths by default and document compatibility posture for direct `on()` callers.
+- [x] Require-gating policy harmonization: `IntervalController.conditionalOn(...)` and `EventController.conditionalOn(...)` provide require-gated activation paths, while legacy direct `on()` remains intentionally manual/ungated for user-initiated control.
+  Compatibility posture documented in usage docs (`REQUIRE.md`) and controller API references.
 - [x] Login/event drain policy: boot startup now performs conditional interval/event scheduling followed by a final `engine.drain()` so event-driven handlers are installed without manual tutorial drain hooks.
 - [x] Event parity with interval conditional gating: implemented `EventController.conditionalOn(...)` with require-gated synthetic enqueue path mirroring `IntervalController.conditionalOn(...)`.
 - [x] Event-trigger unlock propagation without full queue drain: delegated event handlers now perform a targeted `engine.drain({ ticket })` pass followed by bounded scheduler-filtered drain (`requireJob`) so newly unlocked dependents can start without draining unrelated work.
-- [ ] Extend enqueue contract to report whether the returned ticket was newly created or deduped/reused.
-  Consider returning `{ ticket, created }` (or equivalent metadata) from EngineManager/Engine enqueue surfaces.
+- [x] Extend enqueue contract to report whether the returned ticket was newly created or deduped/reused.
+  Implemented optional enqueue metadata return via `opts.returnMeta`:
+  `{ ticket, created }` (with backward-compatible default plain `Ticket` return).
+- [x] Extend `AT.enqueueAll(...)` contract to support enqueue metadata passthrough.
+  `enqueueAll(opts)` now accepts `opts.returnMeta` and returns `{ count, entries }` while preserving default numeric return when not requested.
+- [ ] Investigate activation idempotency risk for synthetic internal jobs used by interval/event conditional startup.
+  Potential issue: repeated interval/event activation flows may enqueue/reuse internal trigger jobs in ways that accidentally re-run installs (`on(...)`) when callers re-invoke startup/activation paths.
 - [x] Engine context now passes main AT/root runtime context through engine/vm/handler surfaces to avoid global callbacks back to ActiveTags.
   Agreed handler call shape target in `VM.js`:
   `v.fn({ job, lib, args, buffer: ticket.buffer, inputs: ticket.inputs, trigger, target: ticket.target, e: job.e, ticket, ctx, AT, step })`
@@ -42,3 +47,9 @@
   Add lookup note/implementation check: use `lib.func.get(...)` resolution across both env-root symbols and internal lib function registry.
 - [x] Runtime internal job configure race resolved for conditional paths: `RuntimeController.createInternalJob(...)` now awaits async `job.configureFrom(...)` before return.
   Interval and event conditional enqueue paths now await `createInternalJob(...)` before enqueueing synthetic tickets.
+
+## Low Priority
+
+- [ ] Internal job name normalization note: `RuntimeController.createInternalJob(...)` currently mutates `rec.name` (sets it to internal identifier) before `configureFrom(...)`.
+  This prevents configuration build from overwriting internal job naming with `"none given"` when record name is empty.
+  It is internal and non-problematic for now; cleanup is likely straightforward but currently paperwork-heavy.

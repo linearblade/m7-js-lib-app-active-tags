@@ -284,15 +284,22 @@ export class EngineManager {
      * @param {Object} [opts.meta={}]
      *   Optional metadata attached to the ticket for diagnostics and tracing.
      *
-     * @returns {Ticket}
-     *   The existing ticket (if deduped) or the newly created ticket.
+     * @param {boolean} [opts.returnMeta=false]
+     *   When true, returns enqueue metadata object:
+     *   `{ ticket, created }`.
+     *   `created` is true only when a new ticket record was created.
+     *
+     * @returns {Ticket|{ticket: Ticket, created: boolean}}
+     *   Default return is Ticket (existing or newly created).
+     *   When `opts.returnMeta` is true, returns `{ ticket, created }`.
      *
      * @throws {Error}
      *   If `jobLike` cannot be resolved into a Job with a valid `id`.
      */
-    enqueue(jobLike, key = "default", { inputs, priority = 0, meta = {} } = {}) {
+    enqueue(jobLike, key = "default", { inputs, priority = 0, meta = {}, returnMeta = false } = {}) {
 	const job = this._resolveJob(jobLike);
 	if (!job || !job.id) throw new Error("EngineManager.enqueue requires a resolved job with id");
+	const withMeta = !!returnMeta;
 
 	const jobId = job.id;
 	const pipelineKey = String(key || "default");
@@ -303,7 +310,7 @@ export class EngineManager {
 	const existingId = st.alias.get(pipelineKey);
 	if (existingId) {
 	    const existing = this.engine.state.getTicket(existingId);
-	    if (existing) return existing;
+	    if (existing) return withMeta ? { ticket: existing, created: false } : existing;
 	    st.alias.delete(pipelineKey); // stale alias
 	}
 
@@ -320,7 +327,7 @@ export class EngineManager {
 	}
 
 	if (this.engine.hooks.onEnqueue) this.engine.hooks.onEnqueue({ job, ticket });
-	return ticket;
+	return withMeta ? { ticket, created: true } : ticket;
     }
 
     // --- locking (tickets are the unique runner)

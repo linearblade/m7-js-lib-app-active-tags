@@ -50,6 +50,9 @@ If you are new, read top-to-bottom.
 * **Basics** -> [BASICS.md](./BASICS.md)
   Non-block top-level keys: `name`, `require`, `enabled`, `autorun`, and `env`.
 
+* **Require Dependencies** -> [REQUIRE.md](./REQUIRE.md)
+  Full guide for top-level `require`, scheduler gating, and unlock propagation behavior.
+
 * **Pipelines** -> [PIPELINES.md](./PIPELINES.md)
   Defining `pipeline` / `pipelines` blocks, step formats, key selection, and trigger wiring.
 
