@@ -1,6 +1,4522 @@
 
 
-# --- begin: ActiveTags.js ---
+# --- begin: doc3/save/applyMixins.js ---
+
+//only handles instance methods for now.
+
+export function applyMixins(targetClass, ...mixins) {
+    for (const mixin of mixins) {
+        Object.assign(targetClass.prototype, mixin);
+    }
+}
+
+export default applyMixins;
+
+
+
+# --- end: doc3/save/applyMixins.js ---
+
+
+
+# --- begin: doc3/save/auto.js ---
+
+import TreeInspector from './TreeInspector.js';
+
+// Ensure environment and dependencies
+if (typeof window === 'undefined') {
+  throw new Error("[TreeInspector] This module requires a browser-like environment with window.lib.");
+}
+
+const lib = window.lib;
+
+if (!lib || typeof lib.hash?.set !== 'function') {
+    throw new Error("[TreeInspector] m7-lib must be installed with lib.hash.set before loading this module.");
+}
+
+// Perform the registration
+lib.hash.set(lib, 'tree', TreeInspector);
+
+export default TreeInspector;
+
+
+# --- end: doc3/save/auto.js ---
+
+
+
+# --- begin: doc3/save/manager.js ---
+
+/*
+ * Copyright (c) 2025 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+function install(sys, ctx){
+    console.log('installing lib');
+    const pkgId = ctx?.pkg?.id;
+    if(!pkgId){
+	console.warn('no package id found for lib, cannot proceed with install!');
+	return;
+    }
+    
+    let lib = bootstrap.data.getPackageModule(pkgId,'lib').content;
+    window.lib = lib;
+    console.log(sys,ctx);
+}
+
+function destroy(sys,ctx){
+    console.warn('destroying');
+    window.lib = null;
+}
+export default {
+    install , destroy
+    
+};
+
+
+# --- end: doc3/save/manager.js ---
+
+
+
+# --- begin: doc3/src_inprogress/log/ConsiderLater.js ---
+
+//work in progress. - not actionable code , just scratch pad for time being.
+error(data, opts = {}) {
+    if (!this.enabled) return null;
+    const w = this.bucket(this.defaultBucket);
+    if (!w) return null;
+
+    const rec = w.error(data, opts);
+
+    // Manager-level throw policy lives here, not Worker
+    if (this.throwOnError) {
+        // If you want the "console.error(rec)" behavior, keep it.
+        // Otherwise, rely on Worker printing logic and avoid duplicates.
+        if (opts.printThrownRecord ?? false) {
+            console.error(rec);
+        }
+        _throwLoggedError({
+            manager: this,
+            bucket: this.defaultBucket,
+            record: rec,
+            data,
+            opts,
+        });
+    }
+
+    return rec;
+}
+
+errorTo(bucketName, data, opts = {}) {
+    if (!this.enabled) return null;
+    const w = this.bucket(bucketName);
+    if (!w) return null;
+
+    const rec = w.error(data, opts);
+
+    if (this.throwOnError) {
+        if (opts.printThrownRecord ?? false) {
+            console.error(rec);
+        }
+        _throwLoggedError({
+            manager: this,
+            bucket: bucketName,
+            record: rec,
+            data,
+            opts,
+        });
+    }
+
+    return rec;
+}
+
+//catch liek this
+
+try {
+    log.error({ msg: "bad stuff" }, { event: "db.write", cause: err });
+} catch (e) {
+    if (e && e.code === "E_LOG_THROW") {
+        // structured access:
+        console.log("bucket:", e.bucket);
+        console.log("record:", e.record);
+        console.log("original cause:", e.cause); // if supported / provided
+    }
+    throw e; // or handle
+}
+
+
+# --- end: doc3/src_inprogress/log/ConsiderLater.js ---
+
+
+
+# --- begin: doc3/src_inprogress/log/constants.js ---
+
+// log/constants.js
+export const CONSOLE_LEVEL = Object.freeze({
+    OFF:   0,  // never emit
+    ERROR: 1,  // error only
+    WARN:  2,  // warn + error
+    INFO:  3,  // info + warn + error
+    LOG:   4,  // log + info + warn + error
+    ALL:   5   // emit everything
+});
+
+
+# --- end: doc3/src_inprogress/log/constants.js ---
+
+
+
+# --- begin: doc3/src_inprogress/log/diag/stack.js ---
+
+/**
+ * Capture a stack trace.
+ *
+ * @param {Object} [opts]
+ * @param {number} [opts.skip=0]
+ *        Number of stack frames to skip from the top.
+ *
+ * @param {boolean} [opts.full=false]
+ *        If true, return full stack string instead of a single line.
+ *
+ * @param {boolean} [opts.parsed=false]
+ *        If true, return parsed frame objects instead of strings.
+ *
+ * @param {RegExp|Function|null} [opts.prune=null]
+ *        Optional prune rule:
+ *        - RegExp: frames matching are removed
+ *        - Function: (line|frame) => boolean (true = drop)
+ *
+ * @returns {string|string[]|Object[]|null}
+ */
+export function captureStack(opts = {}) {
+    try {
+        const skip   = Number.isFinite(opts.skip) ? opts.skip : 0;
+        const prune  = opts.prune || null;
+        const parsed = !!opts.parsed;
+        const full   = !!opts.full;
+
+        const err = new Error();
+        if (!err.stack) return null;
+
+        let lines = err.stack.split('\n');
+
+        // Remove the first line ("Error")
+        lines = lines.slice(1 + skip);
+
+        // Prune frames if requested
+        if (prune) {
+            lines = lines.filter(line => {
+                try {
+                    if (prune instanceof RegExp) return !prune.test(line);
+                    if (typeof prune === 'function') return !prune(line);
+                } catch {
+                    return true;
+                }
+                return true;
+            });
+        }
+
+        if (!full && !parsed) {
+            return lines[0] || null;
+        }
+
+        if (parsed) {
+            const frames = lines
+                  .map(parseStackLine)
+                  .filter(Boolean);
+
+            return full ? frames : frames[0] || null;
+        }
+
+        return full ? lines.join('\n') : lines[0] || null;
+
+    } catch {
+        return null;
+    }
+}
+
+
+/**
+ * Parse a single stack line into a structured frame.
+ *
+ * Best-effort parsing. Returns null if format is unknown.
+ *
+ * @param {string} line
+ * @returns {{
+ *   raw: string,
+ *   fn?: string,
+ *   file?: string,
+ *   line?: number,
+ *   col?: number
+ * }|null}
+ */
+export function parseStackLine(line) {
+    if (!line || typeof line !== 'string') return null;
+
+    try {
+        const raw = line.trim();
+
+        // Chrome / Edge / Firefox style
+        // e.g. "at fn (file.js:10:5)"
+        // e.g. "fn@file.js:10:5"
+        let fn, file, lineNo, colNo;
+
+        let m = raw.match(/at\s+(.*?)\s+\((.*?):(\d+):(\d+)\)/) ||
+            raw.match(/^(.*?)@(.*?):(\d+):(\d+)/) ||
+            raw.match(/at\s+(.*?):(\d+):(\d+)/);
+
+        if (m) {
+            fn     = m[1]?.trim();
+            file   = m[2];
+            lineNo = Number(m[3]);
+            colNo  = Number(m[4]);
+        }
+
+        if (!file) return { raw };
+
+        return {
+            raw,
+            fn,
+            file,
+            line: Number.isFinite(lineNo) ? lineNo : undefined,
+            col:  Number.isFinite(colNo)  ? colNo  : undefined
+        };
+
+    } catch {
+        return null;
+    }
+}
+
+export default {
+    captureStack,
+    parseStackLine
+};
+
+
+# --- end: doc3/src_inprogress/log/diag/stack.js ---
+
+
+
+# --- begin: doc3/src_inprogress/log/LogError.js ---
+
+export class LogError extends Error {
+    /**
+     * @param {string} message
+     * @param {object} details
+     * @param {any} [details.record]
+     * @param {string} [details.bucket]
+     * @param {string} [details.manager]
+     * @param {any} [details.data]
+     * @param {any} [details.opts]
+     * @param {any} [details.cause]
+     */
+    constructor(message, details = {}) {
+        // Use native `cause` if provided (Node 16+ / modern browsers)
+        super(message, details && "cause" in details ? { cause: details.cause } : undefined);
+
+        this.name = "LogError";
+        this.code = "E_LOG_THROW";
+
+        // Attach structured context for catch blocks
+        this.record = details.record ?? null;
+        this.bucket = details.bucket ?? null;
+        this.manager = details.manager ?? null;
+
+        // Optional: keep original inputs (handy for debugging, but can be big)
+        this.data = details.data;
+        this.opts = details.opts;
+
+        // Best-effort stack cleanup (optional)
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, LogError);
+        }
+    }
+
+    toJSON() {
+        return {
+            name: this.name,
+            code: this.code,
+            message: this.message,
+            bucket: this.bucket,
+            manager: this.manager,
+            record: this.record,
+        };
+    }
+}
+
+export function _throwLoggedError({ manager, bucket, record, data, opts }) {
+    // Prefer record header info if present
+    const at = record?.header?.at;
+    const src = record?.header?.source || bucket;
+    const lvl = record?.header?.level || "error";
+
+    const msg = `[log] ${lvl}() (throwOnError enabled) bucket=${String(src)}${at ? ` at=${at}` : ""}`;
+
+    throw new LogError(msg, {
+        record,
+        bucket: src,
+        manager: manager?.name ?? null,
+        data,
+        opts,
+        // If caller passed a cause, we’ll preserve it
+        cause: opts?.cause,
+    });
+}
+
+
+# --- end: doc3/src_inprogress/log/LogError.js ---
+
+
+
+# --- begin: doc3/src_inprogress/log/Manager.js ---
+
+// log/Manager.js
+//
+// Skeleton: log Manager (routes events to Workers/buckets + shared utilities).
+// General-purpose (not ActiveTags specific).
+//
+// Responsibilities:
+// - owns Worker registry
+// - builds normalized record objects
+// - console policy + printing (optional)
+// - stack trace capture / pruning utilities
+// - ergonomic helpers: info/warn/error/etc.
+//
+// Worker responsibilities:
+// - per-bucket storage (ring/unlimited)
+// - per-bucket enable/limits
+// - per-bucket hooks
+
+import Worker            from "./Worker.js";
+//leave in the event I need it later
+//import { CONSOLE_LEVEL } from './constants.js';
+import utils             from './utils.js';
+
+export default class Manager {
+    /**
+     * Create a Manager.
+     *
+     * Manager is a coordinator that owns a registry of named Worker instances
+     * ("buckets") and provides shared defaults and policy used when creating
+     * new buckets.
+     *
+     * Responsibilities:
+     * - Maintain a Worker registry (`this.workers`)
+     * - Provide shared defaults (enabled, console policy, hooks, clock, workspace)
+     * - Provide a small facade API that forwards calls to specific buckets
+     *
+     * Notes:
+     * - Manager does NOT auto-create buckets in `bucket()` / `to()` / log methods.
+     * - If a bucket does not exist, log methods return `null` (or `[]` for `get()`).
+     *
+     * @param {Object} [opts]
+     * @param {string} [opts.name='log'] Manager label/prefix for metadata.
+     * @param {boolean} [opts.enabled=true] Master enable switch for Manager forwarding.
+     * @param {number|string|boolean|null|undefined} [opts.console=CONSOLE_LEVEL.OFF]
+     *        Default console policy applied to newly created Workers (unless overridden).
+     * @param {Function|string|any} [opts.onEvent=null]
+     *        Default hook applied to newly created Workers (unless overridden).
+     *        Resolved via `utils._getFunction(...)`, which uses `lib.func.get` when available
+     *        (but remains usable without `lib`).
+     * @param {Function|any} [opts.clock=Date.now] Default clock applied to Workers.
+     * @param {number} [opts.baseSkip=3] Stack skip depth baseline for trace utilities.
+     * @param {RegExp|Function|null} [opts.prune=null] Optional stack prune rule.
+     * @param {boolean} [opts.throwOnError=true]
+     *        When true, `error()` throws after recording.
+     * @param {Object} [opts.workspace]
+     *        Default workspace object passed into Worker hooks/printers (unless overridden).
+     * @param {Object<string, Object>} [opts.buckets]
+     *        Map of `bucketName -> Worker options` used to pre-create Workers.
+     * @param {boolean} [opts.clone=false]
+     *        Default cloning policy applied to newly created Workers,
+     *        unless overridden per bucket via `createBucket(name, { clone })`
+     *        or per call via `emit(..., { clone })`.
+     */
+    constructor(opts = {}) {
+	this.opts = opts;
+
+	this.name = String(opts.name || "log");
+	this.enabled = opts.enabled !== false;
+
+	// normalize global console policy (stored here; enforced during emit)
+	this.console = utils._normalizeConsoleLevel(opts.console);
+
+	// global hook (supports lib.func.get when available)
+	this.onEvent = utils._getFunction(opts.onEvent, "onEvent");
+
+	// clock (strict)
+	this.clock = utils._getClock(opts.clock);
+
+	// stack handling
+	this.baseSkip = Number.isFinite(opts.baseSkip) ? opts.baseSkip : 3;
+	this.prune = opts.prune || null;
+
+	this.throwOnError = opts.throwOnError !== false;
+
+	this.workspace = (opts && typeof opts.workspace === "object" && opts.workspace)
+	    ? opts.workspace
+	    : {};
+	//for avoidance of mutation in a bucket
+	this.clone = opts.clone === true;
+	
+	/** @type {Map<string, Worker>} */
+	this.workers = new Map();
+
+	// install initial buckets
+	const buckets = (opts.buckets && typeof opts.buckets === "object") ? opts.buckets : null;
+
+	if (buckets) {
+            for (const [bucketName, wopts] of Object.entries(buckets)) {
+		this.createBucket(bucketName, wopts || {});
+            }
+	}
+
+    }
+    // ---------------------------------------------------------------------------
+    // Bucket management
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Create (or replace) a Worker bucket.
+     *
+     * Merges Manager defaults into the Worker options unless explicitly overridden:
+     * - `console`, `clock`, `enabled`, `onEvent`, `workspace`, `clone`
+     *
+     * Workspace precedence:
+     * - If `opts` has an own `workspace` property (even if `undefined` or `null`),
+     *   that value is used for the bucket.
+     * - Otherwise Manager `this.workspace` is used.
+     *
+     * Clone precedence:
+     * - If `opts` has an own `clone` property, that value becomes the bucket default.
+     * - Otherwise Manager `this.clone` is used.
+     *
+     * Replacement behavior:
+     * - If a bucket with the same name already exists, it is replaced in the registry
+     *   via Map overwrite (no teardown of the previous Worker is performed).
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number} name Bucket name (required).
+     * @param {Object} [opts] Worker options override.
+     * @returns {Worker} The created Worker instance.
+     * @throws {Error} If `name` is invalid.
+     */
+    createBucket(name, opts = {}) {
+	const key = utils.validateBucketName(name);
+
+	// normalize clone explicitly (only true means true)
+	const hasClone = ("clone" in opts);
+	const clone =
+              hasClone
+              ? opts.clone === true
+              : this.clone === true;
+
+	const merged = Object.assign(
+            {},
+            {
+		console: this.console,
+		clock: this.clock,
+		enabled: this.enabled,
+		onEvent: this.onEvent,
+
+		// defaults
+		workspace: this.workspace,
+		clone
+            },
+            opts,
+            {
+		// enforce name last
+		name: key,
+
+		// enforce precedence by key presence
+		workspace: ("workspace" in opts) ? opts.workspace : this.workspace,
+		clone
+            }
+	);
+
+	const worker = new Worker(merged);
+	this.workers.set(worker.name, worker);
+	return worker;
+    }
+    /**
+     * Get an existing Worker by name (soft lookup).
+     *
+     * This is an explicit lookup and does NOT create missing buckets.
+     *
+     * Behavior:
+     * - Validates and normalizes the bucket name.
+     * - If the name is invalid, returns `null` (does not throw).
+     * - If the bucket does not exist, returns `null`.
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values are treated as invalid.
+     *
+     * @param {string|number} name Bucket name.
+     * @returns {Worker|null} The Worker instance, or null if invalid or not found.
+     */
+    bucket(name) {
+	const key = utils.validateBucketName(name,false);
+	if(!key) return null;
+	return this.workers.get(key) || null;
+    }
+
+
+    /**
+     * Get or create a Worker bucket.
+     *
+     * If the bucket does not exist, it is created via `createBucket(name, opts)`.
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number} name Bucket name (required).
+     * @param {Object} [opts] Worker options used only if bucket must be created.
+     * @returns {Worker} The existing or newly created Worker.
+     * @throws {Error} If `name` is invalid.
+     */
+    ensureBucket(name, opts = {}) {
+	const key = utils.validateBucketName(name);
+	let w = this.workers.get(key);
+	if (!w) w = this.createBucket(key, opts);
+	return w;
+    }
+
+    /**
+     * Configure a bucket at runtime (creates bucket if missing).
+     *
+     * If the bucket exists:
+     * - Applies `patch` via `Worker.configure(patch)`.
+     *
+     * If the bucket does not exist:
+     * - Creates it first, with workspace handling:
+     *   - If `patch` has an own `workspace` property (even if `undefined`/`null`),
+     *     that value is used during creation.
+     *   - Otherwise uses Manager `this.workspace`.
+     * - Then applies the full `patch` via `Worker.configure(patch)`.
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number} name Bucket name (required).
+     * @param {Object} [patch] Worker configuration patch.
+     * @returns {Worker} The configured Worker instance.
+     * @throws {Error} If `name` is invalid.
+     */
+    configureBucket(name, patch = {}) {
+	const key = utils.validateBucketName(name);
+
+	// Detect explicit workspace override (even if undefined/null)
+	const hasWorkspace =
+              patch && typeof patch === "object" &&
+              Object.prototype.hasOwnProperty.call(patch, "workspace");
+
+	// Ensure bucket exists, passing workspace override only on creation
+	const w = this.ensureBucket(
+            key,
+            hasWorkspace ? { workspace: patch.workspace } : {}
+	);
+
+	// Apply runtime patch to the worker (including workspace if provided)
+	w.configure(patch);
+
+	return w;
+    }    
+    // ---------------------------------------------------------------------------
+    // Logging API (structured + optional console)
+    // ---------------------------------------------------------------------------
+    /**
+     * Alias for `bucket(name)`.
+     *
+     * Behavior:
+     * - Performs a soft lookup.
+     * - Returns `null` if the bucket does not exist.
+     * - Returns `null` if the bucket name is invalid.
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values are treated as invalid.
+     *
+     * @param {string|number} bucketName Bucket name.
+     * @returns {Worker|null} The Worker instance, or null if invalid or not found.
+     */
+
+    to(bucketName) {
+	return this.bucket(bucketName);
+    }
+
+    /**
+     * Forward a `log` record to an existing bucket.
+     *
+     * Behavior:
+     * - If Manager is disabled => returns null
+     * - If bucket does not exist => returns null
+     * - Otherwise forwards to `Worker.log(data, opts)`
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number} bucketName Existing bucket name.
+     * @param {any} data Payload to log.
+     * @param {Object} [opts] Forwarded to Worker.
+     * @returns {Object|null} The stored record, or null if dropped/missing bucket.
+     * @throws {Error} If `bucketName` is invalid.
+     */
+    log(bucketName, data, opts = {}) {
+	if (!this.enabled) return null;
+	const w = this._bucket(bucketName);
+	if (!w) return null;
+	return w.log(data, opts);
+    }
+    /**
+     * Forward an `info` record to an existing bucket.
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number} bucketName Existing bucket name.
+     * @param {any} data Payload to log.
+     * @param {Object} [opts] Forwarded to Worker.
+     * @returns {Object|null} The stored record, or null if dropped/missing bucket.
+     * @throws {Error} If `bucketName` is invalid.
+     */
+    info(bucketName, data, opts = {}) {
+	if (!this.enabled) return null;
+	const w = this._bucket(bucketName);
+	if (!w) return null;
+	return w.info(data, opts);
+    }
+    /**
+     * Forward a `warn` record to an existing bucket.
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number} bucketName Existing bucket name.
+     * @param {any} data Payload to log.
+     * @param {Object} [opts] Forwarded to Worker.
+     * @returns {Object|null} The stored record, or null if dropped/missing bucket.
+     * @throws {Error} If `bucketName` is invalid.
+     */
+    warn(bucketName, data, opts = {}) {
+	if (!this.enabled) return null;
+	const w = this._bucket(bucketName);
+	if (!w) return null;
+	return w.warn(data, opts);
+    }
+    /**
+     * Forward an `error` record to an existing bucket.
+     *
+     * Behavior:
+     * - If Manager is disabled => returns null
+     * - If bucket does not exist => returns null
+     * - Otherwise forwards to `Worker.error(data, opts)` and returns the stored record
+     * - If `this.throwOnError` is true, throws after recording (and prints via `console.error`).
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number} bucketName Existing bucket name.
+     * @param {any} data Payload to log.
+     * @param {Object} [opts] Forwarded to Worker.
+     * @returns {Object|null} The stored record, or null if dropped/missing bucket.
+     * @throws {Error} If `bucketName` is invalid.
+     * @throws {Error} If `throwOnError` is enabled.
+     */
+    error(bucketName, data, opts = {}) {
+	if (!this.enabled) return null;
+	const w = this._bucket(bucketName);
+	if (!w) return null;
+
+	const rec = w.error(data, opts);
+
+	if (this.throwOnError) {
+	    console.error(rec);
+            throw new Error(`[log] error(${bucketName}) (throwOnError enabled)`);
+	}
+	return rec;
+    }
+    
+    // ---------------------------------------------------------------------------
+    // Reading / clearing
+    // ---------------------------------------------------------------------------
+    /**
+     * Retrieve stored records from an existing bucket.
+     *
+     * Note:
+     * - This method validates the bucket name and will throw if invalid.
+     * - If the bucket does not exist, returns an empty array.
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number} bucketName Existing bucket name.
+     * @param {Object} [filter={}] Filter forwarded to `Worker.get(filter)`.
+     * @returns {Object[]} Matching records; empty array if bucket does not exist.
+     * @throws {Error} If `bucketName` is invalid.
+     */
+    get(bucketName, filter = {}) {
+	const w = this._bucket(bucketName);
+	if (!w) return [];
+	return w.get(filter);
+    }
+    /**
+     * Clear records.
+     *
+     * - If `bucketName` is null/undefined => clears all buckets.
+     * - Otherwise clears only the named bucket (no-op if missing).
+     *
+     * Note:
+     * - When clearing a specific bucket, the bucket name is validated and will throw if invalid.
+     *
+     * Bucket name rules (when `bucketName` is provided):
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number|null|undefined} bucketName Bucket name, or null/undefined for all.
+     * @returns {void}
+     * @throws {Error} If `bucketName` is provided but invalid.
+     */
+    clear(bucketName) {
+	// if omitted => clear all
+	if (bucketName == null) {
+            for (const w of this.workers.values()) w.clear();
+            return;
+	}
+	const w = this._bucket(bucketName);
+	if (w) w.clear();
+    }
+    /**
+     * List bucket stats for all registered Workers.
+     *
+     * @returns {Array<Object>} Array of `Worker.stats()` snapshots.
+     */
+    list() {
+	const out = [];
+	for (const w of this.workers.values()) {
+            out.push(w.stats());
+	}
+	return out;
+    }
+    // ---------------------------------------------------------------------------
+    // Internals
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Get an existing Worker by name (strict lookup).
+     *
+     * Internal variant of `bucket()` that enforces strict validation.
+     *
+     * Behavior:
+     * - Validates and normalizes the bucket name.
+     * - Throws if the name is invalid.
+     * - Returns `null` if the bucket does not exist.
+     *
+     * Bucket name rules:
+     * - Valid names are non-empty strings.
+     * - Finite numbers are accepted and coerced to strings (e.g. `0` -> `"0"`).
+     * - All other values throw.
+     *
+     * @param {string|number} name Bucket name.
+     * @returns {Worker|null} The Worker instance, or null if not found.
+     * @throws {Error} If `name` is invalid.
+     */
+    _bucket(name) {
+	const key = utils.validateBucketName(name);
+	return this.workers.get(key) || null;
+    }
+
+    
+
+}
+
+
+# --- end: doc3/src_inprogress/log/Manager.js ---
+
+
+
+# --- begin: doc3/src_inprogress/log/utils.js ---
+
+import { CONSOLE_LEVEL } from './constants.js';
+/**
+ * Validate and normalize a bucket name.
+ *
+ * Behavior (strict):
+ * - Accepts non-empty strings.
+ * - Accepts finite numbers and coerces them to strings.
+ * - Rejects `null`, `undefined`, empty string, NaN, Infinity,
+ *   and all other non-string / non-number values.
+ *
+ * Error handling:
+ * - If `die` is true (default), throws on invalid input.
+ * - If `die` is false, returns null on invalid input.
+ *
+ * @param {any} value The bucket name input.
+ * @param {boolean} [die=true] Throw on invalid input.
+ * @returns {string|null} Normalized bucket name, or null if invalid and `die` is false.
+ * @throws {Error} If the name is invalid and `die` is true.
+ */
+export function validateBucketName(value, die = true) {
+    const fail = () => {
+        if (!die) return null;
+        throw new Error("bucket name must be a non-empty string or finite number");
+    };
+
+    if (typeof value === "string") {
+        if (value.length === 0) return fail();
+        return value;
+    }
+
+    if (typeof value === "number") {
+        if (!Number.isFinite(value)) return fail();
+        return String(value);
+    }
+
+    return fail();
+}
+
+/**
+ * Normalize console emission policy into a numeric CONSOLE_LEVEL.
+ *
+ * - falsy => OFF
+ * - true  => ALL
+ * - number => returned as-is
+ * - string => looked up in CONSOLE_LEVEL (case-insensitive)
+ *
+ * @private
+ * @param {any} value
+ * @returns {number} console level enum value
+ */
+export function _normalizeConsoleLevel(value) {
+    // falsy => OFF
+    if (!value) return CONSOLE_LEVEL.OFF;
+
+    // true => ALL
+    if (value === true) return CONSOLE_LEVEL.ALL;
+
+    // numeric => clamp to enum range
+    if (Number.isFinite(value)) {
+	const min = CONSOLE_LEVEL.OFF;
+	const max = CONSOLE_LEVEL.ALL;
+	if (value < min) return min;
+	if (value > max) return max;
+	return value;
+    }
+    // string => enum lookup
+    if (typeof value === "string") {
+        const key = value.toUpperCase();
+        if (key in CONSOLE_LEVEL) {
+            return CONSOLE_LEVEL[key];
+        }
+    }
+
+    // fallback
+    return CONSOLE_LEVEL.OFF;
+}
+/**
+ * Normalize a clock function.
+ *
+ * - falsy => Date.now
+ * - function => returned as-is
+ * - otherwise => throws
+ *
+ * @private
+ * @param {any} value
+ * @returns {Function} () => number (epoch ms)
+ * @throws {Error} if value is not a function
+ */
+export function _getClock(value) {
+    if (!value) return Date.now;
+
+    if (typeof value === "function") {
+        return value;
+    }
+
+    throw new Error("[log] invalid clock: expected function");
+}
+
+
+
+/**
+ * Normalize a value into a function reference.
+ *
+ * - falsy => null
+ * - function => returned as-is
+ * - otherwise:
+ *   - if `lib.func.get` exists, attempt resolution
+ *   - if resolved value is a function => returned
+ *   - else => throws
+ *
+ * @private
+ * @param {any} value
+ * @param {string} [label='function'] Label used in error messages
+ * @returns {Function|null}
+ * @throws {Error} if value cannot be resolved to a function
+ */
+export function _getFunction(value, label = "function") {
+    // falsy => null (undefined, null, false, "", 0, etc.)
+    if (!value) return null;
+
+    // already a function
+    if (typeof value === "function") return value;
+
+    // attempt lib.func.get resolution (if available)
+    if (typeof lib !== "undefined" && lib.func && typeof lib.func.get === "function") {
+        const resolved = lib.func.get(value);
+        if (typeof resolved === "function") {
+	    return resolved;
+        }
+    }
+
+    // barf
+    throw new Error(`[log] invalid ${label}: expected function or resolvable reference`);
+}
+
+/**
+ * Normalize and validate bucket max size.
+ *
+ * - falsy / 0 / "0" => unlimited (0)
+ * - positive integer => ring buffer size
+ * - negative / float / non-numeric => throws
+ *
+ * @private
+ * @param {any} value
+ * @returns {number} max size (0 = unlimited)
+ * @throws {Error} on invalid value
+ */
+export function _normalizeLogMax(value) {
+    // falsy => unlimited
+    if (!value) return 0;
+
+    // string "0" => unlimited
+    if (value === "0") return 0;
+
+    // numeric or numeric string
+    const num = typeof value === "string" ? Number(value) : value;
+
+    // reject non-numeric
+    if (!Number.isFinite(num)) {
+        throw new Error(`[log] invalid max value (not numeric): ${value}`);
+    }
+
+    // reject floats
+    if (!Number.isInteger(num)) {
+        throw new Error(`[log] invalid max value (must be integer): ${value}`);
+    }
+
+    // reject negatives
+    if (num < 0) {
+        throw new Error(`[log] invalid max value (negative): ${value}`);
+    }
+
+    // 0 already handled, but keep explicit
+    if (num === 0) return 0;
+
+    // positive integer => ring buffer size
+    return num;
+}
+
+/**
+ * Best-effort deep clone.
+ *
+ * Cloning strategy (in order):
+ * 1) Use `structuredClone` when available.
+ *    - Provides deep cloning with cycle support and rich type handling.
+ *    - May throw for unsupported values (functions, streams, class instances, etc.).
+ *
+ * 2) Fall back to `lib.utils.deepCopy` when available.
+ *    - Deep-copies plain objects and arrays.
+ *    - Preserves class instances, functions, and unsupported objects by reference
+ *      (PHP-style semantics).
+ *
+ * 3) Final fallback: return the original value by reference.
+ *
+ * Guarantees:
+ * - This function never throws.
+ * - Logging will not fail due to cloning errors.
+ * - When cloning is not possible, the original reference is preserved.
+ *
+ * Notes:
+ * - Cloning is conservative by design and intended for snapshotting log payloads.
+ * - Complex objects such as DOM nodes, network responses, streams, and class
+ *   instances may not be fully cloned.
+ *
+ * @param {any} value Value to clone.
+ * @returns {any} Cloned value, or the original value if cloning is not possible.
+ */
+export function cloneBestEffort(value) {
+    // primitives / null / undefined
+    if (value == null) return value;
+
+    const t = typeof value;
+    if (t !== "object" && t !== "function") return value;
+
+    // 1) Prefer structuredClone if available
+    try {
+        if (typeof structuredClone === "function") {
+            return structuredClone(value);
+        }
+    } catch {
+        // fall through
+    }
+
+    // 2) Fall back to lib.utils.deepCopy if available
+    try {
+        if (
+            typeof lib !== "undefined" &&
+            lib &&
+            lib.utils &&
+            typeof lib.utils.deepCopy === "function"
+        ) {
+            return lib.utils.deepCopy(value);
+        }
+    } catch {
+        // fall through
+    }
+
+    // 3) Last resort: return original reference
+    return value;
+}
+
+/**
+ * Create a normalized log record with a strict header/body split.
+ *
+ * - `header` contains system-supplied fields
+ * - `body` contains user-supplied payload
+ *
+ * @param {any} entry
+ * @param {Object} [ctx]
+ * @param {Function} [ctx.clock]    Optional clock override.
+ * @param {string}   [ctx.source]   Logger / worker name.
+ * @param {string}   [ctx.level]    Severity level.
+ * @param {string}   [ctx.event]    Optional event name.
+ * @param {any}      [ctx.trace]    Optional trace payload.
+ * @param {number}   [ctx.lastAt]
+ *        Previous record timestamp (epoch ms). When provided, `header.lastAt` is set
+ *        and `header.delta` is computed as `header.at - lastAt`.
+ * @param {boolean}  [ctx.clone=false]
+ *        When true, clones `body` best-effort to reduce mutation-by-reference.
+ *
+ * @returns {{header: Object, body: Object}}
+ */
+export function makeRecord(entry, ctx = {}) {
+    const isObj =
+          entry &&
+          typeof entry === "object" &&
+          !Array.isArray(entry);
+
+    let body = isObj ? entry : { value: entry };
+
+    const clock =
+          typeof ctx.clock === "function"
+          ? ctx.clock
+          : _getClock(undefined);
+
+    const header = { at: clock() };
+
+    if (ctx.source != null) header.source = ctx.source;
+    if (ctx.level  != null) header.level  = ctx.level;
+    if (ctx.event  != null) header.event  = ctx.event;
+    if (ctx.trace  != null) header.trace  = ctx.trace;
+    if (ctx.lastAt != null) {
+	header.lastAt = ctx.lastAt;
+	header.delta  = header.at - ctx.lastAt;
+    }
+    
+    if (ctx.clone === true) {
+        body = cloneBestEffort(body);
+    }
+
+    return { header, body };
+}
+
+/**
+ * Map a log level string to a CONSOLE_LEVEL threshold.
+ *
+ * @param {string} level
+ * @returns {number}
+ */
+export function levelToConsoleLevel(level) {
+    const lv = String(level || "log").toLowerCase();
+
+    if (lv === "error") return CONSOLE_LEVEL.ERROR;
+    if (lv === "warn" || lv === "warning") return CONSOLE_LEVEL.WARN;
+    if (lv === "info") return CONSOLE_LEVEL.INFO;
+
+    return CONSOLE_LEVEL.LOG;
+}
+
+/**
+ * Decide whether a record should be printed to console based on policy.
+ *
+ * Printing is determined by comparing the resolved console policy against
+ * the severity level derived from `record.header.level`.
+ *
+ * Behavior:
+ * - If no policy is provided, defaults to OFF.
+ * - If policy is ALL, always prints.
+ * - Otherwise, prints only if `policy >= levelToConsoleLevel(record.header.level)`.
+ *
+ * @param {Object} record
+ *        A normalized log record.
+ *        Expected to contain `record.header.level`.
+ *
+ * @param {Object} [ctx]
+ * @param {number|string|boolean|null|undefined} [ctx.console]
+ *        Console emission policy override.
+ *        This value is normalized internally.
+ *
+ * @returns {boolean}
+ */
+
+export function shouldPrint(record, ctx = {}) {
+    const policy = ("console" in ctx)
+          ? _normalizeConsoleLevel(ctx.console)
+          : CONSOLE_LEVEL.OFF;
+
+    if (policy === CONSOLE_LEVEL.OFF) return false;
+    if (policy === CONSOLE_LEVEL.ALL) return true;
+    const need = levelToConsoleLevel(record?.header?.level);
+    return policy >= need;
+}
+/**
+ * Print a record to console (best-effort).
+ *
+ * Intentionally minimal:
+ * - no formatting
+ * - no args spreading
+ * - prints the user payload (`record.body`) only
+ *
+ * @param {{header?: Object, body?: any}} record
+ * @returns {void}
+ */
+export function printRecord(record) {
+    if (!record) return;
+
+    const c = (typeof console !== "undefined") ? console : null;
+    if (!c) return;
+
+    const level = String(record?.header?.level || "log").toLowerCase();
+
+    try {
+        if (level === "error" && typeof c.error === "function") {
+            c.error(record.body);
+            return;
+        }
+        if ((level === "warn" || level === "warning") && typeof c.warn === "function") {
+            c.warn(record.body);
+            return;
+        }
+        if (level === "info" && typeof c.info === "function") {
+            c.info(record.body);
+            return;
+        }
+
+        if (typeof c.log === "function") {
+            c.log(record.body);
+        }
+    } catch {
+        // never let console printing break logging
+    }
+}
+
+export default {
+    _getClock,
+    _getFunction,
+    _normalizeConsoleLevel,
+    _normalizeLogMax,
+    levelToConsoleLevel,
+    shouldPrint,
+    printRecord,
+    makeRecord,
+    cloneBestEffort,
+    validateBucketName
+};
+
+
+# --- end: doc3/src_inprogress/log/utils.js ---
+
+
+
+# --- begin: doc3/src_inprogress/log/Worker.js ---
+
+/**
+ * log/Worker.js
+ * ------------
+ * Worker represents a single log stream ("bucket") with its own:
+ * - storage policy (unlimited or ring-buffer via `max`)
+ * - enable/disable switch
+ * - console emission policy (`console`)
+ * - optional per-record hook (`onEvent`)
+ * - optional printer implementation (`onPrint`)
+ * - time source (`clock`)
+ * - user workspace (`workspace`) injected into hooks/printers
+ *
+ * Worker responsibilities:
+ * - normalize + emit records (via `emit()`) into a stable `{ header, body }` shape
+ * - store records in-memory (unlimited array or ring buffer)
+ * - expose retrieval APIs (`get`, `stats`)
+ * - enforce bucket-level storage limits (`truncate`)
+ * - dispatch `onEvent` best-effort after acceptance/storage
+ * - optionally print records using `onPrint` or the default printer
+ *
+ * Record shape:
+ * - `{ header, body }`
+ * - `header` is system-owned metadata (e.g. `at`, `source`, `level`, `event`, `trace`)
+ * - `body` is user-owned payload (opaque to Worker)
+ */
+
+import { CONSOLE_LEVEL } from './constants.js';
+import utils             from './utils.js';
+/**
+ * Worker
+ * ------
+ * Per-bucket storage + policy container.
+ *
+ * Each Worker owns a single logical bucket (e.g. "net", "dom", "errors").
+ */
+export default class Worker {
+    /**
+     * Create a Worker.
+     *
+     * A Worker represents a single log stream with its own:
+     * - in-memory storage policy (unlimited or ring buffer)
+     * - enable/disable switch
+     * - console emission policy
+     * - optional event hook
+     * - optional printer implementation
+     * - clock source
+     *
+     * @param {Object} [opts]
+     * @param {string} [opts.name='default']
+     *        Logical name of this Worker (used as `record.header.source`).
+     * @param {number|string|false|null|undefined} [opts.max=0]
+     *        Maximum number of retained records.
+     *        - falsy / 0 / "0" => unlimited storage
+     *        - positive integer => ring buffer size
+     *        - negative, float, or non-numeric values throw
+     * @param {boolean} [opts.enabled=true]
+     *        Master enable switch for this Worker. When false, emitted records are dropped.
+     * @param {number|string|boolean|null|undefined} [opts.console]
+     *        Console emission policy for this Worker.
+     * @param {Function|string|any} [opts.onEvent=null]
+     *        Optional per-record hook invoked after a record is accepted/stored.
+     *        Signature: `(record, worker, workspace) => void`
+     * @param {Function|string|any} [opts.onPrint=null]
+     *        Optional printer implementation used for console output.
+     *        Signature: `(record, ctx, workspace) => void`
+     * @param {Function|any} [opts.clock=Date.now]
+     *        Clock function returning epoch milliseconds. Invalid values throw.
+     *
+     * @param {boolean} [opts.clone=false]
+     *        Default cloning policy for this Worker.
+     *        When true, emitted record bodies are cloned best-effort before storage,
+     *        unless overridden per call via `emit(..., { clone })`.
+     *
+     * @param {any} [opts.workspace]
+     *        Optional user-defined workspace.
+     *
+     *        Workspace rules:
+     *        - If `opts` has an own `workspace` key:
+     *            - a plain object value becomes the workspace
+     *            - any other value nukes the workspace to `{}`
+     *        - If `opts` does not include `workspace`, the workspace defaults to `{}`.
+     *
+     *        The workspace is passed to:
+     *        - `onEvent(record, worker, workspace)`
+     *        - `onPrint(record, ctx, workspace)`
+     */
+    constructor(opts = {}) {
+	this.name    = String(opts.name || "default");
+	this.max     = utils._normalizeLogMax(opts.max);
+	this.enabled = opts.enabled !== false;
+	this.console = utils._normalizeConsoleLevel(opts.console);
+
+	this.onEvent = utils._getFunction(opts.onEvent, "onEvent");
+	this.onPrint = utils._getFunction(opts.onPrint, "onPrint");
+	
+	this.clock   = utils._getClock(opts.clock);
+
+	// default cloning policy (per-call `opts.clone` may override)
+	this.clone = opts.clone === true;
+	
+	// user-supplied workspace (opaque, user-owned)
+	this.userWorkspace =
+	    ("workspace" in opts)
+            ? this._resolveWorkspace(opts.workspace)
+            : {};
+
+	// storage
+	this._events = [];
+	this._cursor = 0;
+	this._count  = 0;
+	this._lastAt = 0;
+    }
+    
+    
+    // ---------------------------------------------------------------------------
+    // Public API
+    // ---------------------------------------------------------------------------
+    /**
+     * Set the console emission policy for this Worker.
+     *
+     * This policy is consulted by `emit()` when deciding whether a stored record
+     * is eligible for printing. Printing can also be suppressed per-call via
+     * `emit(..., { print: false })`, and the policy may be overridden per-call via
+     * `emit(..., { console: <override> })`.
+     *
+     * @param {number|string|boolean|null|undefined} value
+     * @returns {void}
+     */
+
+    setConsoleLevel(value){
+	this.console = utils._normalizeConsoleLevel(value);
+    }
+
+    /**
+     * Set the maximum retained record count for this bucket.
+     *
+     * - `0` / falsy / `"0"` => unlimited (no truncation required)
+     * - positive integer   => ring buffer size (retain last N records)
+     * - invalid values     => throws
+     *
+     * If reducing max below current stored size, truncates immediately to keep
+     * the most recent entries and re-aligns ring cursor.
+     *
+     * @param {number|string|false|null|undefined} value
+     * @returns {void}
+     * @throws {Error} on invalid value
+     */
+    setLogMax(value){
+        this.max = utils._normalizeLogMax(value);
+        this.truncate();
+    }
+
+
+    /**
+     * Enforce `this.max` against current storage.
+     *
+     * - No-op if `max === 0` (unlimited).
+     * - If stored size exceeds max, keeps the most recent `max` records.
+     * - Re-aligns ring cursor to a valid next-write position.
+     *
+     * @returns {void}
+     */
+    truncate(){
+        // unlimited storage: nothing to do
+        if (this.max === 0) return;
+
+        const len = this._events.length;
+        if (len <= this.max) return;
+
+        // keep most recent `max` events
+        this._events = this._events.slice(len - this.max);
+
+	// reset ring cursor to a valid next write position (end of current list)
+        this._cursor = this._events.length % this.max;
+    }
+
+    /**
+     * Store a normalized record in this Worker.
+     *
+     * This is the internal storage primitive used by `emit()`.
+     *
+     * Behavior:
+     * - If disabled (`enabled === false`) => returns null (dropped)
+     * - If record is falsy => returns null
+     * - Otherwise stores into unlimited or ring buffer depending on `max`
+     * - Dispatches the per-bucket `onEvent` hook best-effort (hook errors swallowed)
+     *
+     * @param {{header: Object, body: any}} record
+     *        A normalized log record.
+     * @returns {Object|null} The stored record, or null if dropped.
+     */
+    _push(record) {
+	// drop if disabled or no record
+	if (!this.enabled) return null;
+	if (!record) return null;
+
+	// total count
+	this._count++;
+
+	// store (unlimited vs ring)
+	const stored = (this.max === 0)
+              ? this._pushUnlimited(record)
+              : this._pushRing(record);
+
+	// emit hook (best-effort)
+	if (stored) this._dispatchOnEvent(stored);
+
+	return stored;
+    }
+    /**
+     * Retrieve stored records from this Worker, optionally filtered.
+     *
+     * Records are returned in chronological order (oldest → newest),
+     * regardless of internal storage mode (unlimited array or ring buffer).
+     *
+     * Filtering:
+     * - If `filter` is not an object (or is null), no key-based predicates are applied.
+     *   Only special options (`limit`, `since`) may be consulted when present.
+     *
+     * Key routing:
+     * - Explicit targeting:
+     *   - `"header.foo"` → matches `record.header["foo"]` (literal key; no path traversal)
+     *   - `"body.bar"`   → matches `record.body["bar"]` (literal key; no path traversal)
+     * - Best-effort targeting (when no prefix is provided):
+     *   - Known header fields (`at`, `source`, `level`, `event`, `trace`) match header
+     *   - All other bare keys match body
+     *
+     * Value matching:
+     * - Scalars compare via strict equality (`===`).
+     * - Functions are treated as predicates: `(value, record) => boolean`
+     *   Predicate errors are swallowed and treated as a non-match.
+     *
+     * Special filters:
+     * - `since` : number (epoch ms)
+     *     Filters out records whose `record.header.at` is less than `since`.
+     * - `limit` : non-negative integer
+     *     Limits the result to the most recent `limit` records after filtering.
+     *     `limit === 0` returns `[]`.
+     *
+     * @param {any} [filter]
+     * @returns {Object[]} Array of matching records.
+     * @throws {Error} If `limit` is present but invalid (non-integer or negative).
+     */
+    get(filter = {}) {
+	// limit: if provided, must be a non-negative integer
+	let limit = null;
+	if (filter && "limit" in filter) {
+            const n = Number(filter.limit);
+            if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+		throw new Error(`[log] invalid limit: ${filter.limit}`);
+            }
+            limit = n;
+            if (limit === 0) return [];
+	}
+
+	// Optional range filter (lower bound on header.at)
+	const since = Number.isFinite(filter?.since) ? filter.since : null;
+
+	// Note: ring buffer is stored in overwrite order; we want chronological output.
+	// If max > 0 and buffer is full, oldest item is at _cursor.
+	let list;
+	if (this.max > 0 && this._events.length === this.max) {
+            const head = this._events.slice(this._cursor);
+            const tail = this._events.slice(0, this._cursor);
+            list = head.concat(tail);
+	} else {
+            list = this._events.slice();
+	}
+
+	// Known header fields (best-effort routing when caller omits header/body)
+	const KNOWN_HEADER = new Set(["at", "source", "level", "event", "trace"]);
+
+	const predicates = [];
+
+	if (filter && typeof filter === "object") {
+            for (const [rawKey, expected] of Object.entries(filter)) {
+		if (rawKey === "limit" || rawKey === "since") continue;
+		if (expected === undefined) continue;
+
+		const key = String(rawKey);
+
+		let where = null; // 'header' | 'body'
+		let prop = null;
+
+		// Only treat as namespaced if explicitly prefixed
+		if (key.startsWith("header.")) {
+                    where = "header";
+                    prop = key.slice("header.".length); // literal key (no path traversal)
+		} else if (key.startsWith("body.")) {
+                    where = "body";
+                    prop = key.slice("body.".length);   // literal key (no path traversal)
+		} else {
+                    // bare key (including keys containing dots)
+                    prop = key;
+                    where = KNOWN_HEADER.has(prop) ? "header" : "body";
+		}
+
+		const isFn = (typeof expected === "function");
+
+		predicates.push((rec) => {
+                    const container = rec && rec[where];
+                    const value = container ? container[prop] : undefined;
+
+                    if (isFn) {
+			try {
+                            return !!expected(value, rec);
+			} catch {
+                            return false;
+			}
+                    }
+
+                    return value === expected;
+		});
+            }
+	}
+
+	// Apply filters
+	let out = list.filter((rec) => {
+            if (!rec) return false;
+
+            // since => header.at lower bound
+            if (since != null) {
+		const t = Number.isFinite(rec?.header?.at) ? rec.header.at : null;
+		if (t == null || t < since) return false;
+            }
+
+            for (const fn of predicates) {
+		if (!fn(rec)) return false;
+            }
+
+            return true;
+	});
+
+	// Apply limit (take most recent `limit`)
+	if (limit != null && limit > 0 && out.length > limit) {
+            out = out.slice(out.length - limit);
+	}
+
+	return out;
+    }
+    
+    /**
+     * Clear all stored records for this bucket (dump the log).
+     *
+     * Resets:
+     * - internal storage
+     * - ring cursor
+     * - accepted record count
+     *
+     * @returns {void}
+     */
+    clear() {
+        this._events.length = 0;
+        this._cursor = 0;
+        this._count = 0;
+    }
+
+    
+    /**
+     * Return a snapshot of bucket state.
+     *
+     * @returns {{
+     *   name: string,
+     *   enabled: boolean,
+     *   max: number,
+     *   size: number,
+     *   count: number,
+     *   ring: boolean
+     * }}
+     */
+    stats() {
+	return {
+	    name: this.name,
+	    enabled: this.enabled,
+	    max: this.max,
+	    size: this._events.length,
+	    count: this._count,
+	    ring: this.max > 0,
+	};
+    }
+
+    /**
+     * Patch Worker policy at runtime.
+     *
+     * Intended keys (all optional):
+     * - `enabled`   : boolean
+     * - `max`       : number|string|falsy (see setLogMax)
+     * - `console`   : number|string|boolean|falsy (see setConsoleLevel)
+     * - `onEvent`   : function or lib-resolvable reference
+     * - `onPrint`   : function or lib-resolvable reference
+     * - `clock`     : function
+     * - `workspace` : any
+     *
+     * Workspace semantics:
+     * - If `patch` has an own `workspace` key:
+     *     - a plain object value becomes the workspace
+     *     - any other value nukes the workspace to `{}`
+     * - If `workspace` is not provided, the workspace is unchanged.
+     *
+     * @param {Object} patch
+     * @returns {void}
+     * @throws {Error} on invalid values
+     */
+    configure(patch = {}) {
+	if (!patch || typeof patch !== "object") {
+            throw new Error("[log] Worker.configure expects an object");
+	}
+
+	if ("enabled" in patch) {
+            this.enabled = !!patch.enabled;
+	}
+
+	if ("max" in patch) {
+            this.setLogMax(patch.max);
+	}
+
+	if ("console" in patch) {
+            this.setConsoleLevel(patch.console);
+	}
+
+	if ("onEvent" in patch) {
+            this.onEvent = utils._getFunction(patch.onEvent, "onEvent");
+	}
+
+	if ("onPrint" in patch) {
+            this.onPrint = utils._getFunction(patch.onPrint, "onPrint");
+	}
+
+	if ("clock" in patch) {
+            this.clock = utils._getClock(patch.clock);
+	}
+
+	if ("workspace" in patch) {
+	    this.userWorkspace = this._resolveWorkspace(patch.workspace);
+	}
+    }
+
+    /**
+     * Enable or disable this bucket.
+     *
+     * When disabled, `emit()` and `_push()` drop records and return null.
+     *
+     * @param {boolean} [on=true]
+     * @returns {void}
+     */
+    setEnabled(on = true) {
+	this.enabled = !!on;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Internals (storage primitives)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Store a record in unlimited storage mode.
+     * @private
+     * @param {Object} record
+     * @returns {Object} record
+     */
+    _pushUnlimited(record) {
+        this._events.push(record);
+        return record;
+    }
+
+    /**
+     * Store a record in ring buffer mode.
+     *
+     * Invariant:
+     * - `this.max` must be a positive integer (> 0) when this method is called.
+     *
+     * @private
+     * @param {Object} record
+     * @returns {Object} record
+     * @throws {Error} if ring invariant is violated
+     */
+    _pushRing(record) {
+        // invariant: ring mode implies max is a positive integer
+        if (this.max <= 0) {
+            throw new Error(`[log] Worker._pushRing invariant violation: max must be > 0 (got ${this.max})`);
+        }
+
+        if (this._events.length < this.max) {
+            this._events.push(record);
+            this._cursor = this._events.length % this.max;
+            return record;
+        }
+
+        this._events[this._cursor] = record;
+        this._cursor = (this._cursor + 1) % this.max;
+        return record;
+    }
+
+    /**
+     * Dispatch the per-bucket `onEvent` hook (best-effort).
+     *
+     * This is an observability hook invoked after a record has been accepted/stored.
+     * Hook errors are swallowed so instrumentation cannot break logging.
+     *
+     * @private
+     * @param {Object} record
+     * @returns {void}
+     */
+    _dispatchOnEvent(record) {
+	const fn = this.onEvent;
+	if (!fn) return;
+
+	try {
+            fn(record, this, this.userWorkspace);
+	} catch {
+            // swallow
+	}
+    }
+
+    // ---------------------------------------------------------------------------
+    // Logging API (Worker-first)
+    // ---------------------------------------------------------------------------
+/**
+ * Emit a log entry into this Worker.
+ *
+ * Steps:
+ * - If disabled => returns null
+ * - Normalize payload into a `{ header, body }` record via `utils.makeRecord`
+ * - Include timing metadata:
+ *   - `header.lastAt` and `header.delta` are populated when a previous timestamp exists
+ * - Optionally clone the record body best-effort (to reduce mutation-by-reference)
+ * - Store the record via `_push(record)`
+ * - If console policy allows, print the record best-effort
+ *
+ * @param {any} data User payload (object becomes body; primitives become `{ value }`).
+ * @param {Object} [opts]
+ * @param {string} [opts.level='log'] Severity level stored in `record.header.level`.
+ * @param {string} [opts.event] Optional event name stored in `record.header.event`.
+ * @param {any}    [opts.trace] Optional trace payload stored in `record.header.trace`.
+ * @param {Object} [opts.ctx] Optional context forwarded to printing.
+ * @param {boolean} [opts.clone]
+ *        When provided, overrides bucket default cloning behavior.
+ *        If true, clones the record `body` best-effort before storage to reduce
+ *        mutation-by-reference.
+ * @returns {Object|null} The stored record, or null if dropped.
+ */
+    emit(data, opts = {}) {
+	if (!this.enabled) return null;
+
+	// header-owned level (default)
+	const level = (opts && opts.level != null) ? opts.level : "log";
+
+	// Build normalized record with header/body split
+	const record = utils.makeRecord(data, {
+            clock: this.clock,
+            source: this.name,   // worker/logger name
+            level,
+            event: opts.event,
+            trace: opts.trace,
+	    lastAt: this.lastAt,
+	    // avoid mutation as best as possible
+	    clone:
+            opts && "clone" in opts
+		? opts.clone === true
+		: this.clone === true
+	});
+	this._lastAt = record.header.at;
+	// Store (_push fires per-bucket hook via _dispatchOnEvent)
+	const stored = this._push(record);
+	if (!stored) return null;
+
+	// Console printing (explicit override -> worker default)
+	const doPrint = (opts && opts.print === false) ? false : true;
+	const consolePolicy = (opts && (opts.console !== undefined)) ? opts.console : this.console;
+	if (doPrint && utils.shouldPrint(stored, { console: consolePolicy })) {
+	    const printer = this.onPrint || utils.printRecord;
+
+	    const ctx = {
+		levelNum: utils.levelToConsoleLevel(stored.header.level),
+		policy: utils._normalizeConsoleLevel(consolePolicy),
+		CONSOLE_LEVEL
+	    };
+
+	    try {
+		printer(stored, ctx, this.userWorkspace);
+	    } catch {
+		// never allow printing to break logging
+	    }
+	}
+	return stored;
+    }
+
+    /**
+     * Convenience: level='log'
+     *
+     * @param {any} data
+     * @param {Object} [opts] Same as emit() opts (level is overridden)
+     * @returns {Object|null}
+     */
+    log(data, opts = {}) {
+	// opts is optional; avoid spreading non-objects
+	const o = (opts && typeof opts === "object") ? opts : {};
+	return this.emit(data, Object.assign({}, o, { level: "log" }));
+    }
+
+    /**
+     * Convenience: level='info'
+     *
+     * @param {any} data
+     * @param {Object} [opts] Same as emit() opts (level is overridden)
+     * @returns {Object|null}
+     */
+    info(data, opts = {}) {
+	const o = (opts && typeof opts === "object") ? opts : {};
+	return this.emit(data, Object.assign({}, o, { level: "info" }));
+    }
+
+    /**
+     * Convenience: level='warn'
+     *
+     * @param {any} data
+     * @param {Object} [opts] Same as emit() opts (level is overridden)
+     * @returns {Object|null}
+     */
+    warn(data, opts = {}) {
+	const o = (opts && typeof opts === "object") ? opts : {};
+	return this.emit(data, Object.assign({}, o, { level: "warn" }));
+    }
+
+    /**
+     * Convenience: level='error'
+     *
+     * Note: Worker does not throw by default. Throw policy (if desired) belongs
+     * to a higher-level coordinator (e.g., Manager facade).
+     *
+     * @param {any} data
+     * @param {Object} [opts] Same as emit() opts (level is overridden)
+     * @returns {Object|null}
+     */
+    error(data, opts = {}) {
+	const o = (opts && typeof opts === "object") ? opts : {};
+	return this.emit(data, Object.assign({}, o, { level: "error" }));
+    }
+
+
+    /**
+     * Normalize a workspace value.
+     *
+     * Rules:
+     * - valid => plain object (truthy, typeof "object", not Array)
+     * - otherwise => {}
+     *
+     * Note: callers decide whether to apply this (i.e. only when key is present).
+     *
+     * @private
+     * @param {any} value
+     * @returns {Object}
+     */
+    _resolveWorkspace(value) {
+	const isObj =
+              value &&
+              typeof value === "object" &&
+              !Array.isArray(value);
+
+	return isObj ? value : {};
+    }
+    
+    
+}
+
+
+# --- end: doc3/src_inprogress/log/Worker.js ---
+
+
+
+# --- begin: doc3/src_inprogress/LoggerDiagnostics.js ---
+
+// LoggerDiagnostics.js
+//
+// Skeleton: unified logging + diagnostics (no real implementation yet).
+// Goal: replace logTraits + diagnosticTraits with a standalone class.
+//
+// - Keeps structured event logging (buffered)
+// - Keeps warn/error/nonFatal helpers
+// - Keeps stackTrace / parseStackLine utilities
+// - Does NOT know what a "job" is; it just accepts context objects
+
+export default class LoggerDiagnostics {
+    /**
+     * @param {Object} [opts]
+     * @param {string} [opts.mod='[activeTags]']   Tag/prefix for console output
+     * @param {boolean} [opts.debug=false]        Enables console printing
+     * @param {Object} [opts.log]                 Structured log settings
+     * @param {boolean} [opts.log.enable=false]   Enables internal event buffer
+     * @param {number} [opts.log.max=0]           0 = unlimited, else ring-buffer size
+     * @param {function} [opts.onEvent]           Hook: (record) => void
+     * @param {number} [opts.stackSkip=3]         Default stack skip depth for caller capture
+     */
+    constructor(opts = {}) {
+	this.opts = opts;
+
+	this.mod = opts.mod || "[activeTags]";
+	this.debug = !!opts.debug;
+
+	this.logOpts = Object.assign({ enable: false, max: 0 }, opts.log || {});
+	this.onEvent = typeof opts.onEvent === "function" ? opts.onEvent : null;
+
+	// default skip count should hide: Error() + stackTrace() + method wrapper
+	this.stackSkip = Number.isFinite(opts.stackSkip) ? opts.stackSkip : 3;
+
+	// internal structured log buffer
+	this._events = [];
+    }
+
+    // ---------------------------------------------------------------------------
+    // Structured logging (buffered)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Record an event into the internal buffer (and optionally print).
+     * Intended replacement for logTraits.log(...)
+     *
+     * @param {string} type
+     * @param {string} name
+     * @param {...any} args
+     * @returns {Object|null} record (or null if disabled)
+     */
+    log(type, name, ...args) {
+	// TODO: implement (buffer + optional console + onEvent hook)
+	return null;
+    }
+
+    /**
+     * Convenience wrapper (optional): info-level event.
+     */
+    info(name, ...args) {
+	// TODO
+	return null;
+    }
+
+    /**
+     * Filter and print buffered events.
+     * Intended replacement for logTraits.showLog(...)
+     *
+     * @param {string} [type]
+     * @param {string} [name]
+     * @returns {Object[]} matching events
+     */
+    showLog(type, name) {
+	// TODO
+	return [];
+    }
+
+    /**
+     * Return buffered events (optionally filtered) without printing.
+     */
+    getEvents(filter = {}) {
+	// TODO
+	return [];
+    }
+
+    /**
+     * Clear buffered events.
+     */
+    clear() {
+	// TODO
+    }
+
+    // ---------------------------------------------------------------------------
+    // Diagnostics: warn / error / nonFatal
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Print a warning with stack context.
+     * Intended replacement for diagnosticTraits.warn(...)
+     */
+    warn(...args) {
+	// TODO: console.warn + stackTrace + structured event (optional)
+    }
+
+    /**
+     * Print an error and THROW by default.
+     * Intended replacement for diagnosticTraits.error(...)
+     *
+     * @throws {Error}
+     */
+    error(...args) {
+	// TODO: console.error + stackTrace + throw Error(trace or message)
+	throw new Error("LoggerDiagnostics.error() not implemented");
+    }
+
+    /**
+     * Print an error but do NOT throw.
+     * Intended replacement for diagnosticTraits.nonFatal(...)
+     */
+    nonFatal(...args) {
+	// TODO: console.error + stackTrace + structured event (optional)
+    }
+
+    // ---------------------------------------------------------------------------
+    // Stack helpers
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Return a stack trace string (or a single caller line), skipping internal frames.
+     * Intended replacement for diagnosticTraits.stackTrace(...)
+     *
+     * @param {number} [skip=this.stackSkip]
+     * @param {Object} [opts]
+     * @param {boolean} [opts.full=false]   if true, return full stack string
+     * @returns {string}
+     */
+    stackTrace(skip = this.stackSkip, opts = {}) {
+	// TODO: capture stack, parse, skip frames, return caller line or full stack
+	return "";
+    }
+
+    /**
+     * Parse a single V8/Chromium-style stack line into a structured object.
+     * Intended replacement for diagnosticTraits.parseStackLine(...)
+     *
+     * @param {string} line
+     * @returns {{ fn?: string, file?: string, line?: number, col?: number, raw: string }|null}
+     */
+    parseStackLine(line) {
+	// TODO
+	return null;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Internals
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Push a record into the buffer (ring-buffer if max > 0)
+     * and emit onEvent hook.
+     * @private
+     */
+    _push(record) {
+	// TODO
+    }
+
+    /**
+     * Print to console if debug enabled.
+     * @private
+     */
+    _print(level, ...args) {
+	// TODO
+    }
+
+    /**
+     * Normalize event record shape.
+     * @private
+     */
+    _makeRecord(type, name, args, meta = {}) {
+	// TODO
+	return {
+	    at: Date.now(),
+	    type,
+	    name,
+	    args,
+	    meta,
+	};
+    }
+}
+
+
+# --- end: doc3/src_inprogress/LoggerDiagnostics.js ---
+
+
+
+# --- begin: doc3/src_inprogress/manager.js ---
+
+/*
+ * Copyright (c) 2025 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+function install(sys, ctx){
+    console.log('installing lib');
+    const pkgId = ctx?.pkg?.id;
+    if(!pkgId){
+	console.warn('no package id found for lib, cannot proceed with install!');
+	return;
+    }
+    
+    let lib = bootstrap.data.getPackageModule(pkgId,'lib').content;
+    window.lib = lib;
+    console.log(sys,ctx);
+}
+
+function destroy(sys,ctx){
+    console.warn('destroying');
+    window.lib = null;
+}
+export default {
+    install , destroy
+    
+};
+
+
+# --- end: doc3/src_inprogress/manager.js ---
+
+
+
+# --- begin: doc3/src_inprogress/traits/_old_MutationObserver.js ---
+
+// trait_observer.js
+//
+// MutationObserver trait for ActiveTags.
+// - Public methods are documented and NOT prefixed with "_".
+// - Private helpers are prefixed with "_" and should be treated as internal.
+//
+// Assumptions about ActiveTags host class:
+// - this.bootSweep(selOrRoot) -> returns list of candidate elements (or jobs) to register
+// - this.registerJobs(list)  -> installs jobs into registry
+// - this.detach(target)      -> detaches a job by element/job/id (optional but recommended)
+// - this.conf                -> merged config object
+// - this.conf.observe        -> optional observer config (see defaults below)
+// - this.selector (optional) -> default selector; fallback to ActiveTags.DEFAULT_SELECTOR
+//
+// If detach() does not exist yet, this trait will still attach new jobs,
+// but removal cleanup will be a no-op (by design).
+
+export const observerTraits = {
+  // ---------------------------
+  // Public API
+  // ---------------------------
+
+  /**
+   * Start DOM observation.
+   * @param {Object} [opts]
+   * @param {Element|Document} [opts.root=document.body] - root to observe
+   * @param {boolean} [opts.enable=true] - quick on/off
+   * @param {boolean} [opts.observeAttributes=false] - watch attribute changes
+   * @param {string[]} [opts.attributeFilter] - limit observed attributes
+   * @param {boolean} [opts.autoAttach=true] - auto attach jobs on node additions
+   * @param {boolean} [opts.autoDetach=true] - auto detach jobs on node removals (requires this.detach)
+   * @param {number} [opts.debounceMs=0] - debounce reconcile bursts
+   * @returns {boolean} true if observer started, false if not supported/disabled
+   */
+  observeStart(opts = {}) {
+    const conf = this._observerConfig(opts);
+
+    // hard disable
+    if (!conf.enable) return false;
+
+    // old browser fallback
+    if (typeof MutationObserver === "undefined") {
+      this._observerLog("warn", "MutationObserver not available; observer disabled.");
+      return false;
+    }
+
+    // already running: restart if root changed
+    if (this._observer && this._observerRoot) {
+      if (conf.root && conf.root !== this._observerRoot) {
+        this.observeStop();
+      } else {
+        return true;
+      }
+    }
+
+    const root = conf.root || (typeof document !== "undefined" ? document.body : null);
+    if (!root) return false;
+
+    this._observerConf = conf;
+    this._observerRoot = root;
+
+    this._observer = new MutationObserver((mutations) => {
+      try {
+        this._observerOnMutations(mutations);
+      } catch (err) {
+        this._observerLog("error", `observer callback error: ${err?.message || err}`);
+      }
+    });
+
+    this._observer.observe(root, {
+      childList: true,
+      subtree: true,
+      ...(conf.observeAttributes
+        ? {
+            attributes: true,
+            ...(Array.isArray(conf.attributeFilter) && conf.attributeFilter.length
+              ? { attributeFilter: conf.attributeFilter }
+              : null),
+          }
+        : null),
+    });
+
+    this._observerLog("info", "observer started");
+    return true;
+  },
+
+  /**
+   * Stop DOM observation and clear pending reconcile work.
+   */
+  observeStop() {
+    if (this._observer) {
+      try {
+        this._observer.disconnect();
+      } catch {}
+    }
+    this._observer = null;
+    this._observerRoot = null;
+
+    if (this._observerTimer) {
+      clearTimeout(this._observerTimer);
+      this._observerTimer = null;
+    }
+
+    this._pendingAdded = null;
+    this._pendingRemoved = null;
+    this._pendingAttr = null;
+
+    this._observerLog("info", "observer stopped");
+  },
+
+  /**
+   * Returns true if observer is active.
+   */
+  observeIsRunning() {
+    return !!this._observer;
+  },
+
+  /**
+   * Manual hook: if you have a custom DOM pipeline, call this with a subtree root.
+   * This goes through the same attach path as observer additions.
+   */
+  observeReconcile(root) {
+    if (!root) return [];
+    // prefer existing bootSweep semantics (your engine already knows how to scan)
+    const list = this.bootSweep(root);
+    return this.registerJobs(list);
+  },
+
+  // ---------------------------
+  // Private helpers
+  // ---------------------------
+
+  _observerConfig(override = {}) {
+    // defaults: safe + minimal
+    const base = (this.conf && this.conf.observe) ? this.conf.observe : {};
+
+    // NOTE: we do NOT assume lib.hash.merge here; keep it plain.
+    const conf = {
+      enable: true,
+      root: null,
+      observeAttributes: false,
+      attributeFilter: null,
+      autoAttach: true,
+      autoDetach: true,
+      debounceMs: 0,
+      // which selector counts as "candidate"
+      selector: this.selector || (this.constructor && this.constructor.DEFAULT_SELECTOR) || "[class*=script-]",
+      ...base,
+      ...override,
+    };
+
+    // normalize
+    if (!conf.root && typeof document !== "undefined") conf.root = document.body;
+    conf.debounceMs = this._toInt(conf.debounceMs, 0);
+
+    return conf;
+  },
+
+  _observerOnMutations(mutations) {
+    if (!mutations || !mutations.length) return;
+
+    const conf = this._observerConf || this._observerConfig();
+
+    // collect changes
+    const { added, removed, attrs } = this._observerCollectChanges(mutations);
+
+    // fast exit
+    if (!added.size && !removed.size && !attrs.size) return;
+
+    // queue work (debounced)
+    this._observerQueueWork({ added, removed, attrs, debounceMs: conf.debounceMs });
+  },
+
+  _observerCollectChanges(mutations) {
+    const added = new Set();
+    const removed = new Set();
+    const attrs = new Set();
+
+    for (const m of mutations) {
+      if (m.type === "childList") {
+        if (m.addedNodes && m.addedNodes.length) {
+          for (const n of m.addedNodes) {
+            if (n && n.nodeType === 1) added.add(n);
+          }
+        }
+        if (m.removedNodes && m.removedNodes.length) {
+          for (const n of m.removedNodes) {
+            if (n && n.nodeType === 1) removed.add(n);
+          }
+        }
+      } else if (m.type === "attributes") {
+        if (m.target && m.target.nodeType === 1) attrs.add(m.target);
+      }
+    }
+
+    return { added, removed, attrs };
+  },
+
+  _observerQueueWork({ added, removed, attrs, debounceMs }) {
+    // accumulate across batches
+    if (!this._pendingAdded) this._pendingAdded = new Set();
+    if (!this._pendingRemoved) this._pendingRemoved = new Set();
+    if (!this._pendingAttr) this._pendingAttr = new Set();
+
+    for (const n of added) this._pendingAdded.add(n);
+    for (const n of removed) this._pendingRemoved.add(n);
+    for (const n of attrs) this._pendingAttr.add(n);
+
+    // schedule flush
+    if (this._observerTimer) return;
+
+    const flush = () => {
+      this._observerTimer = null;
+      this._observerFlushWork();
+    };
+
+    if (debounceMs > 0) {
+      this._observerTimer = setTimeout(flush, debounceMs);
+    } else {
+      // microtask-ish, avoids re-entrancy while staying snappy
+      this._observerTimer = setTimeout(flush, 0);
+    }
+  },
+
+  _observerFlushWork() {
+    const conf = this._observerConf || this._observerConfig();
+
+    const added = this._pendingAdded || new Set();
+    const removed = this._pendingRemoved || new Set();
+    const attrs = this._pendingAttr || new Set();
+
+    this._pendingAdded = null;
+    this._pendingRemoved = null;
+    this._pendingAttr = null;
+
+    // 1) auto-attach on added
+    if (conf.autoAttach && added.size) {
+      for (const node of added) {
+        this._observerAttachFromNode(node, conf.selector);
+      }
+    }
+
+    // 2) auto-detach on removed (optional; requires detach())
+    if (conf.autoDetach && removed.size) {
+      for (const node of removed) {
+        this._observerDetachFromNode(node, conf.selector);
+      }
+    }
+
+    // 3) attribute changes -> mark dirty or reattach (policy depends on you)
+    // For now: if it *looks like* a candidate, attempt attach (idempotent if already exists).
+    if (conf.observeAttributes && attrs.size) {
+      for (const node of attrs) {
+        this._observerAttachFromNode(node, conf.selector);
+      }
+    }
+  },
+
+  _observerAttachFromNode(node, selector) {
+    // attach node itself if candidate
+    if (this._observerIsCandidate(node, selector)) {
+      const list = this.bootSweep(node);
+      this.registerJobs(list);
+      return;
+    }
+
+    // attach descendants that match selector
+    if (!node.querySelectorAll) return;
+    const matches = node.querySelectorAll(selector);
+    if (!matches || !matches.length) return;
+
+    // Use bootSweep for consistent dataset inflation / legacy mapping rules
+    // If bootSweep expects a selector, it should accept a root element too per our runtime design.
+    const list = this.bootSweep(node);
+    this.registerJobs(list);
+  },
+
+  _observerDetachFromNode(node, selector) {
+    if (typeof this.detach !== "function") return;
+
+    // detach node itself if it is/was a job
+    try {
+      this.detach(node);
+    } catch {}
+
+    if (!node.querySelectorAll) return;
+
+    // detach matching descendants
+    const matches = node.querySelectorAll(selector);
+    for (const el of matches) {
+      try {
+        this.detach(el);
+      } catch {}
+    }
+  },
+
+  _observerIsCandidate(node, selector) {
+    if (!node || node.nodeType !== 1) return false;
+    if (!selector) return false;
+    try {
+      return node.matches ? node.matches(selector) : false;
+    } catch {
+      return false;
+    }
+  },
+
+  _observerLog(level, msg) {
+    // keep logging non-invasive; integrate with your existing log system later
+    if (this.conf?.debug) {
+      const fn = console[level] || console.log;
+      fn.call(console, `[activeTags][observer] ${msg}`);
+    }
+  },
+
+  _toInt(val, fallback = 0) {
+    const n = Number.parseInt(val, 10);
+    return Number.isFinite(n) ? n : fallback;
+  },
+};
+
+export default observerTraits;
+
+
+# --- end: doc3/src_inprogress/traits/_old_MutationObserver.js ---
+
+
+
+# --- begin: doc3/src_inprogress/traits/cropped.js ---
+
+export const cropped = {
+    //$fixup --clean / rename / prune. the works
+    
+    startRun (list){
+	for (let i=0,tag=list[i]; i < list.length;tag=list[++i]){
+	    console.log('constructing job for ',tag);
+	    let job = this.makeJob(tag);
+	    if(job)
+		this.jobs[job.name] = job;
+	    else this.error('startRun, ERROR CONSTRUCTING JOB');
+	}
+	this.log("load", "none",this.jobs);
+	return;
+
+    },
+
+    
+
+    makeJob(tag,prefix="",type='load'){
+
+	let ds, job;
+	type = lib.utils.toString(type,1).toLowerCase();
+	prefix = lib.utils.toString(prefix,1),prefix= prefix.substr(-1,1)=='-'?prefix.substr(prefix,prefix.length-1):prefix;
+	ds = this.getDataset(tag) || {};
+	let attr = {
+	    action: tag.getAttribute('action'),
+	    method: tag.getAttribute('method')
+	};
+	//console.log(`>>prepare tag=(ds:${ds.name}| tag:${tag.name} | i:${this.jobCounter})`,ds,tag);
+	job = this.configureJob({
+	    e:tag,
+	    attr: attr,
+	    ds:ds,
+	    ws:{},
+	    status:'ready',
+	    load:0
+	});
+
+	job.stack ={};
+	let list =lib.hash.get(job.ds,"tasklist") 
+	list = list?lib.array.to(list, /\s+/):["this"];
+	for (let item of list){
+	    if(lib.utils.toString(item,1).toLowerCase()=="this")
+		this.pushStackStandard('main',job);
+	    else this.pushStackStandard('main',job,item);
+	}
+    
+	this.pushStack('main',job,"complete");
+	if(lib.hash.get(job.ds,"interval") && !lib.bool.isTrue(lib.hash.get(job.ds,"interval.disabled"))  )
+	    this.pushStack('main',job, "intervalStart",job.ds.interval);
+
+
+	this.pushStack('main',job,"runAll");
+	return job;
+
+    },
+
+    //$fixup -rename
+    configureJob(job){
+	let name = lib.hash.get(job.ds,"name") || job.e.name || this.jobCounter;
+	job.ds.name=name;
+	this.log("load",name,`preparing ${name}`,job.ds);
+	this.jobCounter++;
+	job.name =name;
+	let base = this._makeBase(job.prefix);
+	//let url =lib.dom.get(job.e, `${base}request-action`) || lib.dom.get(job.e,'action') || undefined;
+	let url = lib.hash.get(job.ds,'request.action' ) || lib.hash.get(job.attr,'action');
+	//console.log(`HERE ${job.name} ${url} `,job.ds.request);
+	if(url && !job.ds.request){
+	    //console.log('HERE CONSTRUCT DUMMY REQUEST');
+	    job.ds.request= {};
+	}
+        //lib.hash.set(job,"ds.request.url", lib.str.interp(url, this.interpScheme({obj:this,item:job},undefined) ));
+	//lib.hash.set(job,"ds.request.url", url);
+	//if(lib.utils.isEmpty(lib.hash.get(job,"ds.request.urlencoded")))lib.hash.set(job,"ds.request.urlencoded", 1);
+        //lib.hash.set(job,"ds.request.method", lib.dom.get(job.e, `${base}request-method`) || lib.dom.get(job.e,'method') || undefined);
+
+        if(lib.hash.is(lib.hash.get(job,"ds.response"))){
+	    job.ds.response.json= lib.bool.isTrue(job.ds.response.json)?1:0 ;
+            if(!job.ds.response.src) job.ds.response.src = job.ds.response.json? "request:jsonData":"request:responseText";
+        }
+        if (lib.hash.is(lib.hash.get(job,"ds.pre")) && !job.ds.pre.src)job.ds.pre.src="this:innerHTML";
+	if (lib.hash.is(lib.hash.get(job,"ds.post")) && !job.ds.post.src)job.ds.post.src="this:innerHTML";
+	return job;
+    },
+
+    
+    findJobByDom(tag){
+	if (!lib.dom.is(tag))
+	    this.error("findJobByDom: tag is not dom",tag);
+	for (let k in this.jobs){
+	    if (this.jobs[k].e == tag)
+		return this.jobs[k];
+	}
+	return null;
+    },
+
+        
+
+    //this is not strictly necessary, you can just call load. but we need to build in interval stopping etc.
+    resetJob(target,stack=null){
+	let job  =lib.dom.is(target)?
+	    this.findJobByDom(target):
+	    this.jobs[target];
+	if(!job)
+	    return this.error('job not found',target);
+	//$fixup you will still need to clear any intervals.
+	delete (this.jobs[name]);
+	this.load(job.e);
+	if (lib.utils.isEmpty(stack))
+	    return;
+	
+	if(lib.bool.isTrue(stack))
+	    stack='main';
+	this.runJob(job,stack);
+    }
+
+
+
+    
+
+
+};
+
+
+# --- end: doc3/src_inprogress/traits/cropped.js ---
+
+
+
+# --- begin: doc3/src_inprogress/traits/diagnostics.js ---
+
+export const diagnosticTraits = {
+    nonFatal(){
+        let trace = this.stackTrace(3);
+        if(arguments.length){
+            console.error(arguments[0]);
+            if (arguments.length>1)
+                console.error(lib.args.slice(arguments,1));
+        }
+
+        //console.error(arguments,trace);
+    },
+    
+    error(text){
+        let trace = this.stackTrace(3);
+        if(arguments.length){
+            console.error(arguments[0]);
+            if (arguments.length>1)
+                console.error(lib.args.slice(arguments,1));
+        }
+        //console.error(arguments,trace);
+        throw Error(trace);
+    },
+    warn(text){
+        let trace = this.stackTrace(3);
+        console.warn(arguments,trace);
+        //console.warn(`${text}\n${trace}\n`);
+    },
+
+
+    
+    parseStackLine(stackLine) {
+	//const pattern = /at\s+(\S+)\s+\(eval\s+at\s+(\S+)\s+\(([^:]+):(\d+):(\d+)\),\s*<([^:]+):(\d+):(\d+)>\)/;
+	const pattern = /at\s+(\S+)\s+\((\S+)\s+at\s+(\S+)\s+\(([^\)]+)\)\,([^:]+)\:(\d+)\:(\d+)/;
+	const match = stackLine.match(pattern);
+	if (match) {
+            return {
+		functionName: match[1],
+		evalFunctionName: match[2],
+		filePath: match[3],
+		line: parseInt(match[4]),
+		column: parseInt(match[5]),
+		callerFilePath: match[6],
+		callerLine: parseInt(match[7]),
+		callerColumn: parseInt(match[8])
+            };
+	} else {
+            return null;
+	}
+    },
+    stackTrace(index=2) {
+	// Create an Error object to capture the stack trace
+	const stack = new Error().stack;
+	//console.log(stack);
+	// Extract the stack trace as an array of strings
+	const stackLines = stack.split('\n');
+
+	// The caller's line number is in the third line of the stack trace
+	// The first line is the Error message, the second line is where the Error was created
+	const callerLine = stackLines[index].trim();
+	//console.log('stack line');
+	//console.warn(callerLine);
+	//console.log('end stack line');
+	return (callerLine);
+	let parsed = this.parseStackLine(callerLine.trim());
+	if(!parsed)return {};
+	console.warn(parsed);
+	return {
+	    file:parsed.callerFilePath,
+	    line: parsed.callerLine
+	};
+	// Extract the line number from the caller's stack trace line
+	//const lineNumber = callerLine.trim().split(':')[1];
+
+	return lineNumber;
+    }
+};
+
+export default diagnosticTraits;
+
+
+# --- end: doc3/src_inprogress/traits/diagnostics.js ---
+
+
+
+# --- begin: doc3/src_inprogress/traits/interval.js ---
+
+export const intervalTrait = {
+
+
+    startInterval(name,section,dopts){
+	//setInterval(function () {element.innerHTML += "Hello"}, 1000);
+
+	let job = this.toJob(name);
+	
+	if(!job){
+	    this.error('startInterval: no job found for '+name);
+	    return;
+	}
+	name = job.name;
+
+	
+	if(lib.hash.get(this.intervals,[name,"id"])){
+	    this.error('startInterval already started for '+name);
+	    return;
+	}
+
+	if (!section) section = lib.hash.get(job.ds,"interval");
+
+	if (!section){
+	    this.error('startInterval, not defined for job '+name);
+	    return;
+	}
+
+
+
+	let repeat = section.repeat
+	let maxRuns = parseInt(section.max) || 0;
+
+	
+	if (!repeat){
+	    this.error('startIinterval -repeat not defined for '+name);
+	    return;
+	}
+
+
+	let iRec  = {id:undefined, repeat:repeat,lock:0,count:0,max:(isNaN(maxRuns)?0:maxRuns)};
+	lib.hash.set(this.intervals,name,iRec);
+
+
+
+	let func = (obj,job, section) => {
+	    return function (){
+		let iSec = obj.intervals[job.name];
+		let stackName = 'interval';
+		if (!iSec || iSec.lock )return;
+		iSec.lock =1;
+		let count = (isNaN(parseInt(iSec.count))?0:parseInt(iSec.count)) +1;
+		
+		let max = iSec.max || 0;
+		if (max >0 && count >max){
+		    this.warn(`maximum iterations of interval reached (${max})`);
+		    obj.stopInterval(job.name);
+		    return ;
+		}
+		//console.log(`interval ${count} / ${max} for ${job.name}`);
+
+		obj.pushStackStandard(stackName,job,section);
+		obj.pushStack(stackName,job,'intervalUnlock',section);
+		iSec.count = count;
+		obj.runJob(job.name,stackName);
+	    }
+
+	};
+	// needs to be a wrapper, containing the job name/seection or job as a whole.
+
+	iRec.id = setInterval(func(this,job,section), repeat);
+
+	
+	
+	/*
+	  let func = lib.func.preWrap(this.wrap(this.processInterval),
+	  {obj:this,item:this.runQueue.name[name],isInterval:name, prefix:'data-interval-' }
+	  ) ;
+	*/
+
+	return 1;
+	
+    },
+
+    stopInterval(name,dsection,dopts){
+	let job = this.toJob(name);
+	
+	if(!job){
+	    this.error('stopInterval: no job found for '+name);
+	    return;
+	}
+	name = job.name;
+
+	let id = lib.hash.get(this.intervals,[name,"id"]);
+	if(lib.utils.isEmpty(id)){
+	    this.error('stopInterval: no interval found for '+name);
+	    return;
+	}
+
+
+	clearInterval(id);
+	lib.hash.set(this.intervals,[name,"id"], undefined);
+    },
+
+    //$function intervalUnlock
+    intervalUnlock(job,target, opts){
+	opts = lib.hash.is(opts)?opts:lib.args.parse(lib.array.to(opts),{ignore:0},"ignore");
+	if (lib.utils.isScalar(job))job = this.jobs[job];
+	
+	let interval = lib.hash.get(this.intervals[job.name]);
+	if(!interval){
+	    this.error('intervalUnlock: no interal found for '+job.name);
+	    return parseInt(opts.ignore)==1?1:0;
+	}
+	lib.hash.set(interval, 'lock',0);
+	return 1;
+    },
+
+    //$function intervalLock
+    intervalLock(job,target,opts){
+	//opts=lib.hash.to(opts,'ignore');
+	opts = lib.hash.is(opts)?opts:lib.args.parse(lib.array.to(opts),{ignore:0},"ignore");
+	if (lib.utils.isScalar(job))job = this.jobs[job];
+	
+	let interval = lib.hash.get(this.intervals[job.name]);
+	if(!interval){
+	    this.error('intervalLock: not found for '+job.name);
+	    return parseInt(opts.ignore)==1?1:0;
+	}
+	lib.hash.set(interval, 'lock',1);
+	return 1;
+    },
+    //$function intervalFlush
+    intervalFlush(job,target,opts){
+	opts = lib.hash.is(opts)?opts:lib.args.parse(lib.array.to(opts),{ignore:0},"ignore");
+	if (lib.utils.isScalar(job))job = this.jobs[job];
+	
+	let interval = lib.hash.get(this.intervals[job.name]);
+	if(!interval){
+	    this.nonFatal('intervalFlush: no interval found for '+job.name);
+	    return parseInt(opts.ignore)==1?1:0;
+	}
+	lib.hash.set(job,"stack.interval", []);
+	return 1;
+    }
+};
+
+export default intervalTrait;
+
+
+# --- end: doc3/src_inprogress/traits/interval.js ---
+
+
+
+# --- begin: doc3/src_inprogress/traits/log.js ---
+
+export const logTraits = {
+    //$function log
+    log(type,name){
+	if(!lib.bool.isTrue(lib.hash.get(this.conf,'log.enable')))
+	    return;
+	//let job = this.toJob(name);
+	//if(job && lib.bool.isFalse(job.ds.logging) )
+	//    return;
+	let record = {type:type, name:name, args:lib.args.slice(arguments,2)};
+	this._log.push(record);
+	if (this.debug)console.log(...arguments);
+    },
+    //$function showlog
+    showLog(type,name){
+	if(!lib.bool.isTrue(lib.hash.get(this.conf,'log.enable')) )
+	    return console.log('logging disabled. set conf.log.enable = 1');
+	console.log(` checking ${type} / ${name}`);
+	for (let rec of this._log){
+	    if(type && !rec["type"].match(type) )continue;
+	    if (name && !(""+rec["name"]).match(name) ) continue;
+	    console.log(rec);
+	}
+    }
+};
+
+export default logTraits;
+
+
+# --- end: doc3/src_inprogress/traits/log.js ---
+
+
+
+# --- begin: doc3/src_inprogress/traits/stack.js ---
+
+export const stackTrait = {
+    //this.pushStack(job, 'request', undefined,'request');
+    //this.pushStack(job,'request', rec);
+    //function pushStack
+    
+    pushStack(stackName,job, type, rec,section,opts){
+	//console.log(arguments);
+	if(lib.utils.isEmpty(stackName))return 0;	
+	opts = lib.hash.to(opts,'extra');
+	opts.stackName = stackName;
+
+	if(!(job = this.toJob(job)))return 0;
+	let stack = lib.hash.get(job,['stack',stackName])||[];
+	this.log("pushStack",job.name,`preparing ${name}`,`>>STACK IS ${stackName} ${type} ${section}`, stack);
+	let target;
+	this.log("pushStack", job.name, "rec is ", rec);
+	if(lib.hash.is(rec) ){
+	    
+	    target= (section)?rec[section]:rec;
+	    if (!target){
+		this.warn(`(hash)empty subsec (${section}), cannot push to stack `,rec,type,target);
+		return 0;
+	    }
+	}else{
+	    if(rec){
+		target=section?[rec,section].join('.'):rec;
+	    }else target=section;
+
+	    //console.log('target is',target, job.ds);
+	    if (!lib.hash.get(job.ds,target)){
+		this.warn(`cannot push to (${job.name})\n\tstack: ${stackName}\n\ttype: ${type}\n\ttarget: ${target}\n`);
+		return 0;
+	    }//else console.log('PUSHED', target);
+	    //$FIXUP : undefined targets are let through. this is unintended but working.
+	    //fix in next revision
+	}
+
+	let item ={f:type,t:target,opts:opts,s:section};
+	stack.push(item);
+	//console.log(`>>STACK NOW ${stackName}`, stack);
+	lib.hash.set(job,['stack',stackName],stack);
+	return 1;
+    }
+
+    //pushes the typical tasks to a job stack. may reduire additional items.
+
+    pushStackStandard(stackName, job,prefix,section, extra){
+
+	this.pushStack(stackName,job,'request',prefix, 'request', extra);
+	this.pushStack(stackName,job,'chain',prefix, 'response', extra);
+	this.pushStack(stackName,job,'chain',prefix, 'pre', extra);
+	this.pushStack(stackName,job,'attr',prefix, 'attr', extra);
+	this.pushStack(stackName,job,'chain',prefix, 'post', extra);
+	return;
+
+
+    }
+
+};
+
+export default stackTrait;
+
+
+# --- end: doc3/src_inprogress/traits/stack.js ---
+
+
+
+# --- begin: doc3/src_inprogress/traits/submit.js ---
+
+export const submitTrait = {
+    //$fixup -- prune/rewrite
+    submitForm(e){
+	let form,dataConfirm,url,load,error,urlencoded=1,method,body,ws,item,job,ds, onSubs,name;
+
+	ds = this.getDataset(e);
+	//console.log(ds);
+	//return;
+	//console.log('>>HERE' ,e);
+	form = lib.dom.form.collect(e);
+	if (!form)return;
+	//until here good
+	//find the object item or bail out.
+	//console.log('matching it up');
+	for (let name in this.jobs){
+	    //console.log(name,this.jobs[name].e,form.form);
+	    if(this.jobs[name].e==form.form){
+		job=this.jobs[name];
+		break;
+	    }
+	}
+
+	
+
+	if (!job)return this.error('element triggered is not attached to a parent',e);
+
+
+	/*begin - pre flight check list*/
+	dataConfirm = ds.confirm || job.ds.confirm;
+	if (!lib.utils.isEmpty(dataConfirm) && !confirm(dataConfirm)) {
+	    this.warn('confirm() returned false. cancelling execution');
+	    return false;
+	}
+	/*end - pre flight check list */
+
+	let parseVar = (data,parent,current)=>{
+	    if(lib.utils.isEmpty(data))return undefined;
+	    if(lib.hash.is(data))return data;
+	    let [a,b] = lib.utils.toString(data,1).toLowerCase().split(':',2);
+	    //console.log(`a : ${a}, b: ${b}`,parent,current);
+	    if(!b)return a=='parent'?parent:current;
+	    return lib.hash.get(a=='parent'?parent:current,b);
+	    //if(a !='parent')return lib.hash.get(current,b);
+	    //return lib.hash.get(parent,b);
+	};
+	/*begin - processing prior to running a request*/
+	//let filtered = lib.dom.filterAttributes(e,/^data-on-/,1);
+	//let filtered = ds.on || lib.hash.to({});
+	let filtered = parseVar(ds.on,job.ds,ds);
+	//console.log('>>',filtered);
+	if(lib.hash.get(filtered,'submit')){
+	    filtered['load'] = filtered['submit'];
+	    delete (filtered['submit']);
+	}
+	
+	if (!this.runChain(job, filtered,{e:e} ) ){
+	    this.error(`onsubmit ${job.name}, flow control returned a false value, interrupting execution`);
+	    return false;
+	}
+	//let response = e.getAttribute('data-response')?e.getAttribute('data-response'):lib.dom.filterAttributes(e,/^data-response-/,1);
+	
+	let response = parseVar(ds.response, job.ds,ds);
+	let stackName = ds.stack || 'formclick';
+
+
+	//$FIXUP this is a bad hack. cleanup later
+	if(1 || lib.bool.isTrue(ds.force)){
+	    job.stack[stackName] = [];
+	    job.status='ready';
+	    this.setRunning(job,stackName,0);
+	}
+	//$fixup -- this seems like an awefully easy patch fix. not sure why it wasnt done. so you may need to undo it later...
+	if(lib.utils.isEmpty(ds.response))ds.response="response"; 
+	if(!ds.tasklist){
+	    let section = Object.assign({
+		request:'request'
+	    },ds);
+	    //console.log(section);
+	    this.pushStackStandard(stackName,job,section,undefined, {form:form,e:e,body:ds.body} );
+	    //this.pushStack(stackName,job, 'request',undefined,'request',{form:form});
+	    //this.pushStack(stackName,job,'chain', response);
+
+	}else {
+	    let list = lib.array.to(ds.tasklist,/\s+/);
+	    for (item of list){
+		let lc = lib.utils.toString(item,1).toLowerCase();
+		let section = undefined;
+		if (lc=='this'){
+		    section = Object.assign({
+			request:'request'
+		    },ds);
+		    ///this.pushStackStandard(stackName,job,section,undefined, {form:form,e:e,body:ds.body} );
+		    //this.pushStack(stackName,job, 'request',undefined,'request',{form:form,body:ds.body});
+		    //this.pushStack(stackName,job,'chain', response,undefined,{e:e});
+		}else if (lc=='parent'){
+		    //let section = undefined;
+		    section = Object.assign({
+			request:'request'
+		    },ds);
+		    //console.log('>>'+item+'<<',section);
+		    //this.pushStackStandard(stackName,job,section,undefined, lc.match('parent')?undefined:{form:form,e:e,body:ds.body} );
+		}else {
+		    //let section = parseVar(item, job.ds,ds);
+		    section = item;
+		    //console.log('>>'+item+'<<',section);
+	
+		}
+		//this.pushStackStandard(stackName,job,section,undefined, lc.match('parent')?undefined:{form:form,e:e,body:ds.body} );
+		this.pushStackStandard(stackName,job,section,undefined, lc.match('parent')?{e:e}:{form:form,e:e,body:ds.body} );
+
+	    }
+	}
+	this.log('submitForm', job.name, `>>running ${job.name}  stack ${stackName}`,job.stack[stackName]);
+	this.runJob(job,stackName);
+	return false;
+
+	
+    }
+
+};
+
+export default submitTrait;
+
+
+# --- end: doc3/src_inprogress/traits/submit.js ---
+
+
+
+# --- begin: doc3/src_inprogress/traits/unfiltered.js ---
+
+export const unfilteredTraits = {
+
+    runChain(job,target,ws){
+	let section = lib.hash.is(target)?target:lib.hash.get(job.ds,target);
+	if(!section){
+	    this.error(`runChain: job ${job.name} /${target}... mising or misconfigured configuration  ${target} in job ${job.name}`);
+	    return 0;
+	}
+	this.log('runChain', job.name, `running chain for ${job.name} on ${target}`,section);
+
+	let errHandle = lib.hash.get(section,'error_handling') || "block";
+	let src = lib.hash.get(section,'src');
+	if(!src){
+	    //console.log('no buffer src specified');
+	}else {
+	    let rv = this.setBuffer(job,src);
+
+	    if (!rv && errHandle !='block'){
+		job.status='error';
+		return 0;
+	    }
+	}
+
+	
+	let load =  this._parseFunctions(job,section.load) ;
+	let error =this._parseFunctions(job,section.error ,0)  ;
+	this.log('runChain', job.name, '>>RUN CHAIN',load,error,section);
+	let rv = this._runFunctions(job,load,error,ws);
+	if(!rv){
+	    if(errHandle=='block')return 0;
+	}
+	
+	let dst = lib.hash.get(section,'dst');
+	if(!dst){
+	    //console.log('no buffer dst specified');
+	}
+
+	if( section.dst){
+            let rv = this.getBuffer(job,dst);
+	    if (!rv &&errHandle !='block'){
+		job.status='error';
+		return 0;
+	    }
+        }
+
+
+	
+	return 1;
+    },
+    runFunctions(job,load,error,ws){
+	if(!(job = this.toJob(job)) ){this.error('no job found');return 0;}
+	load =  this._parseFunctions(job,load) ;
+	error =this._parseFunctions(job,error ,0)  ;
+	//console.log(load,error);
+	let rv = this._runFunctions(job,load,error,ws);
+	return rv;
+    },
+
+    /*
+      when running functions you can specify varaibles in the string
+      somefunc:a,b -- literals a and b
+      somefunc:${a}, ${b} will interVars in the global namespace
+      somefuc:$[local parseTarget]
+     */
+    //$fixup --clean / rename
+    //$function _runFunctions
+    _runFunctions(job,list,error,wsOverride){
+	if(!(job = this.toJob(job)) ){this.error('no job found');return 0;}
+
+	let runErr;
+	wsOverride = lib.hash.to(wsOverride);
+	this.log('flowControl',job.name, `running user functions for stage= ${job.stage}`,list,error);
+	let scheme = this.interpScheme(job,undefined);
+	let regex = new RegExp(/\$\[(.*?)\]/,"g");
+	let builtIn = {
+	    'interval_unlock': 'intervalUnlock',
+	    'interval_lock': 'intervalLock',
+	    'interval_flush': 'intervalFlush',
+	    'call' : 'call'
+	}
+	let ws = Object.assign({obj:this,item:job,e:job.e},wsOverride);
+	let obj = this;
+
+	let evalArgs = function (job,scheme,args){
+	     args = lib.array.to(args);
+	    for (let i =0;i<args.length;i++){
+		let raw = args[i];
+		let match = undefined;
+		args[i] = lib.str.interp(args[i], scheme);
+		//this.parseTarget(job,dst);
+		//console.log('checking ',args[i]);
+		//console.log(`checking ${i} / ${job.name}/${rec.f} : ${raw} `,job);
+		regex.lastIndex=0;
+		if(match = regex.exec(raw)){
+		    //args[i] = obj.parseTarget(job,match[1]);
+		    //let p = obj.parseTarget(job,match[1]);
+		    //console.log('parse target ',args , p);
+		    //console.log('TRYING PARSE TARGET ON ', match[1]);
+		    args[i] = obj.evalTarget(job,match[1]);
+		    //console.log('GOT', args[i]);
+		    //console.log(`match FOUND for ${raw} - ${args[i]} - ${match[1]}`);
+		}else {
+		    //console.log('match fail for '+raw);
+		}
+		//console.log(`>>ARGS ${raw} - ${args[i]} `,args[i],job);
+	    }
+
+	    return args;
+	}
+	for (let rec of list){
+
+	    let found = false;
+	    let args = evalArgs(job,scheme,rec.a);
+	    let rv;
+	    if(rec.f in builtIn){
+		found = true;
+		this.log('flowControl', job.name, `>>RUNNING BUILTIN ${rec.f}`);
+		if(rec.f=='call'){
+		    console.warn('trying experimental call');
+		    let name = args.shift();
+		    let func = lib.func.get(name);
+		    if(!func){console.warn('no function found with name',name); rv=0; found=false;}
+		    rv = func(...args);
+		    rv = 1;
+		}else
+		rv = this[builtIn[rec.f]](job,target, args);
+	    }else{
+		found = lib.func.get(rec.f);
+		rv = lib.func.get(rec.f,1)(ws,job.r,args);
+	    }
+	    //console.log(`RV = **${rv}**`);
+	    if(!rv){
+		let msg = found?
+		    `did not return a true value. Fail over to error (if exists)`:
+		    `${rec.f} not defined`;
+		this.log('flowControl',job.name, msg);
+		this.nonFatal(`flowControl: \nname:${job.name}\nfunction: ${rec.f}\n  stage: ${job.stage}\nmsg: ${msg}\n`);
+		runErr=1;
+		break;
+	    }
+	}
+	if (!runErr)return 1;
+	this.log('flowControl-error',job.name, `failing over to error flow (${error.length}) item`,error);
+	let i =0;
+	for (let rec of error){
+	    let args = evalArgs(job,scheme,rec.a);
+	    //console.log(`running error ${lib.utils.isScalar(job)?job:'function'}`,job);
+	    //let rv = lib.func.get(rec.f,1)(...rec.a);
+	    let rv = lib.func.get(rec.f,1)(ws,job.r,args);
+	    if(!rv){
+		this.error(`flowControl-error ${job.name} ....did not return a true value! Breaking execution @ position(${i}) f: ${rec.f}`);
+		return 0;
+	    }
+	    i++;
+	}
+	return 0;
+	
+    },
+
+
+    //catches HTTP response from send request, feeds back into runJob
+    catchResponse(jobID,stackName, r){
+	//console.log('caught a response',arguments);
+
+	let job = this.toJob(jobID);
+	if(!job){
+	    this.error(`catchResponse, job (${jobID}) not found. cannot continue.`);
+	    return;
+	}
+	job.r = r;
+	//console.log(`caught response for ${job.name}`);
+	this.runJob(jobID,stackName,1);
+
+    },
+    //$fixup -rename?
+    setBuffer(job,src){
+	let info  = this.parseTarget(job,src);
+	//console.log('buffer-in', job.name, `writing ${src} to buffer`,info,job);
+        if(!info) {
+            console.error(`buffer-in ${job.name}, no buffer src provided`);
+            return 0;
+        }
+
+	if (lib.dom.isDom(info.src)){
+            job.buffer = lib.dom.get(info.src,info.prop);
+	}else {
+            this.log('buffer-in', job.name, 'getting with  lib.hash.get', lib.hash.get(info.src,info.prop));
+            job.buffer = lib.hash.get(info.src, info.prop);
+        }
+	this.log('buffer-in', job.name, `sent ${src} to buffer`,info,job.buffer);
+        return 1;
+
+
+    },
+    
+    //$fixup -rename?
+    getBuffer(job,dst){
+	let info  = this.parseTarget(job,dst);
+        if(!info) {
+            this.log('write', job.name, 'no write target provided');
+	    return 0;
+        }
+	
+	if (lib.dom.isDom(info.src)){
+	    lib.dom.set(info.src, info.prop,job.buffer);
+        }else {
+	    lib.hash.set(info.src,info.prop,job.buffer);
+        }
+        this.log('write', job.name, `wrote buffer to ${dst} `,info,job);
+        return 1;
+    },
+
+    markComplete(job){
+	if(!lib.hash.is(job))job = this.jobs[job];
+	if (!job) return 0;
+	return job.load= 1;
+    },
+    toJob(job){
+	if(!lib.hash.is(job))job = this.jobs[job];
+	return job?job:undefined;
+    },
+    
+    runAll(stackName ='main'){
+
+	for(let name in this.jobs){
+	    let job = this.jobs[name];
+	    if (job.load==1)continue;
+	    if(lib.bool.isFalse(lib.hash.get(job.ds, "enable.autorun"))){
+		this.warn(`job ${job.name} enable-auotrun set to false, skipping`);
+		continue;
+	    }
+	    if( !this.meetsRequirements(job))continue;
+
+	    this.log('runAll',null, `RUNALL: ${name}`);
+	    if(job.status=='ready')
+		this.runJob(job,'main');
+	    else{
+		this.warn(`job ${name} isnt ready. status = ${job.status}`);
+	    }
+	}
+	return 1;
+    },
+
+    setRunning (job,stackName, state,rv=0){
+	if(!(job = this.toJob(job))) return this.error('setRunning: no job found');
+	lib.hash.set(job.ws,["stackRun",stackName],state);
+	return rv;
+    },
+    getRunning (job,stackName){
+	if(!(job = this.toJob(job))) return this.error('getRunning: no job found');
+	return lib.hash.get(job.ws,["stackRun",stackName]);
+    },
+    
+    
+    //$function runJob
+    runJob(job,stackName,opts){
+	if(!(job = this.toJob(job))) return this.error('runJob: no job found');
+	opts = lib.hash.to(opts,"force");
+	if (lib.utils.toString(job.status,1).match('error')){
+	    this.error(`job ${job.name} has status ${job.status} at stage ${job.stage}. cannot continue`);
+	    return 0;
+	}
+	if(this.getRunning(job,stackName)==1 && opts.force !=1){
+	    this.error(`job ${job.name} is already running`);
+	    return 0;
+	}
+	this.setRunning(job,stackName,1);
+	let disp = {
+	    chain: 'runChain',
+	    responseHead: 'catchResponse',
+	    request: 'sendRequest',
+	    attr: 'attrTransform',
+	    intervalUnlock: 'intervalUnlock',
+	    intervalStart: 'startInterval',
+	    intervalStop: 'stopInterval',
+	    complete: 'markComplete',
+	    runAll : 'runAll'
+	};
+
+	
+	let item = undefined;
+	//while (item =job.stack.shift()){
+
+	let stack = lib.hash.get(job,['stack',stackName]) || [];
+	for (let item; item  =stack.shift();){
+	    let [stage, func, target,opts] = lib.hash.expand(item, "s f t opts");
+	    //console.log('running', item);
+	    //console.log(`stage: ${stage}`);
+	    if (lib.utils.isEmpty(func) || !(func in disp)){
+		this.nonFatal(`not a valid stage (${stage} - ${func}) or is empty in ${job.name}` , job);
+		job.status='error';
+		return this.setRunning(job,stackname,0,0);
+	    }
+	    job.stage = stage;
+
+	    
+	    this.log('runJob', job.name, `running this.${disp[func]} for ${job.name}`);
+
+	    let result = func=='runAll'?this.runAll('main'):this[disp[func]](job,target,opts);
+	    
+ 
+
+	    if(result ==1){
+		//success
+		job.status='ready';
+		continue;
+	    }else{
+		if (result ==0) { //error
+		    job.status='error';
+		    return this.setRunning(job,stackName,0,0);
+		}else { //wait for rerun
+		    job.status='wait';
+		    //console.log('responded with wait, run again to continue');
+		    return this.setRunning(job,stackName,1,1);
+		}
+	    }
+	}
+
+	//console.log('JOB COMPLETE');
+	//job.status='ready';
+	return this.setRunning(job,stackName,0,1);
+
+    
+    },
+
+
+
+    
+
+    
+    
+    sendRequest(job,target,opts){
+	opts = lib.hash.to(opts);
+	if (!lib.hash.is(job) && !job.name){
+	    this.error(`sendRequest: job  "${job.name}" is not a hash or missing a name`);
+	    return 0;
+	}
+	this.log('sendRequest', job.name, 'in send request', job.ds,target);
+	let section = lib.hash.is(target)?target:lib.hash.get(job.ds,target);
+	if(!section){
+	    this.error(`sendRequest: job "${job.name} /${target}...error in or missing configuration`);
+	    return 0;
+	}
+
+
+ 
+        let url =section.action || job.attr.action || undefined;
+        //url = lib.str.interp(url, this.interpScheme({obj:this,item:job},undefined) );
+	let urlEncoded  = lib.utils.isEmpty(section.urlencoded)?1:section.urlencoded ;
+	let method = section.method || job.attr.method || "get";
+
+        let scheme = this.interpScheme(job,undefined);
+	
+	//console.log('SEND REQUEST', section);
+
+	if(!url) {
+	    this.error(`sendRequest: job "${job.name} ... no url defined`);
+	    return 0;
+	}
+
+        url= lib.str.interp(url, scheme);
+
+	//$$fixup
+	//let body = opts.form?lib.dom.form.arrayToQS(opts.form.parms):lib.str.interp(section.body,scheme);
+	let body = opts.body?lib.str.interp(opts.body,scheme):
+	    opts.form?lib.dom.form.arrayToQS(opts.form.parms):
+	    lib.str.interp(section.body,scheme);
+	
+	this.log("sendRequest", job.name,`sending request for ${section.url}`,body);
+
+	lib._http.request(url,
+			  {
+			      body: body, method:method||"get", load:lib.func.preWrap(this.wrap(this.catchResponse),job.name,opts.stackName),
+			      error:section.error,urlencoded:urlEncoded,
+			      json:section.json,
+			      credentials:true
+			  });	    
+	return "wait";
+	
+    },
+
+    
+    attrTransform(job,target){
+	let prefix="";
+	let section = lib.hash.get(job.ds,target);
+	if(!section){
+	    this.error(`attrTransform: job "${job.name}" / ${target} .error in or missing configuration, cannot attrTransform request for ${job.name} (${target})`);
+	    return 0;
+	}
+
+	let filtered = section;
+	if (Object.keys(filtered).length)this.log('attr-tranform',job.name, "running attr transform", filtered);
+	job.e2 = job.e;
+	for (let k in  filtered){
+	    let scheme = this.interpScheme(job);
+	    let fixed = lib.str.interp(filtered[k], scheme);
+	    this.log('attr-transform', job.name, `${k} = > ${fixed}`,job);
+	    lib.dom.set(job.e,k,fixed);
+	}
+
+	if (Object.keys(filtered).length)this.log('attr-tranform',job.name, "finished attr transform");
+
+	if (job.e.tagName.toLowerCase()=='script'){
+	    //let attrK = job.e.getAttribute(`${prefix}attr-type`);
+	    let attrK = lib.hash.get(section, 'type');
+	    this.log('transform',job.name, `checking script... ${job.name} ${attrK}`);
+	    
+	    if(attrK && attrK.match(/text\/javascript/i)){
+		
+		this.log('transform',job.name,`running script ${job.name}`);
+		if (0){ //this way is actually cleaner and probably better. but some EVal haters will hate it. add option later for it.
+		    let rv = undefined;
+		    try{
+			console.log('in eval');
+			rv = eval(job.e.text);
+		    }catch(err){
+			console.log('transform',job.name, 'EVAL ERROR: '+err.message)
+		    }
+		}else {
+		    let clone = job.e.cloneNode(true);
+		    clone.removeAttribute('id');
+		    clone.removeAttribute('class');
+		    lib.dom.set(clone, "data-for", job.name);
+		    lib.dom.set(clone, "data-role", "spawn");
+		    job.e.after(clone);
+		}
+		//SAFARI 15.4 ish FUCKED THIS UP
+		//job.e.innerHTML = job.e.text;
+	    }
+	}
+
+
+	return 1;
+    },
+
+    
+   
+
+    meetsRequirements(job){
+	//if (!lib.hash.is(job) ) job=this.jobs[job];
+	if(!(job = this.toJob(job)))return 0;
+	if(job.load==1)return 0;
+	
+
+	let require = lib.array.to(lib.hash.get(job.ds,'require'),/\s+/);
+
+	for (let name of require){
+	    if (lib.hash.get(this.jobs, [name, "load"]) != 1)return 0;
+	}
+	return 1;
+    },
+
+
+    
+    
+    /* wraps a class function so it can easily be called externally,
+       without needing to reference the class object.
+
+       if you need to pass other args to it, use lib.func.preWrap or posWrap.
+    */
+    //function wrap
+    wrap(fun){
+	return function(obj){
+	    return function(){return fun.call(obj,...arguments);}
+	}(this);
+    },
+
+
+    
+
+    _parseFunctions(job,line){
+	let funcs  =lib.array.to(line,/\s+/),
+	    out = [];
+	for (let fun of funcs){
+	    let parts = fun.split(/\:/);
+	    let name = parts[0];
+	    let args = parts.slice(1).join(':');
+	    //let [name,args] = fun.split(/\:/,2);
+	    args = lib.array.to(args,/\,/);
+	    out.push({f:name,a:args});
+	}
+	return out;
+    },
+};
+
+export default unfilteredTraits;
+
+
+# --- end: doc3/src_inprogress/traits/unfiltered.js ---
+
+
+
+# --- begin: doc3/src_inprogress/traits/unused.js ---
+
+export const  unusedTraits = {
+    //the following are class functions because I have defined this function in varying formats throughout other libs.
+    //and because I dont want to include those better and generalized functions etc at the moment.
+    _filterDataset(data, regex = /^attr(.+)$/i){
+	let filtered={};
+	for (k of  Object.keys(data)){
+	    let m = k.match(regex);
+	    if (!m)continue;
+	    filtered[m[1]] =data["attr"+m[1]];
+	}
+	return filtered;
+    }
+    //build function array with args from user defined functions
+    //function _getFunctions
+    //$FIXUP - prune
+    _getFunctions(line,debug=0){
+	let list = this._parseFunctions(line);
+	let out = [];
+	if(debug)this.warn(`parsing `+line);
+	for (let rec of list){
+	    if(debug)this.warn('pushing ',rec);
+	    out.push( lib.func.postWrap(rec.f,rec.a));
+	}
+	if(debug)this.warn(`got ${out.length} functions`,out);
+	return out;
+    },
+
+    
+    //$fixup -- maybe prune. this may no longer be necessary. or rework.
+    _makeBase(prefix="",section="",data="data-"){
+	let out = data || "";;
+	if(!lib.utils.isEmpty(prefix))out +=(lib.utils.toString(prefix,1)+'-').replace(new RegExp('\-+$'),"-");
+	if(!lib.utils.isEmpty(section))out +=(lib.utils.toString(section,1)+'-').replace(new RegExp('\-+$'),"-");
+	return out;
+    }
+
+
+};
+
+export default unusedTraits;
+
+
+# --- end: doc3/src_inprogress/traits/unused.js ---
+
+
+
+# --- begin: examples/ATDefaultConf.js ---
+
+const atConf = {
+  // ---------------------------------------------------------------------------
+  // Environment (optional; inferred if omitted)
+  // ---------------------------------------------------------------------------
+  env: { window, document, root: window },
+
+  // ---------------------------------------------------------------------------
+  // Job configuration policy
+  // (how job config is discovered, parsed, merged, and interpreted)
+  // ---------------------------------------------------------------------------
+  job: {
+    config: {
+      // --- where job config is allowed to come from ---
+      allowExternal: true,                 // false => base-only mode (no DOM / script config)
+      at: ["config.at", "at"],             // DSL pointer(s) to job config sources
+
+      // --- how job-related DOM attributes / config keys are read ---
+      attrPrefixes: ["data-", "at-"],
+
+      // --- evaluation / import policy for job config ---
+      evalEnabled: true,
+      evalType: ["text/at-eval", "text/at-config"],
+      importEnabled: true,
+      importPath: ["/vendor/m7-js-lib-active-tags/examples/"],
+
+      // --- merge semantics for layered job config ---
+      // base    : constructor-provided config
+      // external: DOM / script-derived config
+      // inline  : inline or per-element overrides
+      merge: {
+        order: ["base", "external", "inline"],
+        objects: "deep",
+        arrays: "concatUnique"
+      }
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Boot policy
+  // (one-time initialization behavior + initial runtime enablement)
+  // ---------------------------------------------------------------------------
+  boot: {
+    // DOM discovery selector used during boot sweep
+    selector: "[data-activetag], form[data-activetag]",
+
+    // perform initial DOM sweep immediately on construction
+    bootSweep: true,
+
+    // start DOM observer for dynamically-added elements
+    observeDom: true,
+
+    // initial runtime state only (can be changed later via runtime API)
+    intervals: true,
+    events: true
+  },
+
+  // ---------------------------------------------------------------------------
+  // Logging / diagnostics policy
+  // ---------------------------------------------------------------------------
+  log: {
+    enabled: true,
+    policy: {
+      console: "warn",   // warn | error | info | log (as supported by lib logger)
+      trace: false       // pipeline / VM trace output
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Error handling posture
+  // ---------------------------------------------------------------------------
+  errors: {
+    // behavior when a pipeline op throws
+    onOpError: "error"   // "error" | "complete" | "continue" (if supported)
+  }
+};
+
+
+# --- end: examples/ATDefaultConf.js ---
+
+
+
+# --- begin: examples/jumjum.import.js ---
+
+export default {
+    name: "jumjum",
+    enabled: true,
+    autorun: true,
+    pipeline: {
+        run   : "foo",
+        error : "error.dump"
+    }
+};
+
+
+# --- end: examples/jumjum.import.js ---
+
+
+
+# --- begin: examples/jumjum.js ---
+
+/*
+  //THIS 
+(() => {
+    console.warn('loading script config');
+    //document.addEventListener("DOMContentLoaded", () => {
+    //    lib.hash.set(
+    //        window,
+    //"ws.conf.jumjum",
+
+    return {
+	name: "jumjum",
+	enable: {
+            enabled: true,
+            autorun: true
+	},
+	pipeline: {
+            run: "foo",
+            onError: "error.dump"
+	}
+    }
+    //    );
+    //});
+})()
+
+*/
+/*
+//OR this
+
+{
+        name: "jumjum",
+        enable: {
+            enabled: true,
+            autorun: true
+        },
+        pipeline: {
+            run: "foo",
+            onError: "error.dump"
+        }
+    }
+
+*/
+
+
+//OR this
+
+({
+    name: "jumjum",
+    enabled: true,
+    autorun: true,
+    pipeline: {
+        run  : "foo",
+        error: "error.dump"
+    }
+})
+
+
+
+# --- end: examples/jumjum.js ---
+
+
+
+# --- begin: examples/test-job.js ---
+
+export default {
+    "name": "test-job",
+    "require" : "jumjum",
+    "enable" : true,
+    "autorun" : "funz",
+    
+
+    "events": {
+	"hover:on" : {
+	    "enabled" : true,
+	    "event": "pointerover",
+	    "selector": "[data-button]",
+	    "pipeline": "hover_on",
+	    "options": { "capture": false, "passive": true }
+	},
+	"hover:off" : {
+	    "event": "pointerout",
+	    "selector": "[data-button]",
+	    "pipeline": "hover_off",
+	    "options": { "capture": false, "passive": true }
+	}
+    },
+    
+    "request_shape": {
+	"headers": {
+	    "X-Test": "yes"
+	}
+    },
+
+    "request": "/api/test/default",
+
+    "requests": {
+	"delete": {
+	    "url": "/api/test/delete",
+	    "method": "post"
+	}
+    },
+
+    "interval_shape": {
+	"repeat": 7000,
+	"allowOverlap": false
+    },
+
+    "interval": {
+	"pipeline" : "interval"
+    },
+
+    "intervals": {
+	"poll": {
+	    "pipeline" : "interval2",
+	    "repeat": 2000,
+	    "allowOverlap": false
+	}
+    },
+
+    "pipeline_shape": {
+	"confirm": true
+    },
+
+    "pipeline": {
+	"run": "foo:1,2,3 bar:${a},${b} far",
+	"error" : "errOutput:whoopsie"
+    },
+    
+    "pipelines": {
+	"funz" : {
+	    "run": [
+		"confirm",
+		"form.prepare",
+		"form.collect",
+
+		{
+		    "op": "foo",
+		    "args": {
+			"mode": "test",
+
+			"jobId": "${job:id}",
+
+			"label": "running job ${job:id}",
+			"rawTarget": "${target:}",          
+			"rawMeta": "${buffer_meta:}"        ,
+			"stringTarget": "t=${target:tagName}" ,
+			"meta": {
+			    "pipeline": "${ticket:pipelineKey}",
+			    "targetTag": "tag=${target:tagName}"
+			}
+		    }
+		},
+
+		{
+		    "op": "dom.patch",
+		    "args": {
+			"style.font-weight": "bold",
+			"style.color": "red"
+		    }
+		},
+
+		{
+		    "op": "form.submit",
+		    "args": {
+			"contentType": "json"
+		    }
+		}
+	    ],
+
+	    "error": [
+		{ "op": "error.dump", "args": { "throw": true } }
+	    ]
+	},
+	"patch" :{
+	    "run": [ "confirm", "form.prepare", "form.collect", {"op": "dom.patch", "args" : {"style.font-weight": "bold",	"style.color"      : "red"} },
+		     {"op": "form.submit", "args": {"contentType": "json"} } ],
+	    "error": [{"op": "error.dump", "args": {"throw":true} }]
+	},
+	"hover_on": {
+	    "run": "hover_on hover_b",
+	    "error": "errOutput"
+	},
+	
+	"hover_off": {
+	    "run": "hover_off",
+	    "error": "errOutput"
+	}
+    }
+}
+
+
+# --- end: examples/test-job.js ---
+
+
+
+# --- begin: examples/testPipe.js ---
+
+//for testing the expression resolver
+export const testPipes = {
+  patch: {
+    run: [
+      // normalized strings
+      { op: "confirm", args: { message: "Continue as ${ds.user}?" } },          // template expr
+      { op: "form.prepare", args: null },
+      { op: "form.collect", args: { mode: "default" } },
+
+      // explicit op object with mixed args
+      {
+        op: "dom.patch",
+        args: {
+          // plain
+          "style.font-weight": "bold",
+          "style.color": "red",
+
+          // template (string output)
+          "title": "Hello ${ds.name} - id=${job.id}",
+
+          // encapsulated (raw output)
+          "data-user-id": "${ds.userId}",
+
+          // nested: hash + arrays mixed
+          "data-meta": {
+            lastAction: "patch:${ticket.pipelineKey}",
+            when: "${ctx.now}",                 // encapsulated
+            tags: ["a", "${ds.tag}", "x-${ds.x}"] // mixed array values
+          }
+        }
+      },
+
+      // submit, with a mix of nested + expressions
+      {
+        op: "form.submit",
+        args: {
+          contentType: "json",
+          requestName: "save-${job.name}",     // template
+          headers: {
+            "X-CSRF": "${ds.csrf}",            // encapsulated
+            "X-Trace": "job=${job.id} ts=${ctx.now}" // template
+          },
+          // array args example (if you want to test array-shape args too)
+          debug: ["a", "${ds.debug}", "b-${ctx.now}"],
+        }
+      }
+    ],
+
+    onError: [
+      { op: "error.dump", args: { throw: true, includeCtx: true } }
+    ]
+  },
+
+  // example of “run is a string list” style but already normalized into op objects
+  // (if you prefer to keep run: "hover_on hover_b", your normalizer would expand it into this)
+  hover_on: {
+    run: [
+      { op: "target.reset", args: null },
+
+      // demonstrate target traversal
+      { op: "target.closest", args: ".card" },
+
+      // patch with expressions
+      {
+        op: "dom.patch",
+        args: {
+          "class": "card hover-on",
+          "data-hover": "${ctx.hoverState}",        // encapsulated
+          "title": "hover on by ${ds.user}"         // template
+        }
+      }
+    ],
+
+    onError: [
+      { op: "error.dump", args: { throw: false, console: true } }
+    ]
+  },
+
+  hover_off: {
+    run: [
+      { op: "target.reset", args: null },
+      { op: "target.closest", args: ".card" },
+      {
+        op: "dom.patch",
+        args: {
+          "class": "card hover-off",
+          "title": "hover off at ${ctx.now}"        // template
+        }
+      }
+    ],
+    onError: [
+      { op: "error.dump", args: { throw: false } }
+    ]
+  }
+};
+
+
+export default testPipes;
+
+
+# --- end: examples/testPipe.js ---
+
+
+
+# --- begin: examples/tutorial.js ---
+
+import lib from "/vendor/m7-js-lib/src/index.js";
+import ActiveTags from "/vendor/m7-js-lib-active-tags/src/ActiveTags.js";
+window.lib = lib;
+const tutorialDeps = [
+    "/vendor/m7-js-lib-tree/src/auto.js",
+    "/vendor/m7-js-workspace/src/auto.js",
+    "/vendor/m7-js-lib-primitive-log/src/auto.js",
+    "/vendor/m7-js-lib-interval/src/auto.js",
+    "/vendor/m7-js-lib-str-interp/src/auto.js",
+    "/vendor/m7-js-lib-primitive-dom-eventdelegator/src/auto.js",
+    "/vendor/m7-js-lib-primitive-dom-changeobserver/src/auto.js",
+    "/vendor/m7-js-lib-site-form/src/auto.js",
+];
+
+async function loadTutorialDeps() {
+    // Keep order aligned with the prior HTML script sequence.
+    for (const modPath of tutorialDeps) {
+	await import(modPath);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+    await loadTutorialDeps();
+
+    const AT = new ActiveTags(lib, {
+	env: {
+	    // optional — ActiveTags will derive these if omitted,
+	    // but being explicit is fine
+	    window,
+	    document,
+	    root: window,
+	},
+
+	// runtime/system toggles (keep yours here; names depend on your ActiveTags impl)
+	boot: {
+	    intervals: true,
+	    events: true,
+	},
+	engine: {
+	    // hooks: true
+	},
+	// job-default config (this is what gets sliced + passed into Job.configure)
+	job: {
+	    config: {
+		evalEnabled: true,
+		evalType: "text/at-eval", // string or array ok
+		importEnabled: true,
+		importPath: ["/vendor/m7-js-lib-active-tags/examples/"], // optional allow-list
+	    },
+	},
+    });
+
+    lib.service.set("activeTags", AT);
+    await AT.start();
+    window.AT = AT;
+});
+
+
+# --- end: examples/tutorial.js ---
+
+
+
+# --- begin: examples/tutorial/header.js ---
+
+//no need to export, just link directly to the config.
+/**
+   simulate login success response. like username etc with a status wrapper, possibly some meta information
+   */
+function dummy_login({ buffer, job, lib } = {}) {
+    console.warn('dummy login');
+
+    const ws = (job && job.ws) ? job.ws : {};
+    const wsLoginName = (lib && lib.hash) ? lib.hash.get(ws, "session.loginame") : undefined;
+    const wsDisplayName = (lib && lib.hash) ? lib.hash.get(ws, "session.displayname") : undefined;
+    const wsBal = Number(lib && lib.hash ? lib.hash.get(ws, "portfolio.balance") : undefined);
+    const wsStock = Number(lib && lib.hash ? lib.hash.get(ws, "portfolio.stock") : undefined);
+
+    const loginame = wsLoginName || "test_user";
+    const displayname = wsDisplayName || "Test User";
+
+    // Initialize workspace balances once for this job session.
+    if (lib && lib.hash && !Number.isFinite(wsBal)) {
+	lib.hash.set(ws, "portfolio.balance", 1000);
+    }
+    if (lib && lib.hash && !Number.isFinite(wsStock)) {
+	lib.hash.set(ws, "portfolio.stock", 0);
+    }
+    if (lib && lib.hash) {
+	lib.hash.set(ws, "session.loginame", loginame);
+	lib.hash.set(ws, "session.displayname", displayname);
+	lib.hash.set(ws, "session.loggedIn", true);
+    }
+
+    const balance = Number(lib && lib.hash ? lib.hash.get(ws, "portfolio.balance") : 1000) || 1000;
+    const stock = Number(lib && lib.hash ? lib.hash.get(ws, "portfolio.stock") : 0) || 0;
+
+    // Set a fake successful login payload on the ticket buffer.
+    if (buffer && typeof buffer.set === "function") {
+	buffer.set(
+	    {
+		status: 1,
+		data: {
+		    loginame,
+		    displayname,
+		    balance,
+		    stock,
+		},
+	    },
+	    { source: "dummy_login" }
+		);
+    }
+
+    // Return explicit continue signal for the VM.
+    return true;
+}
+/**
+   writes the displayname to the current target. Dom patch wontwork b/c its legacy style. we'll go back and doll up the builtins after we write the demo and other stuff
+*/
+function writeUser(ctx) {
+    console.log(ctx);
+    const { buffer, ticket, job } = ctx;
+    const payload =buffer.get()
+    const displayName = payload.displayname;
+    const target = ticket?.target || job.e;
+    target.textContent = displayName;
+
+    return true;
+}
+
+function writeBalance({buffer,ticket,job}){
+    const bal = buffer.get().balance;
+    ticket.target.textContent = `Balance: $${Number(bal).toFixed(2)}`;
+    return true;
+}
+
+function writeStock({buffer,ticket,job}){
+    const stock = Number(buffer.get().stock || 0);
+    ticket.target.textContent = `Stock: ${stock}`;
+    return true;
+}
+
+function revealUserDetails({ ticket }) {
+    if (ticket && ticket.target && ticket.target.classList) {
+	ticket.target.classList.remove("is-hidden");
+    }
+    return true;
+}
+
+function hideLoginButton({ ticket }) {
+    if (ticket && ticket.target && ticket.target.classList) {
+	ticket.target.classList.add("is-hidden");
+    }
+    return true;
+}
+
+export default {
+  name: "header",
+  enabled: true,
+  autorun: false,
+
+  // Keep a minimal default pipeline so this config is explicit and extensible.
+    pipeline: {
+	//login, move the target pointer (check builtins/target/index) 
+		run: [
+		    dummy_login,
+		    "buffer.traverse:data",
+		    "target.find:.tutorial-user-text",
+		    writeUser,
+		    "target.reset",
+		    "target.find:.tutorial-user-balance",
+		    writeBalance,
+		    "target.reset",
+		    "target.find:.tutorial-user-stock",
+		    writeStock,
+		    "target.reset",
+		    "target.find:.tutorial-user-details",
+		    revealUserDetails,
+		    "target.reset",
+		    "target.find:.tutorial-login-btn",
+		     hideLoginButton,
+		],
+	      error: ["error.dump"],
+  },
+    pipelines: {
+
+    },
+  events: {
+      login_click: {
+	  event: "click",
+	  selector: ".tutorial-login-btn",
+	  pipeline: "default",
+      }
+  },
+
+  env: {
+    section: "header",
+  },
+};
+
+
+# --- end: examples/tutorial/header.js ---
+
+
+
+# --- begin: examples/tutorial/stock-form.js ---
+
+function pull_quote({ job, buffer, lib } = {}) {
+  const ws = (job && job.ws) ? job.ws : {};
+
+  const currentPrice = Number(lib.hash.get(ws, "ticker.price"));
+  const basePrice =
+    Number.isFinite(currentPrice) && currentPrice > 0
+      ? currentPrice
+      : 184.52;
+
+  // Simulate changing market metrics each run.
+  const change = Number(((Math.random() * 4) - 2).toFixed(2));
+  const nextPrice = Number(Math.max(0.01, basePrice + change).toFixed(2));
+  const vol = Math.floor(5000 + Math.random() * 95000);
+
+  // Persist rolling ticker price in workspace for the next tick.
+  lib.hash.set(ws, "ticker.price", nextPrice);
+
+  if (buffer && typeof buffer.set === "function") {
+    buffer.set(
+      {
+        status: 1,
+        data: { price: nextPrice, change, vol },
+      },
+      { source: "pull_quote" }
+    );
+  }
+
+  return true;
+}
+
+function write_quote({ job, buffer } = {}) {
+  const quote = (buffer && typeof buffer.get === "function")
+    ? buffer.get()
+    : null;
+
+  const price = Number(quote && quote.price);
+  const change = Number(quote && quote.change);
+  const vol = Number(quote && quote.vol);
+
+  const root = job && job.e;
+  if (!root || typeof root.querySelector !== "function") return true;
+
+  const priceEl = root.querySelector("#tutorial-stock-price");
+  const changeEl = root.querySelector("#tutorial-stock-change");
+  const volEl = root.querySelector("#tutorial-stock-vol");
+
+  if (priceEl && Number.isFinite(price)) {
+    priceEl.textContent = `$${price.toFixed(2)}`;
+  }
+
+  if (changeEl && Number.isFinite(change)) {
+    const sign = change >= 0 ? "+" : "";
+    changeEl.textContent = `${sign}${change.toFixed(2)}`;
+    changeEl.style.color = change >= 0 ? "#89d899" : "#ef8f8f";
+  }
+
+  if (volEl && Number.isFinite(vol)) {
+    volEl.textContent = vol.toLocaleString();
+  }
+
+  return true;
+}
+
+function set_ctx_error(ctx, message) {
+  if (ctx && typeof ctx === "object") {
+    ctx.error = message;
+  }
+}
+
+function get_header_job({ AT } = {}) {
+  if (!AT || typeof AT.toJob !== "function") return null;
+  return AT.toJob("header");
+}
+
+function sync_header_portfolio({ headerJob, balance, stock } = {}) {
+  const root = headerJob && headerJob.e;
+  if (!root || typeof root.querySelector !== "function") return;
+
+  const balEl = root.querySelector(".tutorial-user-balance");
+  const stockEl = root.querySelector(".tutorial-user-stock");
+
+  if (balEl) balEl.textContent = `Balance: $${Number(balance).toFixed(2)}`;
+  if (stockEl) stockEl.textContent = `Stock: ${Number(stock)}`;
+}
+
+function require_logged_in({ lib, ctx, AT } = {}) {
+  const headerJob = get_header_job({ AT });
+  if (!headerJob) {
+    set_ctx_error(ctx, "Header job unavailable. Please refresh.");
+    return false;
+  }
+
+  const loggedIn = !!lib.hash.get(headerJob, "ws.session.loggedIn");
+  if (!loggedIn) {
+    set_ctx_error(ctx, "Please login before trading.");
+    return false;
+  }
+
+  return true;
+}
+
+function get_trade_inputs({ job, lib, ctx, AT } = {}) {
+  const headerJob = get_header_job({ AT });
+  if (!headerJob) {
+    set_ctx_error(ctx, "Header job unavailable. Please refresh.");
+    return null;
+  }
+
+  const form = job && job.e;
+  const qtyEl = form && typeof form.querySelector === "function"
+    ? form.querySelector("#tutorial-stock-qty")
+    : null;
+
+  const qty = Math.floor(Number(qtyEl ? qtyEl.value : 0));
+  if (!Number.isFinite(qty) || qty <= 0) {
+    set_ctx_error(ctx, "Quantity must be a positive number.");
+    return null;
+  }
+
+  const price = Number(lib.hash.get(job, "ws.ticker.price"));
+  if (!Number.isFinite(price) || price <= 0) {
+    set_ctx_error(ctx, "Ticker price unavailable. Wait for quote update.");
+    return null;
+  }
+
+  const balanceRaw = Number(lib.hash.get(headerJob, "ws.portfolio.balance"));
+  const stockRaw = Number(lib.hash.get(headerJob, "ws.portfolio.stock"));
+  const balance = Number.isFinite(balanceRaw) ? balanceRaw : 0;
+  const stock = Number.isFinite(stockRaw) ? stockRaw : 0;
+
+  return { headerJob, qty, price, balance, stock };
+}
+
+function buy_stock({ job, lib, ctx, AT } = {}) {
+  const state = get_trade_inputs({ job, lib, ctx, AT });
+  if (!state) return false;
+
+  const cost = Number((state.qty * state.price).toFixed(2));
+  if (state.balance < cost) {
+    set_ctx_error(
+      ctx,
+      `Insufficient balance. Need $${cost.toFixed(2)}, have $${state.balance.toFixed(2)}.`
+    );
+    return false;
+  }
+
+  const nextBalance = Number((state.balance - cost).toFixed(2));
+  const nextStock = state.stock + state.qty;
+
+  lib.hash.set(state.headerJob.ws, "portfolio.balance", nextBalance);
+  lib.hash.set(state.headerJob.ws, "portfolio.stock", nextStock);
+  sync_header_portfolio({ headerJob: state.headerJob, balance: nextBalance, stock: nextStock });
+
+  set_ctx_error(ctx, null);
+  return true;
+}
+
+function sell_stock({ job, lib, ctx, AT } = {}) {
+  const state = get_trade_inputs({ job, lib, ctx, AT });
+  if (!state) return false;
+
+  if (state.stock < state.qty) {
+    set_ctx_error(
+      ctx,
+      `Insufficient stock. Trying to sell ${state.qty}, available ${state.stock}.`
+    );
+    return false;
+  }
+
+  const proceeds = Number((state.qty * state.price).toFixed(2));
+  const nextBalance = Number((state.balance + proceeds).toFixed(2));
+  const nextStock = state.stock - state.qty;
+
+  lib.hash.set(state.headerJob.ws, "portfolio.balance", nextBalance);
+  lib.hash.set(state.headerJob.ws, "portfolio.stock", nextStock);
+  sync_header_portfolio({ headerJob: state.headerJob, balance: nextBalance, stock: nextStock });
+
+  set_ctx_error(ctx, null);
+  return true;
+}
+
+function alert_ctx_error({ ctx } = {}) {
+  const msg = (ctx && typeof ctx.error === "string" && ctx.error.trim())
+    ? ctx.error.trim()
+    : "Trade request failed.";
+
+  if (typeof window !== "undefined" && typeof window.alert === "function") {
+    window.alert(msg);
+  }
+
+  return true;
+}
+
+export default {
+  name: "stock-form",
+  require: "header",
+  enabled: true,
+  autorun: false,
+
+  // Basic pipeline placeholders for tutorial progression.
+  pipelines: {
+    quote_tick: {
+      run: [
+        pull_quote,
+        "buffer.traverse:data",
+        write_quote,
+      ],
+      error: ["error.dump"],
+    },
+    buy: {
+      run: [
+        require_logged_in,
+        buy_stock,
+      ],
+      error: [alert_ctx_error, "error.dump"],
+    },
+    sell: {
+      run: [
+        require_logged_in,
+        sell_stock,
+      ],
+      error: [alert_ctx_error, "error.dump"],
+    },
+  },
+
+  // Wire buttons to named pipelines.
+  events: {
+    buy_click: {
+      event: "click",
+      selector: "#tutorial-buy-btn",
+      pipeline: "buy",
+    },
+    sell_click: {
+      event: "click",
+      selector: "#tutorial-sell-btn",
+      pipeline: "sell",
+    },
+  },
+
+  intervals: {
+    quote_tick: {
+      repeat: 2000,
+      pipeline: "quote_tick",
+      allowOverlap: false,
+      onError: "continue",
+    },
+  },
+
+  // Placeholder request definitions for later steps.
+  requests: {
+    quote: {
+      url: "/api/tutorial/quote",
+      method: "GET",
+    },
+    order: {
+      url: "/api/tutorial/order",
+      method: "POST",
+      headers: {
+        "X-Tutorial": "active-tags",
+      },
+    },
+  },
+
+  env: {
+    symbol: "M7X",
+  },
+};
+
+
+# --- end: examples/tutorial/stock-form.js ---
+
+
+
+# --- begin: src/ActiveTags.js ---
 
 /**
  * ActiveTags
@@ -55,12 +4571,14 @@
  * ---------------------
  * After construction, the instance exposes:
  *
+ *   this.ctx
  *   this.engine
  *   this.jobs
  *   this.events
  *   this.intervals
  *   this.observer
  *   this.discover
+ *   this.runtime
  *
  * Each subsystem is independently responsible for its own runtime behavior.
  *
@@ -73,6 +4591,16 @@
  *   this.conf
  *
  * Runtime subsystems must treat this configuration as authoritative.
+ *
+ *
+ * CONTEXT MODEL
+ * -------------
+ * ActiveTags exposes a global runtime context bag at:
+ *
+ *   this.ctx
+ *
+ * This is intended for application-level shared runtime context.
+ * It is distinct from per-run `ctx` values passed to `engine.tick()`/`engine.drain()`.
  *
  *
  * LIFECYCLE
@@ -104,7 +4632,7 @@
  *   start()
  *
  * Convenience helpers:
- *   enqueueAll(reason)
+ *   enqueueAll(opts)
  *
  * Job interaction helpers:
  *   Provided via trait_job
@@ -133,6 +4661,7 @@ import IntervalController from './class/interval/Controller.js';
 import ObserverController from './class/observer/Controller.js';
 import EventController    from './class/event/Controller.js';
 import DiscoverController from './class/discover/Controller.js';
+import RuntimeController  from './class/runtime/Controller.js';
 
 import atSchema           from './at_config/Schema.js';
 import DEFAULT_CONFIG     from './at_config/DEFAULT_CONFIG.js';
@@ -144,6 +4673,8 @@ class ActiveTags {
      * - Compiles top-level runtime config from defaults + user overrides.
      * - Resolves required m7 dependencies/services.
      * - Instantiates runtime subsystems (registry, engine, controllers).
+     * - Initializes global ActiveTags runtime context at `this.ctx`.
+     * - Passes this ActiveTags instance to Engine as `AT`.
      * - Does not start scanning/listening/executing until `start()` is called.
      *
      * @param {Object} lib
@@ -161,7 +4692,7 @@ class ActiveTags {
 	}
 	this.schema = new atSchema({lib, def_conf:DEFAULT_CONFIG, user_conf: conf});
 	this.opts = this.conf   = this.schema.snapShot();
-	console.log(this.conf);
+	//console.log(this.conf);
 
 	// allow helpers to assume this.lib exists
 	this.lib = lib;
@@ -183,7 +4714,7 @@ class ActiveTags {
 
 	if (this.svc.log && this.conf.log.enabled) {
 	    for (const key in this.conf.log.buckets) {
-		console.log(` creating ${key} `,this.conf.log.policy);
+		//console.log(` creating ${key} `,this.conf.log.policy);
 		this.svc.log.createBucket(this.conf.log.buckets[key], this.conf.log.policy);
 	    }
 	}
@@ -206,7 +4737,8 @@ class ActiveTags {
 	this.jobCounter = 0;
 
 	// workspace + scheduler
-	this.ws = new lib.primitive.workspace.WorkSpace();
+	//this.ws = new lib.primitive.workspace.WorkSpace();
+	this.ctx = {};
 
 	this.jobs = new JobRegistry({ lib , conf: this.conf.job, env:this.conf.env});
 
@@ -214,6 +4746,7 @@ class ActiveTags {
 	//this.engine = new Engine({lib,jobRegistry: this.jobs});
 
 	this.engine = new Engine({
+	    AT           : this,
 	    lib,
 	    jobRegistry  : this.jobs,
 	    conf         : this.conf.engine,
@@ -244,6 +4777,11 @@ class ActiveTags {
 	    AT: this,
 	    lib: this.lib,
 	    toJob: (x) => this.toJob(x),
+	});
+
+	this.runtime = new RuntimeController({
+	    AT: this,
+	    lib: this.lib,
 	});
 	
     }
@@ -330,11 +4868,15 @@ class ActiveTags {
 	this.events.registerAll();
 
 	// on by default; falsy disables
-	if (!lib.bool.no(this.conf.boot.intervals))
-            this.intervals.on();
+	if (!lib.bool.no(this.conf.boot.intervals)) {
+            const conditionalCount = await this.intervals.conditionalOn();
+            //if (conditionalCount > 0) await this.engine.drain();
+	}
 
 	if (!lib.bool.no(this.conf.boot.events))
-            this.events.on();
+            await this.events.conditionalOn();
+	//just fire the thing right away. we need to drain the autoruns anyhow
+	await this.engine.drain();
     }
 }
 
@@ -396,11 +4938,11 @@ export { ActiveTags };
 export default ActiveTags;
 
 
-# --- end: ActiveTags.js ---
+# --- end: src/ActiveTags.js ---
 
 
 
-# --- begin: at_config/DEFAULT_CONFIG.js ---
+# --- begin: src/at_config/DEFAULT_CONFIG.js ---
 
 import freezeDeep from '../helpers/freezeDeep.js';
 /**
@@ -697,11 +5239,11 @@ export const DEFAULT_CONFIG = freezeDeep(
 export default DEFAULT_CONFIG;
 
 
-# --- end: at_config/DEFAULT_CONFIG.js ---
+# --- end: src/at_config/DEFAULT_CONFIG.js ---
 
 
 
-# --- begin: at_config/LAST_LINE_DEFAULTS.js ---
+# --- begin: src/at_config/LAST_LINE_DEFAULTS.js ---
 
 /**
  * LAST_LINE_DEFAULTS
@@ -787,11 +5329,11 @@ export default {
 };
 
 
-# --- end: at_config/LAST_LINE_DEFAULTS.js ---
+# --- end: src/at_config/LAST_LINE_DEFAULTS.js ---
 
 
 
-# --- begin: at_config/Schema.js ---
+# --- begin: src/at_config/Schema.js ---
 
 // at_config/Schema.js
 /**
@@ -1975,11 +6517,11 @@ _configBoot(active, user) {
 }
 
 
-# --- end: at_config/Schema.js ---
+# --- end: src/at_config/Schema.js ---
 
 
 
-# --- begin: auto.js ---
+# --- begin: src/auto.js ---
 
 import ActiveTags from './ActiveTags.js';
 
@@ -2004,11 +6546,11 @@ export { ActiveTags };
 export default ActiveTags;
 
 
-# --- end: auto.js ---
+# --- end: src/auto.js ---
 
 
 
-# --- begin: builtins/buffer/index.js ---
+# --- begin: src/builtins/buffer/index.js ---
 
 // builtins/buffer.js
 // Builtins: buffer.set, buffer.get, buffer.traverse, buffer.clear
@@ -2192,11 +6734,11 @@ export const BUFFER = {
 export default BUFFER;
 
 
-# --- end: builtins/buffer/index.js ---
+# --- end: src/builtins/buffer/index.js ---
 
 
 
-# --- begin: builtins/confirm.js ---
+# --- begin: src/builtins/confirm.js ---
 
 // builtins/confirm.js
 
@@ -2251,11 +6793,11 @@ export default async function confirmOp({ job, lib, args, inputs, step } = {}) {
 }
 
 
-# --- end: builtins/confirm.js ---
+# --- end: src/builtins/confirm.js ---
 
 
 
-# --- begin: builtins/dom/domPatch.js ---
+# --- begin: src/builtins/dom/domPatch.js ---
 
 // builtins/domPatch.js
 import helpers from '../../class/engine/helpers.js';
@@ -2320,11 +6862,11 @@ export default async function domPatch({ job, lib, args, ticket, target, step } 
 }
 
 
-# --- end: builtins/dom/domPatch.js ---
+# --- end: src/builtins/dom/domPatch.js ---
 
 
 
-# --- begin: builtins/dom/index.js ---
+# --- begin: src/builtins/dom/index.js ---
 
 // builtins/dom/index.js
 import patch from './domPatch.js';
@@ -2345,11 +6887,11 @@ export default {
 };
 
 
-# --- end: builtins/dom/index.js ---
+# --- end: src/builtins/dom/index.js ---
 
 
 
-# --- begin: builtins/error/errorDump.js ---
+# --- begin: src/builtins/error/errorDump.js ---
 
 export default async function errorDump({ job, lib, args, trigger, ticket, inputs, ctx, step } = {}) {
   try {
@@ -2413,11 +6955,11 @@ export default async function errorDump({ job, lib, args, trigger, ticket, input
 }
 
 
-# --- end: builtins/error/errorDump.js ---
+# --- end: src/builtins/error/errorDump.js ---
 
 
 
-# --- begin: builtins/error/index.js ---
+# --- begin: src/builtins/error/index.js ---
 
 import  errorDump  from './errorDump.js';
 
@@ -2434,11 +6976,11 @@ export const ERROR = {
 export default ERROR;
 
 
-# --- end: builtins/error/index.js ---
+# --- end: src/builtins/error/index.js ---
 
 
 
-# --- begin: builtins/form/formCollect.js ---
+# --- begin: src/builtins/form/formCollect.js ---
 
 //builtins/form/formCollect.js
 /**
@@ -2514,11 +7056,11 @@ export default async function formCollect({ job, lib, args, step, trigger, buffe
 }
 
 
-# --- end: builtins/form/formCollect.js ---
+# --- end: src/builtins/form/formCollect.js ---
 
 
 
-# --- begin: builtins/form/formPrepare.js ---
+# --- begin: src/builtins/form/formPrepare.js ---
 
 /**
  * Prepare submit context for a form-driven pipeline.
@@ -2591,11 +7133,11 @@ export default async function formPrepare({ job, lib, trigger, inputs, ticket, s
 }
 
 
-# --- end: builtins/form/formPrepare.js ---
+# --- end: src/builtins/form/formPrepare.js ---
 
 
 
-# --- begin: builtins/form/formSubmit.js ---
+# --- begin: src/builtins/form/formSubmit.js ---
 
 // builtins/form/formSubmit.js
 /**
@@ -2759,11 +7301,11 @@ function storeTransaction({ lib, job, name, request, response, meta, type } = {}
 }
 
 
-# --- end: builtins/form/formSubmit.js ---
+# --- end: src/builtins/form/formSubmit.js ---
 
 
 
-# --- begin: builtins/form/index.js ---
+# --- begin: src/builtins/form/index.js ---
 
 import  formCollect      from './formCollect.js';
 import  formPrepare      from './formPrepare.js';
@@ -2785,11 +7327,11 @@ export const FORM = {
 export default FORM;
 
 
-# --- end: builtins/form/index.js ---
+# --- end: src/builtins/form/index.js ---
 
 
 
-# --- begin: builtins/form/requestHeaders.js ---
+# --- begin: src/builtins/form/requestHeaders.js ---
 
 // builtins/requestHeaders.js
 // Op name: "request.headers"
@@ -2862,11 +7404,11 @@ export default async function requestHeaders({ lib, args, buffer, step } = {}) {
 }
 
 
-# --- end: builtins/form/requestHeaders.js ---
+# --- end: src/builtins/form/requestHeaders.js ---
 
 
 
-# --- begin: builtins/httpSend.js ---
+# --- begin: src/builtins/httpSend.js ---
 
 // builtins/httpSend.js
 export default async function httpSend({ job, lib, args, trigger, inputs, step } = {}) {
@@ -2912,11 +7454,11 @@ export default async function httpSend({ job, lib, args, trigger, inputs, step }
 }
 
 
-# --- end: builtins/httpSend.js ---
+# --- end: src/builtins/httpSend.js ---
 
 
 
-# --- begin: builtins/index.js ---
+# --- begin: src/builtins/index.js ---
 
 import  dom          from './dom/index.js';
 import  form         from './form/index.js';
@@ -2948,11 +7490,11 @@ export default {
 
 
 
-# --- end: builtins/index.js ---
+# --- end: src/builtins/index.js ---
 
 
 
-# --- begin: builtins/target/index.js ---
+# --- begin: src/builtins/target/index.js ---
 
 // builtins/target/index.js
 
@@ -3073,8 +7615,10 @@ export async function targetClosest({ lib, args, ticket } = {}) {
 export async function targetFind({ lib, args, ticket } = {}) {
     try {
         const cur = _cur({ lib, ticket });
-        const selector = (typeof args === "string") ? args : args.selector;
+	const selector = lib.hash.is(args)?args.selector : lib.array.to(args)[0];
+        //const selector = (typeof args === "string") ? args : args.selector;
         const next = cur.querySelector(selector);
+	//console.warn(cur,args, selector, next);
         lib.dom.attempt(next, true);
         ticket.target = next;
         return { status: "ok", detail: { op: TARGET.FIND, selector } };
@@ -3135,11 +7679,11 @@ export default {
 export { TARGET };
 
 
-# --- end: builtins/target/index.js ---
+# --- end: src/builtins/target/index.js ---
 
 
 
-# --- begin: class/discover/Controller.js ---
+# --- begin: src/class/discover/Controller.js ---
 
 // class/discover/Controller.js
 
@@ -3634,11 +8178,11 @@ export class Controller {
 export default Controller;
 
 
-# --- end: class/discover/Controller.js ---
+# --- end: src/class/discover/Controller.js ---
 
 
 
-# --- begin: class/engine/Buffer.js ---
+# --- begin: src/class/engine/Buffer.js ---
 
 //engine/Buffer.js
 /**
@@ -3736,11 +8280,11 @@ export class Buffer {
 export default Buffer;
 
 
-# --- end: class/engine/Buffer.js ---
+# --- end: src/class/engine/Buffer.js ---
 
 
 
-# --- begin: class/engine/Engine.js ---
+# --- begin: src/class/engine/Engine.js ---
 
 /**
  * Engine (Top-Level Runtime Façade)
@@ -3845,6 +8389,10 @@ export class Engine {
      * Required core utility library. Used for hashing, coercion,
      * defensive guards, and internal helpers.
      *
+     * @param {ActiveTags} [args.AT]
+     * Optional owning ActiveTags instance.
+     * When provided, it is forwarded to VM constructor as runtime context anchor.
+     *
      * @param {JobRegistry} [args.jobRegistry]
      * Optional external job registry used to resolve job-like references
      * into canonical Job instances.
@@ -3896,6 +8444,7 @@ export class Engine {
      *
      * @property {VM} vm
      * Pipeline execution virtual machine.
+     * Receives optional `AT` runtime anchor via constructor injection.
      *
      * @property {EngineManager} manager
      * Policy + coordination layer (enqueue, cancel, locks, etc.).
@@ -3910,7 +8459,7 @@ export class Engine {
      * If `lib` is not provided.
      */
 
-    constructor({ lib, jobRegistry, vm, scheduler, conf = {},expr } = {}) {
+    constructor({ lib, jobRegistry, vm, scheduler, conf = {},expr,AT } = {}) {
 	if (!lib) throw new Error("Engine requires lib");
 	this.lib = lib;
 	const hooks    = lib.hash.to(conf.hooks);
@@ -3921,7 +8470,7 @@ export class Engine {
 	// subsystems
 	this.state = new EngineState({ lib });
 	this.scheduler = scheduler || new Scheduler({ lib,engine:this });
-	this.vm = vm || new VM({ lib, builtins,expr });
+	this.vm = vm || new VM({ lib, builtins,expr,AT });
 
 	// hooks (optional)
 	this.hooks = {
@@ -3944,16 +8493,17 @@ export class Engine {
     // Public execution façade
     // ---------------------------------------------------------------------------
 
-    tick({ ctx = {},ticket=null } = {}) {
-	return this._tick.tick({ ctx,ticket });
+    tick({ ctx = {}, ticket = null, requireJob = undefined } = {}) {
+	return this._tick.tick({ ctx, ticket, requireJob });
     }
 
 
-    async drain({ max = 1000, ticket = undefined, ctx = {}} = {}) {
+    async drain({ max = 1000, ticket = undefined, requireJob = undefined, ctx = {}} = {}) {
 	let did = 0;
+	const requireFilter = ticket ? undefined : requireJob;
 
 	while (did < max) {
-            const res = await this._tick.tick({ ctx, ticket });
+            const res = await this._tick.tick({ ctx, ticket, requireJob: requireFilter });
             if (!res?.didWork) break;
             did++;
 	}
@@ -4048,11 +8598,11 @@ export class Engine {
 export default Engine;
 
 
-# --- end: class/engine/Engine.js ---
+# --- end: src/class/engine/Engine.js ---
 
 
 
-# --- begin: class/engine/EngineManager.js ---
+# --- begin: src/class/engine/EngineManager.js ---
 
 /**
  * EngineManager
@@ -4340,15 +8890,22 @@ export class EngineManager {
      * @param {Object} [opts.meta={}]
      *   Optional metadata attached to the ticket for diagnostics and tracing.
      *
-     * @returns {Ticket}
-     *   The existing ticket (if deduped) or the newly created ticket.
+     * @param {boolean} [opts.returnMeta=false]
+     *   When true, returns enqueue metadata object:
+     *   `{ ticket, created }`.
+     *   `created` is true only when a new ticket record was created.
+     *
+     * @returns {Ticket|{ticket: Ticket, created: boolean}}
+     *   Default return is Ticket (existing or newly created).
+     *   When `opts.returnMeta` is true, returns `{ ticket, created }`.
      *
      * @throws {Error}
      *   If `jobLike` cannot be resolved into a Job with a valid `id`.
      */
-    enqueue(jobLike, key = "default", { inputs, priority = 0, meta = {} } = {}) {
+    enqueue(jobLike, key = "default", { inputs, priority = 0, meta = {}, returnMeta = false } = {}) {
 	const job = this._resolveJob(jobLike);
 	if (!job || !job.id) throw new Error("EngineManager.enqueue requires a resolved job with id");
+	const withMeta = !!returnMeta;
 
 	const jobId = job.id;
 	const pipelineKey = String(key || "default");
@@ -4359,7 +8916,7 @@ export class EngineManager {
 	const existingId = st.alias.get(pipelineKey);
 	if (existingId) {
 	    const existing = this.engine.state.getTicket(existingId);
-	    if (existing) return existing;
+	    if (existing) return withMeta ? { ticket: existing, created: false } : existing;
 	    st.alias.delete(pipelineKey); // stale alias
 	}
 
@@ -4376,7 +8933,7 @@ export class EngineManager {
 	}
 
 	if (this.engine.hooks.onEnqueue) this.engine.hooks.onEnqueue({ job, ticket });
-	return ticket;
+	return withMeta ? { ticket, created: true } : ticket;
     }
 
     // --- locking (tickets are the unique runner)
@@ -4684,11 +9241,11 @@ export class EngineManager {
 export default EngineManager;
 
 
-# --- end: class/engine/EngineManager.js ---
+# --- end: src/class/engine/EngineManager.js ---
 
 
 
-# --- begin: class/engine/EngineState.js ---
+# --- begin: src/class/engine/EngineState.js ---
 
 /**
  * EngineState
@@ -4852,11 +9409,11 @@ export class EngineState {
 export default EngineState;
 
 
-# --- end: class/engine/EngineState.js ---
+# --- end: src/class/engine/EngineState.js ---
 
 
 
-# --- begin: class/engine/helpers.js ---
+# --- begin: src/class/engine/helpers.js ---
 
 // -----------------------------------------------------------------------------
 // StageResult helpers
@@ -5031,11 +9588,11 @@ export default {
 };
 
 
-# --- end: class/engine/helpers.js ---
+# --- end: src/class/engine/helpers.js ---
 
 
 
-# --- begin: class/engine/Scheduler.js ---
+# --- begin: src/class/engine/Scheduler.js ---
 
 /**
  * Scheduler
@@ -5163,6 +9720,105 @@ export class Scheduler {
     }
 
     /**
+     * Determine whether a specific ticket is currently runnable.
+     *
+     * This method evaluates only ticket-level dependency gating
+     * (`ticket.require`) and does not inspect queue membership.
+     *
+     * Input can be:
+     * - ticket object
+     * - ticket id string (resolved via EngineState index)
+     *
+     * Notes:
+     * - This method does NOT inspect lock state; lock gating is handled
+     *   later in Tick.
+     * - This method does NOT enqueue/dequeue or alter `_ready` / `_present`.
+     *
+     * @param {Object|string} ticketLike
+     *   Runtime ticket object or ticket id.
+     *
+     * @returns {boolean}
+     *   True if this ticket passes dependency gating; otherwise false.
+     */
+    isRunnable(ticketLike) {
+	const engine = this.engine;
+	const registry = engine.jobRegistry;
+	const ticket = engine.state.getTicket(ticketLike) || ticketLike;
+
+	if (!ticket || typeof ticket !== "object") return false;
+
+	if (ticket.require && ticket.require.length) {
+	    for (const reqJobLike of ticket.require) {
+		const dep = registry.resolve(reqJobLike);
+		if (!dep || !dep.flags || dep.flags.hasRun !== true) {
+		    return false;
+		}
+	    }
+	}
+
+	return true;
+    }
+
+    /**
+     * Determine whether a specific job is currently runnable.
+     *
+     * This mirrors the non-mutating eligibility gate used by
+     * `nextRunnable()` for a single resolved job.
+     *
+     * Gating rules:
+     * - job must resolve from registry
+     * - job must have an active ticket or queued head ticket
+     * - selected ticket must pass `isRunnable(ticket|ticketId)`
+     *
+     * Notes:
+     * - This method does NOT inspect lock state; lock gating is handled
+     *   later in Tick.
+     * - This method does NOT enqueue/dequeue or alter `_ready` / `_present`.
+     *
+     * @param {*} jobLike
+     *   Job id, element, name, or job-like value supported by registry.resolve.
+     *
+     * @returns {boolean}
+     *   True if this job passes runnable gating; otherwise false.
+     */
+    isJobRunnable(jobLike) {
+	const engine = this.engine;
+	const registry = engine.jobRegistry;
+	const job = registry.resolve(jobLike);
+
+	if (!job || !job.id) return false;
+
+	const st = engine.state.jobState(job.id);
+	const ticket = st.active || (st.queue && st.queue.length ? st.queue[0] : null);
+	if (!ticket) return false;
+
+	return this.isRunnable(ticket);
+    }
+
+    /**
+     * Determine whether a ticket explicitly requires a specific job id.
+     *
+     * When no requiredJobId is provided, this returns true (no filter).
+     *
+     * @param {Object} [args]
+     * @param {Object} args.ticket
+     * @param {Object} args.registry
+     * @param {string|null|undefined} args.requiredJobId
+     * @returns {boolean}
+     */
+    _matchesRequiredDependency({ ticket, registry, requiredJobId } = {}) {
+	if (!requiredJobId) return true;
+
+	const reqs = Array.isArray(ticket?.require) ? ticket.require : [];
+	for (const req of reqs) {
+	    const dep = registry.resolve(req);
+	    if (dep && dep.id === requiredJobId) return true;
+	}
+
+	return false;
+    }
+
+    /**
      * Select the next runnable job id from the ready queue.
      *
      * This method implements the Scheduler’s gating logic and returns
@@ -5206,9 +9862,12 @@ export class Scheduler {
      * @returns {string|null}
      *   The next runnable job id, or null if none are eligible.
      */
-    nextRunnable() {
+    nextRunnable({ requireJob = undefined } = {}) {
 	const engine = this.engine;
 	const registry = engine.jobRegistry;
+	const required = requireJob ? registry.resolve(requireJob) : null;
+	const requiredJobId = required && required.id ? required.id : null;
+	if (requireJob && !requiredJobId) return null;
 
 	for (let i = 0; i < this._ready.length; i++) {
             const jobId = this._ready[i];
@@ -5234,25 +9893,18 @@ export class Scheduler {
 	    if (!ticket) {
 		// nothing to run; jobId should not be in scheduler
 		this._ready.splice(i, 1);
-		this._present.delete(jobId);
-		i--;
+		    this._present.delete(jobId);
+		    i--;
+		    continue;
+	    }
+
+	    // Optional filter: only consider tickets that require requiredJobId.
+	    if (!this._matchesRequiredDependency({ ticket, registry, requiredJobId })) {
 		continue;
 	    }
 	    
             // REQUIRE GATE (live, no global registry)
-            if (ticket.require && ticket.require.length) {
-		let ok = true;
-
-		for (const reqJobLike of ticket.require) {
-                    const dep = registry.resolve(reqJobLike);
-                    if (!dep || !dep.flags || dep.flags.hasRun !== true) {
-			ok = false;
-			break;
-                    }
-		}
-
-		if (!ok) continue; // cock blocked (requirements not met)
-            }
+            if (!this.isRunnable(ticket)) continue; // cock blocked (requirements not met)
 
             // Runnable — remove from queue and return
             this._ready.splice(i, 1);
@@ -5311,14 +9963,11 @@ export class Scheduler {
 }
 
 
+# --- end: src/class/engine/Scheduler.js ---
 
 
 
-# --- end: class/engine/Scheduler.js ---
-
-
-
-# --- begin: class/engine/testHooks.js ---
+# --- begin: src/class/engine/testHooks.js ---
 
 /**
  * Engine Test / Diagnostic Hooks
@@ -5479,11 +10128,11 @@ export const hooks = {
 export default hooks;
 
 
-# --- end: class/engine/testHooks.js ---
+# --- end: src/class/engine/testHooks.js ---
 
 
 
-# --- begin: class/engine/Tick.js ---
+# --- begin: src/class/engine/Tick.js ---
 
 /**
  * Tick
@@ -5617,8 +10266,8 @@ export class Tick {
  * @returns {Promise<Object>}
  *   Normalized tick trace describing the outcome of this step.
  */
-    async tick({ ctx = {} ,ticket=null} = {}) {
-        const v = this._validateTick({ ctx, ticket });
+    async tick({ ctx = {}, ticket = null, requireJob = undefined } = {}) {
+        const v = this._validateTick({ ctx, ticket, requireJob });
         if (v.done) return v.res;
 
         const finalize = this._makeFinalize(v);
@@ -5742,10 +10391,10 @@ export class Tick {
      * @returns {Object}
      *   Validation descriptor for the current tick.
      */
-    _validateTick({  ctx = {},ticket=null } = {}) {
+    _validateTick({ ctx = {}, ticket = null, requireJob = undefined } = {}) {
 	return ticket ?
-	    this._validateTickNamed({ctx,ticket}):
-	    this._validateTickNext({ctx});
+	    this._validateTickNamed({ ctx, ticket }):
+	    this._validateTickNext({ ctx, requireJob });
     }
 
     /**
@@ -5997,10 +10646,10 @@ export class Tick {
 	return this._makeRunnable({ jobId, job, st, ticket: st.active, ctx });
     }
     
-    _validateTickNext({ ctx = {} } = {}) {
-        const jobId = this.engine.scheduler.nextRunnable();
+    _validateTickNext({ ctx = {}, requireJob = undefined } = {}) {
+        const jobId = this.engine.scheduler.nextRunnable({ requireJob });
         if (!jobId)
-	    return { done: true, res: this.response._makeTickTrace({ flags: { didWork: false, reason: "noRunnable" } }) };
+            return { done: true, res: this.response._makeTickTrace({ flags: { didWork: false, reason: "noRunnable" } }) };
 	
 	// Resolve job (jobId is the stringified identity) 
 	const job = this._resolveJobSafe(jobId);
@@ -6132,11 +10781,11 @@ export class Tick {
 export default Tick;
 
 
-# --- end: class/engine/Tick.js ---
+# --- end: src/class/engine/Tick.js ---
 
 
 
-# --- begin: class/engine/TickResponse.js ---
+# --- begin: src/class/engine/TickResponse.js ---
 
 /**
  * TickResponse
@@ -6447,11 +11096,11 @@ export class TickResponse {
 export default TickResponse;
 
 
-# --- end: class/engine/TickResponse.js ---
+# --- end: src/class/engine/TickResponse.js ---
 
 
 
-# --- begin: class/engine/vm/OP.js ---
+# --- begin: src/class/engine/vm/OP.js ---
 
 /**
  * OP (Operation Normalizer)
@@ -6664,11 +11313,11 @@ export class OP {
 export default OP;
 
 
-# --- end: class/engine/vm/OP.js ---
+# --- end: src/class/engine/vm/OP.js ---
 
 
 
-# --- begin: class/engine/vm/Validate.js ---
+# --- begin: src/class/engine/vm/Validate.js ---
 
 /**
  * Validate (VM Step Resolver)
@@ -7017,11 +11666,11 @@ export class Validate {
 export default Validate;
 
 
-# --- end: class/engine/vm/Validate.js ---
+# --- end: src/class/engine/vm/Validate.js ---
 
 
 
-# --- begin: class/engine/vm/VM.js ---
+# --- begin: src/class/engine/vm/VM.js ---
 
 /**
  * VM (Virtual Machine)
@@ -7131,8 +11780,23 @@ import Validate from './Validate.js';
 import OP       from './OP.js';
 
 export class VM {
-    constructor({ lib, builtins,expr } = {}) {
+    /**
+     * Create a VM instance.
+     *
+     * @param {Object} args
+     * @param {Object} args.lib
+     * Required utility library.
+     * @param {Object} [args.builtins]
+     * Optional builtin operation surface.
+     * @param {Object} [args.expr]
+     * Optional expression resolver/materializer.
+     * @param {ActiveTags} [args.AT]
+     * Optional owning ActiveTags runtime instance.
+     * Stored on `this.AT` as runtime context anchor.
+     */
+    constructor({ lib, builtins,expr,AT } = {}) {
 	if(!lib)       throw new Error("PASS lib :) ");
+	this.AT = AT;
 	this.lib       = lib ;
 	this.builtins  = builtins || {}; //this is unnecessary but the AI bitches when I lint, b/c it seems to have trouble reading my libs.
 	this.validator = new Validate({lib,builtins});
@@ -7168,6 +11832,10 @@ export class VM {
      * 3) Stage execution (when applicable)
      *    - Materializes arguments via `expr.materialize`.
      *    - Invokes the resolved stage function.
+     *    - Current invocation payload shape is:
+     *      `{ job, lib, args, buffer, inputs, trigger, ticket, ctx, AT, step }`.
+     *    - `AT` runtime anchor is injected into VM (`this.AT`) by constructor.
+     *      It is forwarded to each stage as top-level `AT`.
      *    - Catches thrown errors and converts them to `helpers.SR_error`.
      *    - Normalizes return value via `OP._normalizeReturn`.
      *
@@ -7275,8 +11943,12 @@ export class VM {
 		    buffer : ticket.buffer,
 		    inputs: ticket.inputs,
 		    trigger,
+		    target :  ticket.target,
+		    e : job.e,
 		    ticket,
 		    ctx,
+		    AT:this.AT,
+
 		    step: v.stepRec,
 		});
 	    } catch (err) {
@@ -7638,11 +12310,11 @@ export default VM;
 */
 
 
-# --- end: class/engine/vm/VM.js ---
+# --- end: src/class/engine/vm/VM.js ---
 
 
 
-# --- begin: class/event/Controller.js ---
+# --- begin: src/class/event/Controller.js ---
 
 /**
  * Event Controller
@@ -8474,6 +13146,142 @@ export class Controller {
     }
 
     /**
+     * Internal helper: enqueue a synthetic require-gated conditional-on ticket for one event binding.
+     *
+     * @param {Object} job
+     * @param {*} eventName
+     * @param {Object} [opts]
+     * @returns {Promise<number>}
+     *   1 when a conditional ticket was enqueued, otherwise 0.
+     */
+    async _conditionalOnOne(job, eventName, opts = {}) {
+	const lib = this.lib;
+	const engine = this.engine;
+	if (!job || !job.id) return 0;
+
+	eventName = lib.str.to(eventName, true).trim();
+	if (!eventName) return 0;
+
+	const jobEntry = this.registry.get(job.id);
+	if (!jobEntry) return 0;
+
+	const entry = jobEntry.get(eventName);
+	if (!entry) return 0;
+
+	// Mirror _onOne gates as closely as possible.
+	if (lib.bool.no(entry.enabled)) return 0;
+	if (lib.bool.yes(entry.on)) return 0;
+
+	const rec = entry.def || {};
+	let eventType = lib.str.to(lib.hash.get(rec, "event"), true).trim().toLowerCase();
+	eventType = normalizeEventType(eventType);
+	const pipeline = lib.str.to(lib.hash.get(rec, "pipeline"), true).trim();
+	if (!eventType || !pipeline) return 0;
+
+	const internalKey = `__eventController_event_${job.id}_${eventName}`;
+
+	const runHandler = ({ inputs } = {}) => {
+	    const targetJob = this.toJob(inputs?.jobId || job.id) || job;
+	    const targetEvent = lib.str.to(inputs?.eventName, true).trim() || eventName;
+	    this.on(targetJob, targetEvent);
+	    return true;
+	};
+
+	const errorHandler = ({ inputs } = {}) => {
+	    if (inputs && typeof inputs === "object") {
+		inputs.eventControllerError = true;
+	    }
+	    return true;
+	};
+
+	const optHash = lib.hash.to(opts);
+	const sourceRequire = lib.array.to(lib.hash.get(job, "config.schema.require"));
+	const extraRequire = lib.array.to(lib.hash.get(optHash, "require"));
+	const require = Array.from(new Set([...sourceRequire, ...extraRequire]));
+
+	const def = {
+	    enabled: true,
+	    autorun: true,
+	    require,
+	    pipeline: {
+		run: [runHandler],
+		error: [errorHandler],
+	    },
+	};
+
+	const runtime = this.AT && this.AT.runtime;
+	if (!runtime || typeof runtime.createInternalJob !== "function") return 0;
+
+	const internal = await runtime.createInternalJob(internalKey, def, { domain: "event", e: job.e });
+	if (!internal || !internal.job || !internal.job.id) return 0;
+
+	const ticket = engine.enqueue(internal.job, "default", {
+	    inputs: {
+		reason: "event.conditionalOn",
+		jobId: job.id,
+		eventName,
+	    },
+	    meta: {
+		source: "event-controller",
+		type: "conditionalOn",
+		identifier: internal.identifier,
+	    },
+	});
+
+	return ticket ? 1 : 0;
+    }
+
+    /**
+     * Conditionally install event bindings through synthetic require-gated tickets.
+     *
+     * Behavior mirrors on():
+     * - Global mode when no jobLike is provided.
+     * - Single-binding mode when eventName is provided.
+     * - All-bindings mode for a resolved job otherwise.
+     *
+     * Instead of calling _onOne(), this delegates to _conditionalOnOne().
+     *
+     * @param {Object|string|Element|null} [jobLike]
+     * @param {string} [eventName]
+     * @param {Object} [opts]
+     * @returns {Promise<number>}
+     *   Number of event bindings for which a conditional ticket enqueue succeeded.
+     */
+    async conditionalOn(jobLike, eventName, opts = {}) {
+	const lib = this.lib;
+
+	// GLOBAL: conditionally turn on all events for all jobs
+	if (!jobLike) {
+	    let count = 0;
+	    for (const jobId of this.registry.keys()) {
+		const job = this.toJob(jobId);
+		if (!job || !job.id) continue;
+		count += await this.conditionalOn(job, eventName, opts);
+	    }
+	    return count;
+	}
+
+	const job = this.toJob(jobLike);
+	if (!job || !job.id) return 0;
+
+	const jobEntry = this.registry.get(job.id);
+	if (!jobEntry) return 0;
+
+	// single event
+	if (lib.str.to(eventName, true).trim()) {
+	    return await this._conditionalOnOne(job, eventName, opts);
+	}
+
+	// all events for this job
+	let count = 0;
+	for (const name of jobEntry.keys()) {
+	    count += await this._conditionalOnOne(job, name, opts);
+	}
+
+	return count;
+    }
+
+    /**
      * Install delegated event handlers for registered event bindings.
      *
      * CONTRACT
@@ -8791,7 +13599,10 @@ export class Controller {
      *   subSelector  selector string or null
      *
      * Drain is scheduled asynchronously to avoid reentrancy and allow coalescing:
-     *   Promise.resolve().then(() => AT.engine.drain({ ticket, ctx: {} }))
+     *   Promise.resolve().then(async () => {
+     *     await AT.engine.drain({ ticket, ctx: {} });
+     *     await AT.engine.drain({ requireJob: job, ctx: {}, max: 25 });
+     *   })
      *
      *
      * RETURN VALUE
@@ -8865,11 +13676,12 @@ export class Controller {
             });
 
             // pass trigger through ctx for ops/runtime use
-            Promise.resolve().then(() =>
-		AT.engine.drain({ ticket, ctx: { } })
-            );
-	};
-    }
+            Promise.resolve().then(async () => {
+		await AT.engine.drain({ ticket, ctx: {} });
+		await AT.engine.drain({ requireJob: job, ctx: {}, max: 25 });
+            });
+		};
+	    }
 
     /**
      * Developer note
@@ -9117,11 +13929,11 @@ export class Controller {
 export default Controller;
 
 
-# --- end: class/event/Controller.js ---
+# --- end: src/class/event/Controller.js ---
 
 
 
-# --- begin: class/event/specialHandlers.js ---
+# --- begin: src/class/event/specialHandlers.js ---
 
 /**
  * Event Special Handlers
@@ -9415,11 +14227,11 @@ export default {
 
 
 
-# --- end: class/event/specialHandlers.js ---
+# --- end: src/class/event/specialHandlers.js ---
 
 
 
-# --- begin: class/event/typeNormalizers.js ---
+# --- begin: src/class/event/typeNormalizers.js ---
 
 /**
  * Event Type Normalizers
@@ -9584,11 +14396,11 @@ export function normalizeEventType(eventType) {
 }
 
 
-# --- end: class/event/typeNormalizers.js ---
+# --- end: src/class/event/typeNormalizers.js ---
 
 
 
-# --- begin: class/expressions/dispatch.js ---
+# --- begin: src/class/expressions/dispatch.js ---
 
 // expr/dispatch.js
 // Build the parseTarget dispatch table for ExpressionResolver.parse(ctx, target)
@@ -9760,11 +14572,11 @@ export default function buildDispatch(resolver, ctx, loc) {
 }
 
 
-# --- end: class/expressions/dispatch.js ---
+# --- end: src/class/expressions/dispatch.js ---
 
 
 
-# --- begin: class/expressions/ExpressionResolver.098.js ---
+# --- begin: src/class/expressions/ExpressionResolver.098.js ---
 
 /**
  * ---------------------------------------------------------------------------
@@ -10281,11 +15093,11 @@ export class ExpressionResolver {
 export default ExpressionResolver;
 
 
-# --- end: class/expressions/ExpressionResolver.098.js ---
+# --- end: src/class/expressions/ExpressionResolver.098.js ---
 
 
 
-# --- begin: class/expressions/ExpressionResolver.js ---
+# --- begin: src/class/expressions/ExpressionResolver.js ---
 
 /**
  * ExpressionResolver
@@ -10731,6 +15543,10 @@ export class ExpressionResolver {
             }
 
             // string shorthand: "op" or "op:a,b,c"
+	    if (lib.func.get(item) ) {
+		out.push({op:item, args: []});
+		continue;
+	    }
             if (lib.str.is(item)) {
 		const raw = item;
 
@@ -10788,11 +15604,11 @@ export class ExpressionResolver {
 export default ExpressionResolver;
 
 
-# --- end: class/expressions/ExpressionResolver.js ---
+# --- end: src/class/expressions/ExpressionResolver.js ---
 
 
 
-# --- begin: class/expressions/Interpolator.js ---
+# --- begin: src/class/expressions/Interpolator.js ---
 
 
 /**
@@ -10998,11 +15814,11 @@ export const WALKER = {parseExpressions, evalCompiled} ;
 export default WALKER;
 
 
-# --- end: class/expressions/Interpolator.js ---
+# --- end: src/class/expressions/Interpolator.js ---
 
 
 
-# --- begin: class/interval/Controller.js ---
+# --- begin: src/class/interval/Controller.js ---
 
 /**
  * Interval Controller
@@ -11151,6 +15967,97 @@ export class Controller {
 	// jobId -> Map(intervalName -> state)
 	this.registry = new Map();
 	Object.freeze(this);
+    }
+
+    /**
+     * Internal helper: enqueue a synthetic conditional-on ticket for one interval.
+     *
+     * The generated pipeline run/error handlers are function steps attached to
+     * an internal synthetic job keyed by
+     * `__intervalController_interval_${job.id}_${intervalName}`.
+     *
+     * @param {Object} job
+     * @param {*} intervalName
+     * @param {Object} [opts]
+     * @returns {Promise<number>}
+     *   1 when a conditional ticket was enqueued, otherwise 0.
+     */
+    async _conditionalOnOne(job, intervalName, opts = {}) {
+	const lib = this.lib;
+	const engine = this.engine;
+	if (!job || !job.id) return 0;
+
+	intervalName = lib.str.to(intervalName, true).trim();
+	if (!intervalName) return 0;
+
+	const jobEntry = this.registry.get(job.id);
+	if (!jobEntry) return 0;
+
+	const entry = jobEntry.get(intervalName);
+	if (!entry) return 0;
+
+	// Mirror _onOne gates as closely as possible.
+	if (lib.bool.no(entry.enabled)) return 0;
+	if (lib.bool.yes(entry.on)) return 0;
+
+	const rec = entry.def || {};
+	const everyMs = Number(lib.hash.get(rec, "repeat") || 0);
+	const pipeline = lib.str.to(lib.hash.get(rec, "pipeline"), true).trim();
+	if (!pipeline) return 0;
+	if (!Number.isFinite(everyMs) || everyMs <= 0) return 0;
+
+	const internalKey = `__intervalController_interval_${job.id}_${intervalName}`;
+
+	const runHandler = ({ inputs } = {}) => {
+	    const targetJob = this.toJob(inputs?.jobId || job.id) || job;
+	    const targetInterval = lib.str.to(inputs?.intervalName, true).trim() || intervalName;
+	    this.on(targetJob, targetInterval);
+	    return true;
+	};
+
+	const errorHandler = ({ inputs } = {}) => {
+	    // Keep error path non-throwing; preserve context in inputs for diagnostics.
+	    if (inputs && typeof inputs === "object") {
+		inputs.intervalControllerError = true;
+	    }
+	    return true;
+	};
+
+	const optHash = lib.hash.to(opts);
+	const sourceRequire = lib.array.to(lib.hash.get(job, "config.schema.require"));
+	const extraRequire = lib.array.to(lib.hash.get(optHash, "require"));
+	const require = Array.from(new Set([...sourceRequire, ...extraRequire]));
+
+	const def = {
+	    enabled: true,
+	    autorun: true,
+	    require,
+	    pipeline: {
+		run: [runHandler],
+		error: [errorHandler],
+	    },
+	};
+
+	const runtime = this.AT && this.AT.runtime;
+	if (!runtime || typeof runtime.createInternalJob !== "function") return 0;
+
+	const internal = await runtime.createInternalJob(internalKey, def, { domain: "interval", e: job.e });
+	if (!internal || !internal.job || !internal.job.id) return 0;
+
+	const ticket = engine.enqueue(internal.job, "default", {
+	    inputs: {
+		reason: "interval.conditionalOn",
+		jobId: job.id,
+		intervalName,
+	    },
+	    meta: {
+		source: "interval-controller",
+		type: "conditionalOn",
+		identifier: internal.identifier,
+	    },
+	});
+
+	return ticket ? 1 : 0;
     }
     /**
      * Destroy the Interval Controller.
@@ -11610,6 +16517,56 @@ export class Controller {
 
 	return out;
     }    
+
+    /**
+     * Conditionally activate intervals through synthetic require-gated tickets.
+     *
+     * Behavior mirrors on():
+     * - Global mode when no jobLike is provided.
+     * - Single-interval mode when intervalName is provided.
+     * - All-intervals mode for a resolved job otherwise.
+     *
+     * Instead of calling _onOne(), this delegates to _conditionalOnOne().
+     *
+     * @param {Object|string|Element|null} [jobLike]
+     * @param {string} [intervalName]
+     * @param {Object} [opts]
+     * @returns {Promise<number>}
+     *   Number of interval entries for which a conditional ticket enqueue succeeded.
+     */
+    async conditionalOn(jobLike, intervalName, opts = {}) {
+	const lib = this.lib;
+
+	// GLOBAL: conditionally turn on all intervals for all jobs
+	if (!jobLike) {
+            let count = 0;
+            for (const jobId of this.registry.keys()) {
+		const job = this.toJob(jobId);
+		if (!job || !job.id) continue;
+		count += await this.conditionalOn(job, intervalName, opts);
+            }
+            return count;
+	}
+
+	const job = this.toJob(jobLike);
+	if (!job || !job.id) return 0;
+
+	const jobEntry = this.registry.get(job.id);
+	if (!jobEntry) return 0;
+
+	// single interval
+	if (lib.str.to(intervalName, true).trim()) {
+            return await this._conditionalOnOne(job, intervalName, opts);
+	}
+
+	// all intervals for job
+	let count = 0;
+	for (const name of jobEntry.keys()) {
+            count += await this._conditionalOnOne(job, name, opts);
+	}
+
+	return count;
+    }
     
     /**
      * Activate interval timers for registered interval definitions.
@@ -12248,11 +17205,11 @@ export class Controller {
 export default Controller;
 
 
-# --- end: class/interval/Controller.js ---
+# --- end: src/class/interval/Controller.js ---
 
 
 
-# --- begin: class/job/config/DomConfigSource.js ---
+# --- begin: src/class/job/config/DomConfigSource.js ---
 
 /**
  * DomConfigSource
@@ -13682,11 +18639,11 @@ export default class DomConfigSource {
 }
 
 
-# --- end: class/job/config/DomConfigSource.js ---
+# --- end: src/class/job/config/DomConfigSource.js ---
 
 
 
-# --- begin: class/job/config/JobConfig.js ---
+# --- begin: src/class/job/config/JobConfig.js ---
 
 /**
  * JobConfig (v1) — Job-bound configuration compiler.
@@ -13986,6 +18943,43 @@ export class JobConfig {
 	return this.status   = JOB_CONFIG_STATUS.READY;	
     }
 
+    /**
+     * Build or rebuild this Job configuration directly from a provided object.
+     *
+     * CONTRACT
+     * --------
+     * buildFrom() is similar to build(), but it does NOT invoke DomConfigSource.
+     * It compiles the provided input directly into a normalized schema.
+     *
+     * @param {Object} [opts={}]
+     *   Raw configuration object to compile.
+     *
+     * @returns {Promise<number>}
+     *   One of JOB_CONFIG_STATUS values.
+     */
+    async buildFrom(opts = {}) {
+	opts = this.lib.hash.to(opts);
+
+	// Synthetic/manual source: maintain the same inputs shape without DOM read.
+	this.inputs = DomConfigSource.emptyReadShape();
+	this.inputs.output = opts;
+
+	this.name = this.lib.hash.getUntilNotEmpty(opts, "name");
+
+	const schemaService = new Schema({ lib: this.lib, expr: this.expr });
+	const schemaResp = schemaService.compile(opts);
+	this.schemaReport = schemaResp.report;
+	this.schema = schemaResp.schema;
+
+	if (!this.schemaReport.ok) {
+	    this.error = this.schemaReport;
+	    return this.status = JOB_CONFIG_STATUS.ERROR_SCHEMA;
+	}
+
+	this.name = this.lib.utils.isEmpty(this.schema.name) ? 'unnamed job' : this.schema.name;
+	return this.status = JOB_CONFIG_STATUS.READY;
+    }
+
 
     
     
@@ -13994,11 +18988,11 @@ export class JobConfig {
 export default JobConfig;
 
 
-# --- end: class/job/config/JobConfig.js ---
+# --- end: src/class/job/config/JobConfig.js ---
 
 
 
-# --- begin: class/job/config/JobConfig.removed.js ---
+# --- begin: src/class/job/config/JobConfig.removed.js ---
 
 /**
  * ---------------------------------------------------------------------------
@@ -14132,11 +19126,11 @@ export default JobConfig;
     }
 
 
-# --- end: class/job/config/JobConfig.removed.js ---
+# --- end: src/class/job/config/JobConfig.removed.js ---
 
 
 
-# --- begin: class/job/config/Report.js ---
+# --- begin: src/class/job/config/Report.js ---
 
 // class/schema/Report.js
 
@@ -14301,11 +19295,11 @@ export default class Report {
 }
 
 
-# --- end: class/job/config/Report.js ---
+# --- end: src/class/job/config/Report.js ---
 
 
 
-# --- begin: class/job/config/schema/constants.js ---
+# --- begin: src/class/job/config/schema/constants.js ---
 
 //arr_to_opts duplicated from the main constants...
 export const ARR_TO_OPTS = {split:/\s+/,trim:true};
@@ -14676,11 +19670,11 @@ export default {
 };
 
 
-# --- end: class/job/config/schema/constants.js ---
+# --- end: src/class/job/config/schema/constants.js ---
 
 
 
-# --- begin: class/job/config/schema/DSL.js ---
+# --- begin: src/class/job/config/schema/DSL.js ---
 
 /**
  * Pipeline DSL Compiler
@@ -14976,11 +19970,11 @@ export class DSL {
 export default DSL;
 
 
-# --- end: class/job/config/schema/DSL.js ---
+# --- end: src/class/job/config/schema/DSL.js ---
 
 
 
-# --- begin: class/job/config/schema/Master.js ---
+# --- begin: src/class/job/config/schema/Master.js ---
 
 // class/schema/Master.js
 /**
@@ -15931,11 +20925,11 @@ export default class Master {
  */
 
 
-# --- end: class/job/config/schema/Master.js ---
+# --- end: src/class/job/config/schema/Master.js ---
 
 
 
-# --- begin: class/job/Job.js ---
+# --- begin: src/class/job/Job.js ---
 
 /**
  * Job
@@ -16355,6 +21349,31 @@ export default class Job {
 	return this;
     }
 
+    /**
+     * Build or rebuild this Job's configuration from a provided config object.
+     *
+     * CONTRACT
+     * --------
+     * configureFrom() mirrors configure(), but delegates to JobConfig.buildFrom()
+     * to skip DOM-source reads and compile directly from the provided object.
+     *
+     * @param {Object} [opts]
+     *   Optional configuration object/overrides merged with this.opts.conf.config.
+     *
+     * @returns {Promise<Job>}
+     *   Resolves to this instance for chaining.
+     */
+    async configureFrom(opts) {
+	const lib = this.lib;
+	const cOpts = lib.hash.merge(lib.hash.to(this.opts.conf.config), lib.hash.to(opts));
+	const status = await this.config.buildFrom({ ...cOpts });
+	if (status !== JOB_CONFIG_STATUS.READY) {
+	    this.status = JOB_STATUS.ERROR;
+	    this.error = status;
+	}
+	return this;
+    }
+
     // ---- End Configuration Aliases ----
     
 
@@ -16601,11 +21620,11 @@ export default class Job {
 }
 
 
-# --- end: class/job/Job.js ---
+# --- end: src/class/job/Job.js ---
 
 
 
-# --- begin: class/job/Registry.js ---
+# --- begin: src/class/job/Registry.js ---
 
 /**
  * Job Registry
@@ -17220,12 +22239,32 @@ export default class Registry {
      * - job is missing or job.e is missing
      * - an id collision is detected with an existing registered Job
      */
-    register(job) {
-	if (!job || !job.e) throw new Error("[Scheduler] register(job) requires job.e");
+    register(job, opts = {}) {
+	opts = this.lib.hash.to(opts, "indexElement returnExisting");
+	const indexElement = !this.lib.bool.no(opts.indexElement);
+	const returnExisting = this.lib.bool.yes(opts.returnExisting);
+	if (!job || (indexElement && !job.e)) {
+	    throw new Error("[Scheduler] register(job) requires job.e");
+	}
+
+	// Optional reuse path (id/name) for synthetic/internal registrations.
+	if (returnExisting) {
+	    if (job.id) {
+		const byId = this.getById(job.id);
+		if (byId) return byId;
+	    }
+
+	    if (job.name) {
+		const byName = this.listByName(job.name);
+		if (this.lib.array.len(byName)) return byName[0];
+	    }
+	}
 
 	// Already registered element => return existing job
-	const existing = this.getByElement(job.e);
-	if (existing) return existing;
+	if (indexElement) {
+	    const existing = this.getByElement(job.e);
+	    if (existing) return existing;
+	}
 
 	// Respect pre-seeded identity if present; otherwise assign
 	let id = job.id || this.nextId();
@@ -17245,6 +22284,7 @@ export default class Registry {
 	*/
 	//hard
 	if (taken && taken !== job) {
+	    if (returnExisting) return taken;
 	    throw new Error(`[Scheduler] register(): id collision "${id}"`);
 	}
 
@@ -17254,7 +22294,7 @@ export default class Registry {
 	job.setIdentity({ id, createdAt });
 
 	this.byId.set(job.id, job);
-	this.byEl.set(job.e, job.id);
+	if (indexElement && job.e) this.byEl.set(job.e, job.id);
 
 	// Metadata index (redundant if job carries it, but you use it in unregister)
 	this.createdAt.set(job.id, createdAt);
@@ -17689,11 +22729,11 @@ export default class Registry {
 }
 
 
-# --- end: class/job/Registry.js ---
+# --- end: src/class/job/Registry.js ---
 
 
 
-# --- begin: class/observer/Controller.js ---
+# --- begin: src/class/observer/Controller.js ---
 
 /**
  * Observer/Controller
@@ -18151,11 +23191,121 @@ export default class Controller {
 }
 
 
-# --- end: class/observer/Controller.js ---
+# --- end: src/class/observer/Controller.js ---
 
 
 
-# --- begin: constants.js ---
+# --- begin: src/class/runtime/Controller.js ---
+
+/**
+ * Runtime Controller
+ * ------------------
+ *
+ * Aggregates top-level runtime subsystem references for ActiveTags.
+ *
+ * This controller is intentionally lightweight in v1:
+ * - validates constructor dependencies
+ * - snapshots subsystem references
+ * - provides a stable home for future runtime orchestration methods
+ *
+ * It does not execute pipelines directly.
+ * It does not mutate Job configuration.
+ */
+
+import Job from '../job/Job.js';
+
+export class Controller {
+    /**
+     * @param {Object} [opts]
+     * @param {Object} opts.AT
+     * @param {Object} opts.lib
+     */
+    constructor({ AT, lib } = {}) {
+	if (!AT) throw new Error("RuntimeController requires { AT }");
+	if (!lib) throw new Error("RuntimeController requires { lib }");
+
+	this.AT = AT;
+	this.lib = lib;
+
+	// runtime subsystem refs (non-owning)
+	this.jobs = AT.jobs || null;
+	this.engine = AT.engine || null;
+	this.discover = AT.discover || null;
+	this.observer = AT.observer || null;
+	this.intervals = AT.intervals || null;
+	this.events = AT.events || null;
+
+	Object.freeze(this);
+    }
+
+    /**
+     * Normalize a stable identifier for synthetic runtime jobs/pipelines.
+     *
+     * @param {*} name
+     * @returns {string}
+     */
+    _internalIdentifier(name) {
+	const raw = this.lib.str.to(name, true).trim();
+	if (!raw) return "";
+	return raw.replace(/[^A-Za-z0-9_-]+/g, "_");
+    }
+
+    /**
+     * Minimal internal job creation path.
+     *
+     * Constructs a Job, registers it, and configures it.
+     * No local runtime tracking or reuse.
+     *
+     * @param {*} name
+     * @param {Object} [def]
+     * @param {Object} [opts]
+     * @param {string} [opts.domain="runtime"]
+     * @param {Element} [opts.e]
+     * @param {Element} [e]
+     * @returns {Promise<{ job: Object, identifier: string, created: boolean }>}
+     */
+    async createInternalJob(name, def = {}, opts = {}, e = undefined) {
+	const lib = this.lib;
+	const AT = this.AT;
+
+	const rec = lib.hash.to(def);
+	opts = lib.hash.to(opts);
+
+	const identifier = this._internalIdentifier(name);
+	rec.name = identifier;
+	const domainRaw = lib.str.to(lib.hash.get(opts, "domain"), true).trim().toLowerCase();
+	const domain = domainRaw || "runtime";
+	const internalElement = e || lib.hash.get(opts, "e");
+	const syntheticName = `__internal_${domain}_${identifier}`;
+
+	const job = AT.jobs.register(
+	    new Job({
+		lib,
+		expr: AT.expr,
+		e: internalElement,
+		ws: {},
+		conf: AT.conf.job,
+		env: AT.conf.env,
+		name: syntheticName,
+	    }),
+	    { indexElement: false, returnExisting: true }
+	);
+
+	AT.jobs.setName(job, syntheticName);
+	await job.configureFrom(rec);
+
+	return { job, identifier, created: true };
+    }
+}
+
+export default Controller;
+
+
+# --- end: src/class/runtime/Controller.js ---
+
+
+
+# --- begin: src/constants.js ---
 
 /**
  * ActiveTags CONSTANTS
@@ -18317,11 +23467,11 @@ export default {
 };
 
 
-# --- end: constants.js ---
+# --- end: src/constants.js ---
 
 
 
-# --- begin: helpers/applyMixins.js ---
+# --- begin: src/helpers/applyMixins.js ---
 
 //only handles instance methods for now.
 
@@ -18348,11 +23498,11 @@ export default applyMixins;
 */
 
 
-# --- end: helpers/applyMixins.js ---
+# --- end: src/helpers/applyMixins.js ---
 
 
 
-# --- begin: helpers/freezeDeep.js ---
+# --- begin: src/helpers/freezeDeep.js ---
 
 /**
  * Deep-freeze an object graph.
@@ -18402,11 +23552,11 @@ export { freezeDeep };
 export default freezeDeep;
 
 
-# --- end: helpers/freezeDeep.js ---
+# --- end: src/helpers/freezeDeep.js ---
 
 
 
-# --- begin: helpers/reporter/configReporter.js ---
+# --- begin: src/helpers/reporter/configReporter.js ---
 
 // helpers/reporter/configReporter.js
 
@@ -18489,11 +23639,11 @@ export default configReporter;
 */
 
 
-# --- end: helpers/reporter/configReporter.js ---
+# --- end: src/helpers/reporter/configReporter.js ---
 
 
 
-# --- begin: helpers/requireLibs.js ---
+# --- begin: src/helpers/requireLibs.js ---
 
 
 /**
@@ -18562,11 +23712,11 @@ export function requireLibs(root, targets, opts = {}) {
 export default requireLibs;
 
 
-# --- end: helpers/requireLibs.js ---
+# --- end: src/helpers/requireLibs.js ---
 
 
 
-# --- begin: traits/engine.js ---
+# --- begin: src/traits/engine.js ---
 
 export const trait_engine = {
 
@@ -18605,20 +23755,32 @@ export const trait_engine = {
      * `engine.enqueue(job, pipelineKey, { inputs: { reason }, meta: { source: "enqueueAll" } })`
      *
      *
-     * @param {string} [reason]
-     * Optional reason label for telemetry/diagnostics.
-     * Defaults to `"none given"` when empty.
+     * @param {string|Object} [opts]
+     * Optional enqueue-all options.
      *
-     * @returns {number}
-     * Number of enqueue attempts issued.
+     * Legacy form:
+     * - string reason
+     *
+     * Object form:
+     * - opts.reason (string): diagnostic reason label (defaults to `"none given"`)
+     * - opts.returnMeta (boolean): when true, returns enqueue metadata entries
+     *
+     * @returns {number|{count: number, entries: Array}}
+     * - Default: number of enqueue attempts issued.
+     * - With `returnMeta`: `{ count, entries }` where each entry includes
+     *   `{ jobId, pipelineKey, ticket, created }`.
      */
 
-    enqueueAll(reason) {
+    enqueueAll(opts) {
 	const lib = this.lib;
 	const jobs = this.jobs.list();
-
-	if (!lib.str.to(reason, true).trim())
-            reason = 'none given';
+	opts = lib.hash.to(opts, "reason returnMeta");
+	
+	const reason = lib.str.to(opts.reason, true).trim() ?
+	      lib.str.to(opts.reason, true).trim() :
+              "none given";
+	const returnMeta = !!opts.returnMeta;
+	const entries = returnMeta ? [] : null;
 
 	let count = 0;
 	for (const job of jobs) {
@@ -18628,33 +23790,43 @@ export const trait_engine = {
 	    
             // autorun list
             let autorun = lib.hash.get(job, "config.schema.autorun");
+	    //console.log(enabled,autorun, job.name,job.id);
             if (!lib.array.len(autorun)) continue;
-
+	    
             for (let key of autorun) {
 		if (!key) continue;
-
+		
 		// "__DEFAULT__" -> "default"
 		if (key === "__DEFAULT__") key = "default";
 		count++;
 		const r = this.engine.enqueue(job, key, {
                     inputs: { reason },
                     meta: { source: "enqueueAll" },
+		    returnMeta,
 		});
-		console.log(r);
+		//console.log(r);
+		if (returnMeta) {
+		    entries.push({
+			jobId: job.id,
+			pipelineKey: key,
+			ticket: r && r.ticket ? r.ticket : null,
+			created: !!(r && r.created),
+		    });
+		}
             }
 	}
-	return count;
+	return returnMeta ? { count, entries } : count;
     }
 };
 
 export default trait_engine;
 
 
-# --- end: traits/engine.js ---
+# --- end: src/traits/engine.js ---
 
 
 
-# --- begin: traits/job.js ---
+# --- begin: src/traits/job.js ---
 
 /**
  * Job Resolution Trait
@@ -18717,5 +23889,5 @@ export const trait_job = {
 export default trait_job;
 
 
-# --- end: traits/job.js ---
+# --- end: src/traits/job.js ---
 

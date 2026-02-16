@@ -5,24 +5,17 @@
 - [x] Setting up events (dedicated page)
 - [x] Setting up requests (dedicated page)
 - [x] How to use `require`
-- [ ] How to use builtins
 - [x] `autorun` and `enabled`
 - [x] Pipeline handlers (user code)
 - [x] Event hooks for the engine
 - [x] Reviewing logs
+- [ ] How to use builtins
 
 ## Buglist
 
-- [ ] Builtins audit pass: double-check builtin implementations for contract mismatches and incorrect behavior.
-- [ ] Evaluate explicit builtin step specifier syntax (for example `@builtin.path` or `$builtin.path`) to make builtin calls visually distinct from user function steps.
-  If adopted, define parser/runtime compatibility rules and migration posture for existing unprefixed builtin ops.
 - [x] Pipeline DSL accepts inline function entries for single "stringlike" steps (for example `dummyLogin`) in addition to string tokens and object records.
 - [x] Added `target` to the top-level run-handler call shape so handlers can access current target directly.
   Runtime now also provides `e` (job root element) alongside `target`.
-- [ ] Add an absolute element-path builtin family (for example `e.find`, `e.closest`, etc.) that mirrors `target.*` but always resolves from the source/root element so we do not need extra target reset steps.
-- [ ] Revisit `dom.patch` naming and contract:
-  keep compatibility for now, but either rename to a clearer modern API or rework behavior/documentation so it is not treated as the long-term DOM write primitive.
-- [ ] Add a `dom.set` builtin (for example `dom.set:attr,val` or object args) to support direct attribute/property writes without requiring custom user functions for simple UI updates.
 - [x] Require-gating policy harmonization: `IntervalController.conditionalOn(...)` and `EventController.conditionalOn(...)` provide require-gated activation paths, while legacy direct `on()` remains intentionally manual/ungated for user-initiated control.
   Compatibility posture documented in usage docs (`REQUIRE.md`) and controller API references.
 - [x] Login/event drain policy: boot startup now performs conditional interval/event scheduling followed by a final `engine.drain()` so event-driven handlers are installed without manual tutorial drain hooks.
@@ -33,20 +26,27 @@
   `{ ticket, created }` (with backward-compatible default plain `Ticket` return).
 - [x] Extend `AT.enqueueAll(...)` contract to support enqueue metadata passthrough.
   `enqueueAll(opts)` now accepts `opts.returnMeta` and returns `{ count, entries }` while preserving default numeric return when not requested.
-- [ ] Investigate activation idempotency risk for synthetic internal jobs used by interval/event conditional startup.
-  Potential issue: repeated interval/event activation flows may enqueue/reuse internal trigger jobs in ways that accidentally re-run installs (`on(...)`) when callers re-invoke startup/activation paths.
 - [x] Engine context now passes main AT/root runtime context through engine/vm/handler surfaces to avoid global callbacks back to ActiveTags.
   Agreed handler call shape target in `VM.js`:
   `v.fn({ job, lib, args, buffer: ticket.buffer, inputs: ticket.inputs, trigger, target: ticket.target, e: job.e, ticket, ctx, AT, step })`
   Context model note:
   keep global `AT.ctx` separate from per-run `ctx` used by `tick`/`drain`.
+- [x] Runtime internal job configure race resolved for conditional paths: `RuntimeController.createInternalJob(...)` now awaits async `job.configureFrom(...)` before return.
+  Interval and event conditional enqueue paths now await `createInternalJob(...)` before enqueueing synthetic tickets.
+- [ ] Builtins audit pass: double-check builtin implementations for contract mismatches and incorrect behavior.
+- [ ] Evaluate explicit builtin step specifier syntax (for example `@builtin.path` or `$builtin.path`) to make builtin calls visually distinct from user function steps.
+  If adopted, define parser/runtime compatibility rules and migration posture for existing unprefixed builtin ops.
+- [ ] Add an absolute element-path builtin family (for example `e.find`, `e.closest`, etc.) that mirrors `target.*` but always resolves from the source/root element so we do not need extra target reset steps.
+- [ ] Revisit `dom.patch` naming and contract:
+  keep compatibility for now, but either rename to a clearer modern API or rework behavior/documentation so it is not treated as the long-term DOM write primitive.
+- [ ] Add a `dom.set` builtin (for example `dom.set:attr,val` or object args) to support direct attribute/property writes without requiring custom user functions for simple UI updates.
+- [ ] Investigate activation idempotency risk for synthetic internal jobs used by interval/event conditional startup.
+  Potential issue: repeated interval/event activation flows may enqueue/reuse internal trigger jobs in ways that accidentally re-run installs (`on(...)`) when callers re-invoke startup/activation paths.
 - [ ] Add a dependency bootstrap/install script for lib 1.0-based examples/runtime setup so dependency loading does not rely on manual global wiring.
 - [ ] Audit `auto.js` dependency modules that currently assume global `lib`; either refactor to explicit injection/import or add a controlled compatibility bootstrap.
 - [ ] Audit `m7-js-lib` for unintended global/window mutation (for example assigning `window.lib`), and document the expected global contract.
 - [ ] Guard symbolic handler function lookup when `lib` is not globally assigned (`window.lib` absent) so pipeline handler calls do not fail due to out-of-scope globals.
   Add lookup note/implementation check: use `lib.func.get(...)` resolution across both env-root symbols and internal lib function registry.
-- [x] Runtime internal job configure race resolved for conditional paths: `RuntimeController.createInternalJob(...)` now awaits async `job.configureFrom(...)` before return.
-  Interval and event conditional enqueue paths now await `createInternalJob(...)` before enqueueing synthetic tickets.
 
 ## Low Priority
 
