@@ -37,7 +37,7 @@ Or in object form:
     save: {
       run: [
         { op: "target.find", args: [".status"] },
-        { op: "dom.patch", args: { textContent: "Saved" } }
+        { op: "target.patch", args: { textContent: "Saved" } }
       ],
       error: [{ op: "error.dump", args: { console: true } }]
     }
@@ -55,9 +55,8 @@ If you want a step to resolve as builtin-only, prefix with `@`:
 {
   pipeline: {
     run: [
-      "@target.reset",
-      "@target.find:.message",
-      "@dom.patch"
+      "@e.find:.message",
+      "@target.patch"
     ],
     error: ["@error.dump"]
   }
@@ -67,7 +66,7 @@ If you want a step to resolve as builtin-only, prefix with `@`:
 Equivalent object form:
 
 ```js
-{ op: "dom.patch", builtin: true, args: { className: "is-active" } }
+{ op: "target.patch", builtin: true, args: { className: "is-active" } }
 ```
 
 When `builtin: true` (or `@` is used), the VM does strict builtin lookup for that step.
@@ -153,21 +152,31 @@ Available builtin operations:
 * `form.prepare`
 * `form.submit`
 * `form.headers`
-* `dom.patch`
+* `dom.attempt`
 * `error.dump`
 * `error.fail`
 * `buffer.set`
 * `buffer.get`
 * `buffer.clear`
 * `buffer.traverse`
+* `buffer.assert`
+* `target.patch`
 * `target.reset`
 * `target.set`
+* `target.propGet`
+* `target.propSet`
 * `target.fromBuffer`
 * `target.toBuffer`
 * `target.closest`
 * `target.find`
 * `target.parent`
 * `target.child`
+* `e.reset`
+* `e.self`
+* `e.find`
+* `e.closest`
+* `e.parent`
+* `e.child`
 * `http.send`
 
 Family source folders/files:
@@ -177,6 +186,7 @@ Family source folders/files:
 * Error: [../../src/builtins/error/](../../src/builtins/error/)
 * Buffer: [../../src/builtins/buffer/index.js](../../src/builtins/buffer/index.js)
 * Target: [../../src/builtins/target/index.js](../../src/builtins/target/index.js)
+* E: [../../src/builtins/e/index.js](../../src/builtins/e/index.js)
 * HTTP: [../../src/builtins/httpSend.js](../../src/builtins/httpSend.js)
 * Confirm: [../../src/builtins/confirm.js](../../src/builtins/confirm.js)
 
@@ -190,9 +200,8 @@ Family source folders/files:
 {
   pipeline: {
     run: [
-      "@target.reset",
-      "@target.find:.save-status",
-      { op: "@dom.patch", args: { textContent: "Saved", className: "ok" } }
+      "@e.find:.save-status",
+      { op: "@target.patch", args: { textContent: "Saved", className: "ok" } }
     ]
   }
 }
@@ -229,6 +238,22 @@ Family source folders/files:
 }
 ```
 
+### Read target prop and write into DSL destination
+
+```js
+{
+  pipeline: {
+    run: [
+      "@e.find:#profile",
+      // compact positional form
+      "target.propGet:data-user-id:window:ws.user.id",
+      // equivalent explicit object form
+      { op: "target.propSet", args: { prop: "data-last-read", value: "1" } }
+    ]
+  }
+}
+```
+
 ---
 
 ## 6) Engine config for builtins
@@ -245,10 +270,10 @@ Example override:
 {
   engine: {
     builtins: {
-      dom: {
-        // overrides default dom.patch
-        patch: async ({ lib, target }) => {
-          lib.dom.set(target, "data-patched", "1");
+      target: {
+        // overrides default target.patch
+        patch: async ({ lib, ticket }) => {
+          lib.dom.set(ticket.target, "data-patched", "1");
           return { status: "ok" };
         }
       }
@@ -278,8 +303,11 @@ Helper contracts:
 
 * String op shorthand uses compact parsing (`op:arg1,arg2`) and splits args on commas.
 * For structured args, prefer object step form (`{ op, args: {...} }`).
-* `dom.patch` is target-driven; set/reset `target` explicitly when needed.
-* Builtin naming and behavior are stable, but builtin ergonomics (`dom.set`, absolute `e.*`) are still being expanded.
+* `target.patch` is target-driven; resolve target first (`e.find`/`target.find`/`target.reset`).
+* `e.*` always resolves from `job.e` (root) and writes result to `ticket.target`.
+* `target.propGet` reads from current target and can optionally write to unresolved destination DSL expression (`dst`), for example `window:ws.user.id`.
+* `target.propGet` also mirrors the read value into `buffer` when available.
+* `dom.attempt` is a strict wrapper around `lib.dom.attempt(source, true)` and writes the resolved node to `ticket.target`.
 
 ---
 

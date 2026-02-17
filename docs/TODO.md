@@ -19,10 +19,6 @@
 ### Open
 
 - [ ] Builtins audit pass: double-check builtin implementations for contract mismatches and incorrect behavior.
-- [ ] Add an absolute element-path builtin family (for example `e.find`, `e.closest`, etc.) that mirrors `target.*` but always resolves from the source/root element so we do not need extra target reset steps.
-- [ ] Revisit `dom.patch` naming and contract:
-  keep compatibility for now, but either rename to a clearer modern API or rework behavior/documentation so it is not treated as the long-term DOM write primitive.
-- [ ] Add a `dom.set` builtin (for example `dom.set:attr,val` or object args) to support direct attribute/property writes without requiring custom user functions for simple UI updates.
 - [ ] Add a dependency bootstrap/install script for lib 1.0-based examples/runtime setup so dependency loading does not rely on manual global wiring.
 - [ ] Audit `auto.js` dependency modules that currently assume global `lib`; either refactor to explicit injection/import or add a controlled compatibility bootstrap.
 - [ ] Audit `m7-js-lib` for unintended global/window mutation (for example assigning `window.lib`), and document the expected global contract.
@@ -44,7 +40,7 @@
   `enqueueAll(opts)` now accepts `opts.returnMeta` and returns `{ count, entries }` while preserving default numeric return when not requested.
 - [x] Engine context now passes main AT/root runtime context through engine/vm/handler surfaces to avoid global callbacks back to ActiveTags.
   Agreed handler call shape target in `VM.js`:
-  `v.fn({ job, lib, args, buffer: ticket.buffer, inputs: ticket.inputs, trigger, target: ticket.target, e: job.e, ticket, ctx, AT, step })`
+  `v.fn({ job, lib, expr, args, buffer: ticket.buffer, inputs: ticket.inputs, trigger, target: ticket.target, e: job.e, ticket, ctx, AT, step })`
   Context model note:
   keep global `AT.ctx` separate from per-run `ctx` used by `tick`/`drain`.
 - [x] Runtime internal job configure race resolved for conditional paths: `RuntimeController.createInternalJob(...)` now awaits async `job.configureFrom(...)` before return.
@@ -55,6 +51,9 @@
   Added policy token `lib` in op-resolution order and VM lookup branch that resolves `lib.*` against Validate root via `lib.func.get(fn, { root: this })`.
 - [x] Target builtin arg normalization pass (phase 1): `target.set` now follows hash-vs-positional selector parsing and resolves DOM via `lib.dom.attempt(...)`.
   Compatibility hardening: updated `lib.dom.attempt(...)` in `m7-js-lib` source to prefer `lib._env` document lookup.
+- [x] Split `dom.patch` out of the `dom.*` namespace for the new release: patch behavior now lives under `target.patch` and no `dom.patch` compatibility shim is retained.
+- [x] Added target-driven prop read/write builtins (`target.propGet`, `target.propSet`) including destination-expression writes for `target.propGet`; `dom.*` now exposes `dom.attempt` wrapper behavior.
+- [x] Added absolute element-path builtin family `e.*` (`e.reset`, `e.self`, `e.find`, `e.closest`, `e.parent`, `e.child`) that mirrors target-navigation behavior while anchoring lookup to `job.e`.
 - [x] Investigate activation idempotency risk for synthetic internal jobs used by interval/event conditional startup.
   Potential issue: repeated interval/event activation flows may enqueue/reuse internal trigger jobs in ways that accidentally re-run installs (`on(...)`) when callers re-invoke startup/activation paths.
 

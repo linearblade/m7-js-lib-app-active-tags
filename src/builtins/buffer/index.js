@@ -1,58 +1,80 @@
 // builtins/buffer/index.js
-// Builtins: buffer.set, buffer.get, buffer.traverse, buffer.clear
+// Builtins: buffer.set, buffer.get, buffer.traverse, buffer.clear, buffer.assert
 // VM signature: ({ job, lib, args, trigger, ticket, inputs, buffer, ctx, step }) => StageResultLike
 
 import helpers from "../../class/engine/helpers.js";
+import bufferTraverse from "./bufferTraverse.js";
+import bufferAssert from "./bufferAssert.js";
 
 /**
- * Normalize args into a plain object.
- * - If args is scalar => { value: args }
- * - If args is array  => { value: args[0] }
- * - If args is object => args
+ * Write a value into a destination expression target for `buffer.get`.
+ *
+ * Destination contract:
+ * - `dst` is an unresolved expression string (for example `window:app.data`)
+ * - `expr.parse(...)` must resolve to `{ src, prop }`
+ * - This helper writes only to `prop` on `src` (no source rebinding semantics)
+ *
+ * Validation:
+ * - `src` must be truthy
+ * - `prop` must be non-empty (`isEmpty` allows numeric `0`)
+ *
+ * Write behavior:
+ * - DOM `src`    -> `lib.dom.set(src, prop, value)`
+ * - non-DOM `src`-> `lib.hash.set(src, prop, value)`
+ *
+ * @param {Object} params
+ * @param {Object} params.lib
+ * @param {Object} params.expr
+ * @param {Object} [params.job]
+ * @param {Object} [params.ticket]
+ * @param {*} [params.ctx]
+ * @param {string} params.dst
+ * @param {*} params.value
+ * @throws {Error} If destination does not resolve to writable `{ src, prop }`.
+ * @returns {void}
  */
-function normalizeArgs(lib, args) {
-    if (lib?.utils?.isScalar?.(args)) return { value: args };
-    if (lib?.array?.is?.(args)) return { value: args[0] };
-    if (args && typeof args === "object") return args;
-    return {};
-}
+function writeExprDestination({ lib, expr, job, ticket, ctx, dst, value }) {
+    const parsed = expr.parse(
+	{
+	    job,
+	    ticket,
+	    ctx,
+	    env: lib.hash.get(lib, "_env"),
+	},
+	dst
+    );
 
-/**
- * Convert a path into tokens.
- * Supports:
- *  - "a.b.c"
- *  - "a[0].b"
- *  - ["a", 0, "b"]
- */
-function tokenizePath(lib, path) {
-    if (Array.isArray(path)) return path;
-    if (!path || typeof path !== "string") return [];
+    const [src, prop] = lib.hash.expand(parsed, "src prop");
 
-    // Convert bracket notation: a[0].b -> a.0.b
-    const s = path.replace(/\[(\d+)\]/g, ".$1");
-    return s.split(".").filter(Boolean).map(tok => {
-	// numeric tokens become numbers
-	return (/^\d+$/).test(tok) ? Number(tok) : tok;
-    });
-}
-
-function getBufferOrError(buffer, step) {
-    if (!buffer || typeof buffer.get !== "function" || typeof buffer.set !== "function") {
-	return helpers.SR_error(
-	    new Error("buffer.* builtin: missing buffer slot (expected buffer.get/set/clear)"),
-	    { op: "buffer", step }
-	);
+    // This helper writes to a property path; it does not support rebinding `src`.
+    // `isEmpty(prop)` allows 0 while rejecting empty/null paths.
+    if (!src || lib.utils.isEmpty(prop)) {
+	throw new Error(`buffer.get: destination did not resolve to writable target '${dst}'`);
     }
-    return null;
+
+    if (lib.dom.is(src)) {
+	lib.dom.set(src, prop, value);
+	return;
+    }
+
+    lib.hash.set(src, prop, value);
+    return;
 }
 
 /**
  * `buffer.set` builtin.
  *
- * Writes value/meta onto ticket buffer. Value is normalized from args:
- * - scalar -> `{ value: scalar }`
- * - array  -> `{ value: args[0] }`
- * - hash   -> `args`
+ * Writes value/meta into ticket buffer.
+ *
+ * Argument parsing:
+ * - uses `lib.args.parse(args, {}, { parms: "value meta", pop: true })`
+ * - supports hash args (`{ value, meta }`)
+ * - supports positional args (`[value, meta]`)
+ * - supports trailing hash merge when `pop:true` applies
+ *
+ * Defaults:
+ * - missing `value` => `null`
+ * - missing `meta`  => `null`
  *
  * @param {Object} params
  * @param {Object} params.lib
@@ -64,17 +86,11 @@ function getBufferOrError(buffer, step) {
  */
 export async function bufferSet({ lib, args, inputs, buffer, step } = {}) {
     try {
-	const bad = getBufferOrError(buffer, step);
-	if (bad) return bad;
-
-	const opts = normalizeArgs(lib, args);
-	const value = ("value" in opts) ? opts.value : null;
-	const meta = opts.meta && typeof opts.meta === "object" ? opts.meta : null;
+	const parsed = lib.args.parse(args, {}, { parms: "value meta", pop: true });
+	const value = parsed.value === undefined ? null : parsed.value;
+	const meta = parsed.meta === undefined ? null : parsed.meta;
 
 	buffer.set(value, meta);
-
-	// convenience mirror (optional): expose latest value
-	if (inputs && typeof inputs === "object") inputs.buffer = buffer.get();
 
 	return helpers.SR_ok({ op: "buffer.set", step });
     } catch (err) {
@@ -85,25 +101,59 @@ export async function bufferSet({ lib, args, inputs, buffer, step } = {}) {
 /**
  * `buffer.get` builtin.
  *
- * Reads current buffer value and mirrors it to `inputs.buffer`.
+ * Reads current buffer value (or one nested path) and mirrors it to `inputs.buffer`.
+ *
+ * Argument shapes:
+ * - hash args: `{ src, dst }`
+ * - positional args: `[src, dst]`
+ *
+ * Source behavior:
+ * - no `src` => returns full `buffer.get()`
+ * - `src` => deep path lookup via `lib.hash.get(buffer.get(), src)`
+ *
+ * Destination behavior:
+ * - when `dst` is provided, writes resolved value into destination expression target
+ * - destination is parsed with `expr.parse(...)` and written via `{ src, prop }`
+ *
+ * Notes:
+ * - `src` is treated as a buffer path, not an expression target.
+ * - `dst` is unresolved DSL expression text by design.
  *
  * @param {Object} params
+ * @param {Object} params.lib
+ * @param {*} [params.args]
+ * @param {Object} [params.job]
+ * @param {Object} [params.ticket]
+ * @param {*} [params.ctx]
+ * @param {Object} [params.expr]
  * @param {Object} [params.inputs]
  * @param {Object} params.buffer
  * @param {*} [params.step]
- * @returns {Promise<Object>} StageResult-like (`ok` | `error`).
+ * @returns {Promise<Object>} StageResult-like (`ok` | `error`) with detail:
+ *   `{ op, step, src, dst, value }`.
  */
-export async function bufferGet({ inputs, buffer, step } = {}) {
+export async function bufferGet({ lib, args, job, ticket, ctx, expr, inputs, buffer, step } = {}) {
     try {
-	const bad = getBufferOrError(buffer, step);
-	if (bad) return bad;
+	const parsed = lib.args.parse(args, {}, { parms: "src dst", pop: true });
+	const src = lib.hash.getUntilNotEmpty(parsed, "src from path key", null);
+	const dst = lib.hash.getUntilNotEmpty(parsed, "dst to target", null);
+	const rawBuffer = buffer.get();
+	const value = src ? lib.hash.get(rawBuffer, src) : rawBuffer;
 
-	const value = buffer.get();
+	if (!lib.utils.isEmpty(dst)) {
+	    writeExprDestination({ lib, expr, job, ticket, ctx, dst, value });
+	}
 
 	// convenience: mirror into inputs.buffer (so other ops can read it easily)
 	if (inputs && typeof inputs === "object") inputs.buffer = value;
 
-	return helpers.SR_ok({ op: "buffer.get", step, value });
+	return helpers.SR_ok({
+	    op: "buffer.get",
+	    step,
+	    src: lib.utils.isEmpty(src) ? null : src,
+	    dst: lib.utils.isEmpty(dst) ? null : dst,
+	    value,
+	});
     } catch (err) {
 	return helpers.SR_error(err, { op: "buffer.get", step });
     }
@@ -112,8 +162,11 @@ export async function bufferGet({ inputs, buffer, step } = {}) {
 /**
  * `buffer.clear` builtin.
  *
- * Clears buffer using `buffer.clear()` when available, otherwise sets `null`.
- * Mirrors resulting value to `inputs.buffer`.
+ * Clears ticket buffer via `buffer.clear()`.
+ *
+ * Side effects:
+ * - resets buffer value/meta according to Buffer implementation
+ * - mirrors resulting value to `inputs.buffer`
  *
  * @param {Object} params
  * @param {Object} [params.inputs]
@@ -123,11 +176,7 @@ export async function bufferGet({ inputs, buffer, step } = {}) {
  */
 export async function bufferClear({ inputs, buffer, step } = {}) {
     try {
-	const bad = getBufferOrError(buffer, step);
-	if (bad) return bad;
-
-	if (typeof buffer.clear === "function") buffer.clear();
-	else buffer.set(null);
+	buffer.clear();
 
 	if (inputs && typeof inputs === "object") inputs.buffer = buffer.get();
 
@@ -137,77 +186,7 @@ export async function bufferClear({ inputs, buffer, step } = {}) {
     }
 }
 
-/**
- * `buffer.traverse` builtin.
- *
- * Resolves a deep path from current buffer value and overwrites buffer with
- * the resolved sub-value.
- *
- * Args shape:
- * - `{ path: "a.b[0].c", required?: boolean }`
- * - `path` may also come from `value`.
- *
- * @param {Object} params
- * @param {Object} params.lib
- * @param {*} [params.args]
- * @param {Object} [params.inputs]
- * @param {Object} params.buffer
- * @param {*} [params.step]
- * @returns {Promise<Object>} StageResult-like (`ok` | `error`).
- */
-export async function bufferTraverse({ lib, args, inputs, buffer, step } = {}) {
-    try {
-	const bad = getBufferOrError(buffer, step);
-	if (bad) return bad;
-
-	const opts = normalizeArgs(lib, args);
-	const path = opts.path ?? opts.value ?? null;
-	const required = ("required" in opts) ? !!opts.required : true;
-
-	const tokens = tokenizePath(lib, path);
-	if (!tokens.length) {
-	    return helpers.SR_error(new Error("buffer.traverse: missing/invalid path"), {
-		op: "buffer.traverse",
-		step,
-		path
-	    });
-	}
-
-	const root = buffer.get();
-
-	// Prefer lib.hash.get if available (handles deep paths consistently)
-	let out;
-	if (lib?.hash?.get) {
-	    // lib.hash.get usually expects "a.b.c" form; rebuild for it.
-	    const dotPath = tokens.map(String).join(".");
-	    out = lib.hash.get(root, dotPath);
-	} else {
-	    // Manual traversal
-	    out = root;
-	    for (const k of tokens) {
-		if (out == null) break;
-		out = out[k];
-	    }
-	}
-
-	if (required && out === undefined) {
-	    return helpers.SR_error(new Error("buffer.traverse: path not found"), {
-		op: "buffer.traverse",
-		step,
-		path,
-		tokens
-	    });
-	}
-
-	buffer.set(out, { traverse: { path, tokens } });
-
-	if (inputs && typeof inputs === "object") inputs.buffer = buffer.get();
-
-	return helpers.SR_ok({ op: "buffer.traverse", step, path, tokens });
-    } catch (err) {
-	return helpers.SR_error(err, { op: "buffer.traverse", step });
-    }
-}
+export { bufferTraverse, bufferAssert };
 
 // -----------------------------------------------------------------------------
 // Export bundle
@@ -217,6 +196,7 @@ export const BUFFER = {
     get: bufferGet,
     clear: bufferClear,
     traverse: bufferTraverse,
+    assert: bufferAssert,
 };
 
 export default BUFFER;

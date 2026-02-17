@@ -5,6 +5,7 @@ import  confirm      from './confirm.js';
 import  error        from './error/index.js';
 import  buffer       from './buffer/index.js';
 import  target       from './target/index.js';
+import  e            from './e/index.js';
 
 /**
  * Builtins root export surface used by ActiveTags engine config compilation.
@@ -17,6 +18,7 @@ import  target       from './target/index.js';
  * - `error.*`
  * - `buffer.*`
  * - `target.*`
+ * - `e.*`
  *
  * This file is the canonical builtin registry source for:
  * - `AT.conf.engine.builtins` defaults
@@ -27,6 +29,7 @@ export { form};
 export { httpSend };
 export { buffer };
 export { target };
+export { e };
 export { error } ;
 
 /**
@@ -43,6 +46,6 @@ export default {
     },
     error,
     buffer,
-    target
+    target,
+    e
 };
-

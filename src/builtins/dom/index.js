@@ -1,24 +1,24 @@
 // builtins/dom/index.js
-import patch from './domPatch.js';
+import attempt from './domAttempt.js';
 
 /**
  * DOM builtin op labels.
  *
  * These keys map to operations exported under the `dom.*` namespace.
  *
- * @type {{PATCH: string}}
+ * @type {{ATTEMPT: string}}
  */
 const DOM = {
-    PATCH: "patch",
-    // grow here: HTML, TEXT, ATTR, CLASS_ADD, CLASS_REMOVE, REMOVE, APPEND, etc.
+    ATTEMPT: "attempt",
+    // grow here: CLASS_ADD, CLASS_REMOVE, REMOVE, APPEND, etc.
 };
 
 export { DOM };
 
 // Named exports (ergonomic for direct import)
-export const domPatch = patch;
+export const domAttempt = attempt;
 
 // Default export: iterable builtin tree for barrel registration
 export default {
-    [DOM.PATCH]: patch,
+    [DOM.ATTEMPT]: attempt,
 };

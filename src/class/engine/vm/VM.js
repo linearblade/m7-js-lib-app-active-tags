@@ -159,7 +159,7 @@ export class VM {
      *    - Materializes arguments via `expr.materialize`.
      *    - Invokes the resolved stage function.
      *    - Current invocation payload shape is:
-     *      `{ job, lib, args, buffer, inputs, trigger, ticket, ctx, AT, step }`.
+     *      `{ job, lib, expr, args, buffer, inputs, trigger, ticket, ctx, AT, step }`.
      *    - `AT` runtime anchor is injected into VM (`this.AT`) by constructor.
      *      It is forwarded to each stage as top-level `AT`.
      *    - Catches thrown errors and converts them to `helpers.SR_error`.
@@ -265,6 +265,7 @@ export class VM {
 		res = await v.fn({
 		    job,
 		    lib,
+		    expr: this.expr,
 		    args: args,
 		    buffer : ticket.buffer,
 		    inputs: ticket.inputs,
