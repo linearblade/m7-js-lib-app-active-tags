@@ -9,7 +9,7 @@ Primary source files:
 * [../../src/class/job/config/schema/Master.js](../../src/class/job/config/schema/Master.js)
 * [../../src/class/job/config/schema/constants.js](../../src/class/job/config/schema/constants.js)
 * [../../src/builtins/form/formSubmit.js](../../src/builtins/form/formSubmit.js)
-* [../../src/builtins/httpSend.js](../../src/builtins/httpSend.js)
+* [../../src/builtins/http/httpSend.js](../../src/builtins/http/httpSend.js)
 
 ---
 
@@ -225,6 +225,8 @@ This maps to:
   values are clamped to allowed methods; unknown methods silently default.
 * Timeout assumptions:
   timeout is normalized numerically; non-numeric values fall back.
+* `http.send` semantics:
+  request execution behavior is documented in [HTTP Send (`http.send`)](./HTTP_SEND.md).
 
 ---
 
@@ -234,6 +236,7 @@ This maps to:
 * [Events](./EVENTS.md)
 * [Intervals](./INTERVALS.md)
 * [Builtins & Operations](./OPERATIONS_BUILTINS.md)
+* [HTTP Send (`http.send`)](./HTTP_SEND.md)
 * [Configuration Model](./CONFIGURATION.md)
 * [Runtime Lifecycle](./RUNTIME_LIFECYCLE.md)
 * [Usage TOC](./TOC.md)

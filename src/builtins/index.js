@@ -1,6 +1,7 @@
 import  dom          from './dom/index.js';
 import  form         from './form/index.js';
-import  httpSend     from './httpSend.js';
+import  http         from './http/index.js';
+import { httpSend }  from './http/index.js';
 import  confirm      from './confirm.js';
 import  error        from './error/index.js';
 import  buffer       from './buffer/index.js';
@@ -26,6 +27,7 @@ import  e            from './e/index.js';
  */
 export { dom };
 export { form};
+export { http };
 export { httpSend };
 export { buffer };
 export { target };
@@ -41,9 +43,7 @@ export default {
     confirm,
     dom,
     form ,
-    http: {
-	send: httpSend
-    },
+    http,
     error,
     buffer,
     target,

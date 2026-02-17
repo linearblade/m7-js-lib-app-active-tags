@@ -249,11 +249,11 @@ export default {
   // Placeholder request definitions for later steps.
   requests: {
     quote: {
-      url: "/api/tutorial/quote",
+      url: "/api/stockTicker/quote",
       method: "GET",
     },
     order: {
-      url: "/api/tutorial/order",
+      url: "/api/stockTicker/order",
       method: "POST",
       headers: {
         "X-Tutorial": "active-tags",

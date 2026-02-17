@@ -94,6 +94,7 @@ export default {
   enabled: true,
   autorun: false,
 
+
   // Keep a minimal default pipeline so this config is explicit and extensible.
     pipeline: {
 	//login, move the target pointer (check builtins/target/index) 

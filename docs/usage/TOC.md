@@ -71,6 +71,12 @@ If you are new, read top-to-bottom.
 * **Requests** -> [REQUESTS.md](./REQUESTS.md)
   Defining normalized request blocks (`request`, `requests`, `request_shape`) for builtins and user functions.
 
+* **HTTP Send (`http.send`)** -> [HTTP_SEND.md](./HTTP_SEND.md)
+  Request resolution, args contract (`name/buffer/request/adhoc`), response policy, and output behavior.
+
+* **Builtins Reference (Module -> Function)** -> [builtins/INDEX.md](./builtins/INDEX.md)
+  Dedicated reference generated from `src/builtins/**` JSDoc with per-op args, side-effects, and return contracts.
+
 * **v098 DSL Manual** -> [DSL_V098.md](./DSL_V098.md)
   Expression target grammar (`type:locator`), dispatch targets, interpolation, and compatibility notes.
 

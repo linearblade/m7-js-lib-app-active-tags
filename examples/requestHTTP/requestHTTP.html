@@ -1,0 +1,80 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ActiveTags Request HTTP Tutorial</title>
+    <link rel="stylesheet" href="requestHTTP.css">
+    <script type="module" src="./requestHTTP.js"></script>
+  </head>
+  <body>
+    <main id="request-http-root">
+      <section
+        data-activetag
+        at-name="request-http"
+        at-at="import:request-form.js"
+        id="request-http-card">
+        <h1>HTTP Request Tutorial</h1>
+        <p class="request-http-copy">
+          This tutorial demonstrates `http.send` using a named request merged with buffer overrides.
+        </p>
+
+        <label for="request-http-url">Endpoint URL</label>
+        <input
+          id="request-http-url"
+          type="url"
+          value="https://jsonplaceholder.typicode.com/todos/1">
+
+        <fieldset class="request-http-policy">
+          <legend>Response Policy</legend>
+          <div class="request-http-policy-grid">
+            <label class="request-http-checkbox" for="request-http-require-ok">
+              <input id="request-http-require-ok" type="checkbox">
+              <span>Require `ok === true`</span>
+            </label>
+
+            <label for="request-http-parse">Parse</label>
+            <select id="request-http-parse">
+              <option value="auto">auto</option>
+              <option value="json" selected>json</option>
+              <option value="text">text</option>
+              <option value="raw">raw</option>
+            </select>
+
+            <label for="request-http-return">Return</label>
+            <select id="request-http-return">
+              <option value="payload">payload</option>
+              <option value="body" selected>body</option>
+              <option value="json">json</option>
+              <option value="text">text</option>
+              <option value="headers">headers</option>
+              <option value="status">status</option>
+            </select>
+
+            <label for="request-http-path">Path (optional)</label>
+            <input
+              id="request-http-path"
+              type="text"
+              placeholder="e.g. data.id">
+
+            <label for="request-http-accepted">Accepted Status (optional)</label>
+            <input
+              id="request-http-accepted"
+              type="text"
+              placeholder="e.g. 200,201,204">
+          </div>
+        </fieldset>
+
+        <div class="request-http-actions">
+          <button id="request-http-send" type="button">Send Request</button>
+        </div>
+
+        <div class="request-http-meta">
+          <strong>Status:</strong>
+          <span id="request-http-status">idle</span>
+        </div>
+
+        <pre id="request-http-output">{}</pre>
+      </section>
+    </main>
+  </body>
+</html>

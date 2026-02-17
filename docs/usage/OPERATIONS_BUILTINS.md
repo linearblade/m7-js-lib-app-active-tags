@@ -187,8 +187,10 @@ Family source folders/files:
 * Buffer: [../../src/builtins/buffer/index.js](../../src/builtins/buffer/index.js)
 * Target: [../../src/builtins/target/index.js](../../src/builtins/target/index.js)
 * E: [../../src/builtins/e/index.js](../../src/builtins/e/index.js)
-* HTTP: [../../src/builtins/httpSend.js](../../src/builtins/httpSend.js)
+* HTTP: [../../src/builtins/http/httpSend.js](../../src/builtins/http/httpSend.js)
 * Confirm: [../../src/builtins/confirm.js](../../src/builtins/confirm.js)
+* HTTP send guide: [./HTTP_SEND.md](./HTTP_SEND.md)
+* Builtins reference (module/function): [./builtins/INDEX.md](./builtins/INDEX.md)
 
 ---
 

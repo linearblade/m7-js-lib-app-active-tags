@@ -10,7 +10,10 @@
 - [x] Event hooks for the engine
 - [x] Reviewing logs
 - [x] How to use builtins (completed in `docs/usage/OPERATIONS_BUILTINS.md`)
-- [ ] Build dedicated builtin reference docs from source JSDoc (`src/builtins/**`) with per-op args, side-effects, and return-contract notes.
+- [x] Build dedicated builtin reference docs from source JSDoc (`src/builtins/**`) with per-op args, side-effects, and return-contract notes.
+- [x] Document updated `http.send` request-resolution semantics in user docs (`docs/usage`):
+  `args.parse(name buffer request adhoc)`, merge order (named request -> buffer -> request),
+  `adhoc:true` unnamed mode, and HTTP-only transport gate.
 - [x] Update configuration documentation pages under `docs/` for the `engine` section (`builtins`, `hooks`, `opResolution`) (`docs/usage/CONFIGURATION.md`, `docs/usage/ENGINE_HOOKS.md`).
 - [x] Update inline documentation in `src/at_config/Schema.js` to reflect current `engine` config compilation behavior (`builtins`, `hooks`, `opResolution`).
 

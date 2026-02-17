@@ -39,43 +39,43 @@ export const MERGE_OPTS_V1 = {
  *
  * FIELD SEMANTICS
  * ---------------
- * url
- *   Request target URL.
- *   If undefined, may be resolved from form.action at submit time.
- *
- * method
- *   HTTP method.
- *   Defaults to REQUEST.METHOD_DEFAULT.
- *
- * encoding
- *   Body serialization strategy.
- *   Common values include:
- *     "urlencoded"
- *     "json"
- *     "formdata"
- *
- * body
- *   Payload content.
- *   Typically produced at submit time from form fields.
- *
- * headers
- *   HTTP headers object.
- *   Serializers may set Content-Type automatically.
- *
- * credentials
- *   Fetch credentials mode if applicable.
- *
- * timeoutMs
- *   Optional timeout in milliseconds.
- *
  * transport
- *   Optional transport override identifier.
- *   Allows alternative transport implementations.
+ *   Transport family identifier.
+ *   Typical values: "http", "ws", "sse", "webrtc", "tcp", "udp", "custom".
  *
- * flags
- *   Serialization hints.
- *   json        indicates JSON encoding intent.
- *   urlencoded  indicates form-style encoding intent.
+ * op
+ *   Transport operation intent.
+ *   Typical values: "connect", "send", "subscribe", "receive", "close".
+ *
+ * endpoint
+ *   Canonical endpoint descriptor.
+ *   May be expressed as full URL or decomposed host/port/path parts.
+ *
+ * method / headers / body / encoding / credentials
+ *   Request-style fields.
+ *   These are optional and may be ignored by non-request transports.
+ *
+ * timeoutMs / retry
+ *   Runtime control knobs for timeout and retry strategy.
+ *
+ * connection
+ *   Persistent connection/session options (protocols, channels, handshake, etc).
+ *
+ * response
+ *   Response handling policy container.
+ *   Default shape is intentionally empty to avoid imposing HTTP semantics
+ *   on non-HTTP transports.
+ *   Typical HTTP policy keys are provided as inline commented examples in
+ *   `DEFAULT_REQUEST_SHAPE.response` and can be copied into user config.
+ *
+ * stream
+ *   Streaming mode flags for event/message/chunk/datagram flows.
+ *
+ * protocolOptions
+ *   Transport-specific extension bag (escape hatch).
+ *
+ * flags / meta
+ *   Caller-defined control and metadata bags.
  *
  *
  * DESIGN CONSTRAINTS
@@ -86,22 +86,70 @@ export const MERGE_OPTS_V1 = {
  */
 
 export const DEFAULT_REQUEST_SHAPE = {
-    url: undefined,          // filled from form.action if missing
-    method: REQUEST.METHOD_DEFAULT,          // typical submit default (element may override)
+    transport: "http", // Transport family: http | ws | sse | webrtc | tcp | udp | custom
+    op: "send", // Operation intent: connect | send | subscribe | receive | close
 
-    encoding: "urlencoded",  // typical form default (element.enctype may override)
-    body: undefined,         // produced from form fields at submit-time
+    endpoint: {
+	url: undefined, // Canonical endpoint URL (preferred when available)
+	scheme: undefined, // Protocol/scheme hint: https | wss | udp | etc
+	host: undefined, // Hostname or IP
+	port: undefined, // Numeric port (transport-specific)
+	path: undefined, // Path/resource/route segment
+	query: {}, // Query bag merged/encoded by transport layer
+	params: {}, // Template/path params for route interpolation
+    },
 
-    headers: {},             // serializer may set Content-Type if needed
-    credentials: undefined,
+    method: undefined, // HTTP verb when applicable (ignored by non-HTTP transports)
+    headers: {}, // Header bag (HTTP/WS handshake style metadata)
+    body: undefined, // Payload to send (shape/encoding decided by transport)
+    encoding: undefined, // Encoding hint: json | urlencoded | formdata | binary | text
+    credentials: {
+	mode: undefined, // Credential mode hint (transport-specific policy)
+	withCredentials: false, // XHR-style credential flag for cookie-bearing requests
+	token: undefined, // Bearer/API token or opaque auth token
+	username: undefined, // Basic/session username if applicable
+	password: undefined, // Basic/session password if applicable
+    },
 
-    timeoutMs: undefined,
-    transport: undefined,
-    
-    flags: {
-        json: undefined,
-        urlencoded: true
-    }
+    timeoutMs: undefined, // Per-operation timeout in milliseconds
+    retry: {
+	max: 0, // Max retry attempts (0 disables retries)
+	delayMs: 0, // Base delay between attempts
+	backoff: "none", // Backoff strategy: none | linear | exponential
+	jitter: false // Add random jitter to retry delay
+    },
+
+    connection: {
+	persistent: false, // Keep connection/session open across operations
+	keepAlive: undefined, // Keepalive policy/interval (transport-defined)
+	protocols: [], // Protocol/subprotocol preferences (e.g. WS subprotocols)
+	channel: undefined, // Logical stream/topic/channel identifier
+	binaryType: undefined, // Binary mode hint (blob | arraybuffer | bytes, etc)
+	handshake: {} // Transport-specific connect/handshake options
+    },
+
+    // Response policy can vary by transport.
+    // Keep this empty by default to avoid mangling non-HTTP transport outputs.
+    response: {
+	/*
+	// Typical HTTP response policy example.
+	// Leave these commented in default shape; copy into user request_shape when needed.
+	parse: "auto", // Parse mode: auto | json | text | raw | blob | arrayBuffer
+	requireOk: false, // If true, non-2xx HTTP responses should be treated as errors
+	acceptedStatus: [], // Optional explicit allowlist for acceptable status codes
+	return: "payload", // Return view: payload | body | json | text | headers | status
+	path: undefined // Optional deep-pick path (typically against response body/payload)
+	*/
+    },
+
+    stream: {
+	enabled: false, // Enable streaming semantics for this request
+	mode: undefined // Stream mode: events | messages | chunks | datagrams
+    },
+
+    protocolOptions: {}, // Escape hatch for transport-specific knobs
+    flags: {}, // Boolean-ish behavior toggles for runtime/pipeline policy
+    meta: {} // Opaque caller metadata (diagnostics/tracing/labels)
 };
 
 /**

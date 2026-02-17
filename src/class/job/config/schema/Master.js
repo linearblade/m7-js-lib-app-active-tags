@@ -649,57 +649,14 @@ export default class Master {
 
 
     /**
-     * Normalize a single request definition.
+     * Legacy request normalizer (HTTP-biased).
      *
-     * Internal:
-     * - Requests describe outbound I/O intent (HTTP or transport-like).
-     * - This phase performs structural normalization and light coercion only.
-     * - Transport semantics, body serialization, and execution behavior are
-     *   handled later by the runtime/request layer.
-     *
-     * Responsibilities:
-     * - Coerce the request into hash form using the configured hotkey.
-     * - Normalize and clamp the HTTP method to an allowed set.
-     * - Apply safe defaults for common request options.
-     * - Coerce bag-style fields (`headers`, `flags`) into hashes.
-     *
-     * Normalization rules:
-     * - Input is coerced via `lib.hash.to(req, ctx.hotkey)`.
-     * - `method` is uppercased and clamped to `CONSTANTS.REQUEST.METHODS`;
-     *   invalid values fall back to `METHOD_DEFAULT`.
-     * - `credentials` is true only on explicit "yes" intent.
-     * - `timeoutMs` is coerced to a number, defaulting to
-     *   `CONSTANTS.REQUEST.TIMEOUT_DEFAULT`.
-     * - `headers` and `flags` are always hashes.
-     *
-     * Diagnostics:
-     * - No hard validation is performed here.
-     * - Invalid values degrade to safe defaults without warnings
-     *   (method clamping is intentional and silent).
-     *
-     * Invariants after normalization:
-     * - Returned value is always a hash.
-     * - `method` is always an upper-case string.
-     * - `credentials` is boolean.
-     * - `timeoutMs` is always a number.
-     * - `headers` and `flags` are hashes.
-     *
-     * @param {Object} req
-     *     Raw request definition.
-     *
-     * @param {Object} ctx
-     *     Normalization context supplied by `_normalizeBlock`.
-     *     Includes:
-     *     - `ctx.hotkey` : key used to coerce scalar request definitions
-     *     - `ctx.name`   : request name
-     *     - `ctx.key`    : schema key path (e.g. "requests")
-     *
-     * @returns {Object}
-     *     Normalized request definition.
+     * Preserved for migration/reference while transport-agnostic request
+     * normalization is phased in.
      *
      * @private
      */
-    _normalizeRequestItem(req,ctx) {
+    _old_normalizeRequestItem(req,ctx) {
         const lib = this.lib;
 
         req = lib.hash.to(req, ctx.hotkey);
@@ -723,6 +680,49 @@ export default class Master {
         req.flags = lib.hash.to(req.flags);
 
         return req;
+    }
+
+    /**
+     * Normalize a single request definition (transport-agnostic).
+     *
+     * Scope:
+     * - Keep normalization light.
+     * - Normalize top-level selector fields and open-ended bag structures.
+     * - Avoid transport-specific coercion/clamping at this phase.
+     *
+     * @param {Object} req
+     * @param {Object} ctx
+     * @returns {Object}
+     * @private
+     */
+    _normalizeRequestItem(req,ctx) {
+	const lib = this.lib;
+
+	req = lib.hash.to(req, ctx.hotkey);
+
+	// top-level selector fields
+	req.transport = lib.str.to(req.transport, true).trim().toLowerCase();
+	req.op = lib.str.to(req.op, true).trim().toLowerCase();
+
+	// normalize open-ended structures as hashes
+	req.endpoint = lib.hash.to(req.endpoint);
+	req.headers = lib.hash.to(req.headers);
+	req.credentials = lib.hash.to(req.credentials);
+	req.retry = lib.hash.to(req.retry);
+	req.connection = lib.hash.to(req.connection);
+	req.response = lib.hash.to(req.response);
+	req.stream = lib.hash.to(req.stream);
+	req.protocolOptions = lib.hash.to(req.protocolOptions);
+	req.flags = lib.hash.to(req.flags);
+	req.meta = lib.hash.to(req.meta);
+
+	// backward-compat: map legacy top-level `url` into `endpoint.url`
+	if (!lib.utils.isEmpty(req.url) && lib.utils.isEmpty(lib.hash.get(req, "endpoint.url"))) {
+	    lib.hash.set(req, "endpoint.url", req.url);
+	}
+	delete req.url;
+
+	return req;
     }
 
     /**

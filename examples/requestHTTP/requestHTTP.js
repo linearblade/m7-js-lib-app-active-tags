@@ -1,7 +1,9 @@
 import lib from "/vendor/m7-js-lib/src/index.js";
 import ActiveTags from "/vendor/m7-js-lib-active-tags/src/ActiveTags.js";
+
 window.lib = lib;
-const tutorialDeps = [
+
+const requestHttpDeps = [
     "/vendor/m7-js-lib-tree/src/auto.js",
     "/vendor/m7-js-workspace/src/auto.js",
     "/vendor/m7-js-lib-primitive-log/src/auto.js",
@@ -12,43 +14,36 @@ const tutorialDeps = [
     "/vendor/m7-js-lib-site-form/src/auto.js",
 ];
 
-async function loadTutorialDeps() {
-    // Keep order aligned with the prior HTML script sequence.
-    for (const modPath of tutorialDeps) {
+async function loadRequestHttpDeps() {
+    for (const modPath of requestHttpDeps) {
 	await import(modPath);
     }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    await loadTutorialDeps();
+    await loadRequestHttpDeps();
 
     const AT = new ActiveTags(lib, {
 	env: {
-	    // optional — ActiveTags will derive these if omitted,
-	    // but being explicit is fine
 	    window,
 	    document,
 	    root: window,
 	},
-
-	// runtime/system toggles (keep yours here; names depend on your ActiveTags impl)
 	boot: {
 	    intervals: true,
 	    events: true,
 	},
 	engine: {
-	    // hooks: true
-	    opResolution : {
+	    opResolution: {
 		auto: true
 	    }
 	},
-	// job-default config (this is what gets sliced + passed into Job.configure)
 	job: {
 	    config: {
 		evalEnabled: true,
-		evalType: "text/at-eval", // string or array ok
+		evalType: "text/at-eval",
 		importEnabled: true,
-		importPath: ["/vendor/m7-js-lib-active-tags/examples/"], // optional allow-list
+		importPath: ["/vendor/m7-js-lib-active-tags/examples/"],
 	    },
 	},
     });
@@ -57,3 +52,4 @@ document.addEventListener("DOMContentLoaded", async () => {
     await AT.start();
     window.AT = AT;
 });
+
