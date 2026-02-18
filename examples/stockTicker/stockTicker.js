@@ -1,5 +1,6 @@
-import lib from "/vendor/m7-js-lib/src/index.js";
+import {lib, init as initLib}  from "/vendor/m7-js-lib/src/index.js";
 import ActiveTags from "/vendor/m7-js-lib-active-tags/src/ActiveTags.js";
+initLib();
 window.lib = lib;
 const stockTickerDeps = [
     "/vendor/m7-js-lib-tree/src/auto.js",
