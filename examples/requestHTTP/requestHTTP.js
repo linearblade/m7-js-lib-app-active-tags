@@ -1,27 +1,42 @@
-import {lib, init as initLib}  from "/vendor/m7-js-lib/src/index.js";
-import ActiveTags from "/vendor/m7-js-lib-active-tags/src/ActiveTags.js";
+import {lib, init as initLib}   from  "/vendor/m7-js-lib/src/index.js";
+import ActiveTags               from  "/vendor/m7-js-lib-active-tags/src/ActiveTags.js";
+import installDomChangeObserver from  "/vendor/m7-js-lib-primitive-dom-changeobserver/src/install.js";
+import installEventDelegator    from  "/vendor/m7-js-lib-primitive-dom-eventdelegator/src/install.js";
+import installLog               from  "/vendor/m7-js-lib-primitive-log/src/install.js";
+import installInterval          from  "/vendor/m7-js-lib-primitive-interval/src/install.js";
+import installStrInterp         from  "/vendor/m7-js-lib-str-interp/src/install.js";
+import installSiteForm          from  "/vendor/m7-js-lib-site-form/src/install.js";
+import installTree              from  "/vendor/m7-js-lib-tree/src/install.js";
+import installWorkspace         from  "/vendor/m7-js-workspace/src/install.js";
 initLib();
-window.lib = lib;
+//window.lib = lib;
 
-const requestHttpDeps = [
-    "/vendor/m7-js-lib-tree/src/auto.js",
-    "/vendor/m7-js-workspace/src/auto.js",
-    "/vendor/m7-js-lib-primitive-log/src/auto.js",
-    "/vendor/m7-js-lib-interval/src/auto.js",
-    "/vendor/m7-js-lib-str-interp/src/auto.js",
-    "/vendor/m7-js-lib-primitive-dom-eventdelegator/src/auto.js",
-    "/vendor/m7-js-lib-primitive-dom-changeobserver/src/auto.js",
-    "/vendor/m7-js-lib-site-form/src/auto.js",
+//leave in place for any auto deps we may later have
+const requestHttpAutoDeps = [
+    //"/vendor/m7-js-lib-tree/src/auto.js",
+    //"/vendor/m7-js-workspace/src/auto.js",
 ];
 
 async function loadRequestHttpDeps() {
-    for (const modPath of requestHttpDeps) {
+    for (const modPath of requestHttpAutoDeps) {
 	await import(modPath);
     }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
     await loadRequestHttpDeps();
+    installWorkspace(lib);
+    installTree(lib);
+    installInterval(lib);
+    installStrInterp(lib);
+    installSiteForm(lib);
+    installLog(lib, {
+	host: window,
+	root: window,
+	managerOptions: { lib },
+    });
+    installDomChangeObserver(lib, { host: window, root: document.body, start: true });
+    installEventDelegator(lib, { host: window, root: document, start: true });
 
     const AT = new ActiveTags(lib, {
 	env: {
@@ -52,4 +67,3 @@ document.addEventListener("DOMContentLoaded", async () => {
     await AT.start();
     window.AT = AT;
 });
-
