@@ -20,14 +20,25 @@
 ## Buglist
 
 ### Open
+- [ ] Add starter configuration profiles users can copy/import and then modify (`strict`, `standard`, `flexible`, `tutorial`) to reduce policy complexity at adoption time.
+  Include a concise profile matrix in docs that maps each profile to security posture (`evalEnabled`/`importEnabled`/`importPath`) and intended use case.
 
-- [ ] Builtins audit pass: double-check builtin implementations for contract mismatches and incorrect behavior.
-- [ ] Add a dependency bootstrap/install script for lib 1.0-based examples/runtime setup so dependency loading does not rely on manual global wiring.
-- [ ] Audit `auto.js` dependency modules that currently assume global `lib`; either refactor to explicit injection/import or add a controlled compatibility bootstrap.
-- [ ] Audit `m7-js-lib` for unintended global/window mutation (for example assigning `window.lib`), and document the expected global contract.
+### Open Example cleanup -- this is important, but should be separated from the main 'problem children'
+- [ ] Decide on a 'best practices' methodology for users to easily use this product. ALLOW perl style, but encourage 'modern' organizational concepts.
+- [ ] Standardize debug-toggle pattern for requestHTTP example => `todo/examples_requesthttp_debug_toggle.md`
+- [ ] Standardize debug-toggle pattern for stockTicker example => `todo/examples_stockticker_debug_toggle.md`
+- [ ] Extract shared example bootstrap/runtime install flow => `todo/examples_shared_bootstrap.md`
 
 ### Completed
-
+- [x] Split `DomConfigSource` resolution internals into focused helpers => `todo/domconfigsource_split.md`
+- [x] Builtins audit pass: double-check builtin implementations for contract mismatches and incorrect behavior.
+  Completed for current release baseline; example flows (`requestHTTP`, `stockTicker`) run against audited builtin surfaces.
+- [x] Add a dependency bootstrap/install script for lib 1.0-based examples/runtime setup so dependency loading does not rely on manual global wiring.
+  Completed via explicit install/bootstrap flow used by examples (`examples/requestHTTP/requestHTTP.js`, `examples/stockTicker/stockTicker.js`).
+- [x] Audit `auto.js` dependency modules that currently assume global `lib`; either refactor to explicit injection/import or add a controlled compatibility bootstrap.
+  Completed by moving example/runtime posture to explicit injection/install modules and treating `auto.js` as optional compatibility path.
+- [x] Audit `m7-js-lib` for unintended global/window mutation (for example assigning `window.lib`), and document the expected global contract.
+  Completed with current contract posture: core runtime requires explicit `lib` injection; global assignment is optional compatibility mode only.
 - [x] Pipeline DSL accepts inline function entries for single "stringlike" steps (for example `dummyLogin`) in addition to string tokens and object records.
 - [x] Added `target` to the top-level run-handler call shape so handlers can access current target directly.
   Runtime now also provides `e` (job root element) alongside `target`.
@@ -76,3 +87,8 @@
 - [ ] Evaluate runtime-start boundary: consider `runtime.start(...)` as lifecycle entry instead of main `ActiveTags.start()` owning startup orchestration directly.
 - [ ] Evaluate controller initialization ownership: move initialization/wiring currently done in `ActiveTags` constructor into controller-owned init flows where practical.
 - [ ] Reorganize source layout: `src/class/` naming no longer matches current architecture posture; either split by subsystem with clearer boundaries or collapse `class/` into `src/`.
+
+
+## really low priority (after I decide how to refactor) [/] == see note in the ticket
+- [/] Extract shared conditional install helper for Event/Interval controllers => `todo/event_interval_conditional_helper.md`
+- [/] Extract shared binding dispatch helper (global/single/all modes) for controllers => `todo/controller_binding_dispatch_helper.md`

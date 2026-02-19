@@ -69,7 +69,7 @@
  */
 
 import Schema          from './schema/Master.js';
-import DomConfigSource from './DomConfigSource.js';
+import DomConfigSource from './domConfigSource/DomConfigSource.js';
 import freezeDeep      from '../../../helpers/freezeDeep.js';
 import {JOB_CONFIG_STATUS} from '../../../constants.js';
 
