@@ -1,5 +1,14 @@
 # Documentation TODO Checklist
 
+## TODO Structure
+
+- Master index: `docs/todo/INDEX.md`
+- Section indexes:
+  - `docs/todo/examples/OPEN.md`, `docs/todo/examples/DONE.md`
+  - `docs/todo/builtins/OPEN.md`, `docs/todo/builtins/DONE.md`
+  - `docs/todo/runtime/OPEN.md`, `docs/todo/runtime/DONE.md`
+  - `docs/todo/architecture/OPEN.md`, `docs/todo/architecture/DONE.md`
+
 - [x] Setting up pipelines (dedicated page)
 - [x] Setting up intervals (dedicated page)
 - [x] Setting up events (dedicated page)
@@ -22,16 +31,17 @@
 ### Open
 - [ ] Add starter configuration profiles users can copy/import and then modify (`strict`, `standard`, `flexible`, `tutorial`) to reduce policy complexity at adoption time.
   Include a concise profile matrix in docs that maps each profile to security posture (`evalEnabled`/`importEnabled`/`importPath`) and intended use case.
-- [ ] Expand `form.toEnvelope` with filter/query/response-policy shaping and docs coverage => `todo/form_to_envelope_enhancements.md`
+- [ ] Expand `form.toEnvelope` with filter/query/response-policy shaping and docs coverage => `todo/builtins/tickets/form_to_envelope_enhancements.md`
 
 ### Open Example cleanup -- this is important, but should be separated from the main 'problem children'
 - [ ] Decide on a 'best practices' methodology for users to easily use this product. ALLOW perl style, but encourage 'modern' organizational concepts.
-- [ ] Standardize debug-toggle pattern for requestHTTP example => `todo/examples_requesthttp_debug_toggle.md`
-- [ ] Standardize debug-toggle pattern for stockTicker example => `todo/examples_stockticker_debug_toggle.md`
-- [ ] Extract shared example bootstrap/runtime install flow => `todo/examples_shared_bootstrap.md`
+- [ ] Standardize debug-toggle pattern for requestHTTP example => `todo/examples/tickets/examples_requesthttp_debug_toggle.md`
+- [ ] Standardize debug-toggle pattern for stockTicker example => `todo/examples/tickets/examples_stockticker_debug_toggle.md`
+- [ ] Extract shared example bootstrap/runtime install flow => `todo/examples/tickets/examples_shared_bootstrap.md`
+- [ ] Simplify inject/fromFile request+inject route (one-liner request op, autorun startup verification, builtin DOM injection path) => `todo/examples/tickets/examples_inject_from_file_route_cleanup.md`
 
 ### Completed
-- [x] Split `DomConfigSource` resolution internals into focused helpers => `todo/domconfigsource_split.md`
+- [x] Split `DomConfigSource` resolution internals into focused helpers => `todo/architecture/tickets/domconfigsource_split.md`
 - [x] Builtins audit pass: double-check builtin implementations for contract mismatches and incorrect behavior.
   Completed for current release baseline; example flows (`requestHTTP`, `stockTicker`) run against audited builtin surfaces.
 - [x] Add a dependency bootstrap/install script for lib 1.0-based examples/runtime setup so dependency loading does not rely on manual global wiring.
@@ -91,5 +101,5 @@
 
 
 ## really low priority (after I decide how to refactor) [/] == see note in the ticket
-- [/] Extract shared conditional install helper for Event/Interval controllers => `todo/event_interval_conditional_helper.md`
-- [/] Extract shared binding dispatch helper (global/single/all modes) for controllers => `todo/controller_binding_dispatch_helper.md`
+- [/] Extract shared conditional install helper for Event/Interval controllers => `todo/runtime/tickets/event_interval_conditional_helper.md`
+- [/] Extract shared binding dispatch helper (global/single/all modes) for controllers => `todo/runtime/tickets/controller_binding_dispatch_helper.md`
