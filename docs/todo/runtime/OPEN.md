@@ -1,5 +1,7 @@
 # Runtime TODO — Open
 
+[TODO index](../INDEX.md) | [open](./OPEN.md) | [done](./DONE.md)
+
 - [ ] Extract shared conditional install helper for Event/Interval controllers (low priority, deferred)
     - Ticket: [tickets/event_interval_conditional_helper.md](./tickets/event_interval_conditional_helper.md)
 

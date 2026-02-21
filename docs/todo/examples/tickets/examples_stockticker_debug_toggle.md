@@ -1,5 +1,7 @@
 # StockTicker Example: Standardize Debug Toggle
 
+[TODO index](../../INDEX.md) | [examples open](../OPEN.md) | [examples done](../DONE.md)
+
 ## Goal
 Use the same debug-toggle posture as other examples so tutorial defaults remain clean.
 

@@ -1,5 +1,7 @@
 # Inject From File Route Cleanup
 
+[TODO index](../../INDEX.md) | [examples open](../OPEN.md) | [examples done](../DONE.md)
+
 ## Goal
 Make file-request + DOM-inject flows concise, reliable, and builtin-driven.
 

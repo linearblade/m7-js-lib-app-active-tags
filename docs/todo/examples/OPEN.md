@@ -1,5 +1,7 @@
 # Examples TODO — Open
 
+[TODO index](../INDEX.md) | [open](./OPEN.md) | [done](./DONE.md)
+
 - [ ] Standardize debug-toggle pattern for requestHTTP example
     - Ticket: [tickets/examples_requesthttp_debug_toggle.md](./tickets/examples_requesthttp_debug_toggle.md)
 

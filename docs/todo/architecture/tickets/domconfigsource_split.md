@@ -1,5 +1,7 @@
 # Split DomConfigSource Resolution Pipeline
 
+[TODO index](../../INDEX.md) | [architecture open](../OPEN.md) | [architecture done](../DONE.md)
+
 ## Goal
 Refactor `DomConfigSource` resolution internals into smaller focused units to improve maintainability without changing behavior.
 

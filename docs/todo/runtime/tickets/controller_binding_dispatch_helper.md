@@ -1,5 +1,7 @@
 # Extract Shared Binding Dispatch Helper (Global / Single / All)
 
+[TODO index](../../INDEX.md) | [runtime open](../OPEN.md) | [runtime done](../DONE.md)
+
 #Note : I dont like this too much yet. b/c the service level shape of all these jobs isnt quite clear in my mind, and I'll probably change this again. it will probably shake out
  after I redo 'headless' jobs (jobs without dom attached
 

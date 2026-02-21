@@ -1,5 +1,7 @@
 # Extract Shared Conditional Install Helper (Event + Interval)
 
+[TODO index](../../INDEX.md) | [runtime open](../OPEN.md) | [runtime done](../DONE.md)
+
 # Note: I've decided to put this on hold for the time being, b/c what I really want to do is get 'headless' jobs up and running (jobs without dom attached), and this would be wasted work invested here.
 
 ## Goal

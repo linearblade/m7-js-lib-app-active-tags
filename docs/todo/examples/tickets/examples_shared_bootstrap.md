@@ -1,5 +1,7 @@
 # Extract Shared Example Runtime Bootstrap
 
+[TODO index](../../INDEX.md) | [examples open](../OPEN.md) | [examples done](../DONE.md)
+
 ## Goal
 Reduce copy/paste setup logic across examples by centralizing common runtime install/bootstrap code.
 

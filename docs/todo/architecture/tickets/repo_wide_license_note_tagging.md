@@ -1,5 +1,7 @@
 # Repository-Wide License Note Tagging
 
+[TODO index](../../INDEX.md) | [architecture open](../OPEN.md) | [architecture done](../DONE.md)
+
 ## Goal
 Define and apply a consistent license note/header policy across repository files.
 

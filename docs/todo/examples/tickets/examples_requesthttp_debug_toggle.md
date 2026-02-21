@@ -1,5 +1,7 @@
 # RequestHTTP Example: Standardize Debug Toggle
 
+[TODO index](../../INDEX.md) | [examples open](../OPEN.md) | [examples done](../DONE.md)
+
 ## Goal
 Keep tutorial behavior visible while making default example output clean and production-like.
 
