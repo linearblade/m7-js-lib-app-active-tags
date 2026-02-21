@@ -97,7 +97,7 @@ The dispatch table is defined in [../../src/class/expressions/dispatch.js](../..
 ### Form target
 
 * `form:<fieldName>`
-  uses `lib.site.form.collect(base)` and returns the matching parameter value
+  uses `lib.dom.form.collect(base)` and returns the matching parameter value
 
 ### Legacy compatibility target
 

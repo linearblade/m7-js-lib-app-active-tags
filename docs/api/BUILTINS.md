@@ -20,11 +20,12 @@ Builtins root export:
 * collect
 * prepare
 * submit
+* toEnvelope
 * headers
 
 ### `dom`
 
-* patch
+* attempt
 
 ### `error`
 
@@ -36,16 +37,30 @@ Builtins root export:
 * set
 * get
 * clear
+* dump
 * traverse
+* assert
 
 ### `target`
 
+* patch
 * reset
 * set
+* propGet
+* propSet
 * fromBuffer
 * toBuffer
 * closest
 * find
+* parent
+* child
+
+### `e`
+
+* reset
+* self
+* find
+* closest
 * parent
 * child
 

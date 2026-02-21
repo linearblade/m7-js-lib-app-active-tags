@@ -27,7 +27,7 @@ Source resolution in `normalizeTarget`:
 
 ## Side Effects
 
-* Executes async submit via `lib.site.form.submit(src, opts)`.
+* Executes async submit via `lib.dom.form.submit(src, opts)`.
 * Stores transaction on `job.transactions[requestName]`.
 * Writes response payload into `buffer`.
 

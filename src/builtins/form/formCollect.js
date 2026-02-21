@@ -2,7 +2,7 @@
 /**
  * Collect form data from the effective form source and stage it onto the buffer.
  *
- * This builtin invokes `lib.site.form.collect` using the engine trigger (or job
+ * This builtin invokes `lib.dom.form.collect` using the engine trigger (or job
  * element fallback) and replaces the current buffer value with the collected
  * form context.
  *
@@ -20,7 +20,7 @@
  *
  * Failure semantics:
  * - Throws if no valid DOM element can be resolved.
- * - Throws if `lib.site.form.collect` returns an invalid result.
+ * - Throws if `lib.dom.form.collect` returns an invalid result.
  * - Thrown errors are caught and returned as a terminal stage error.
  *
  * @param {Object} params
@@ -39,7 +39,7 @@
 
 export default async function formCollect({ job, lib, args, step, trigger, buffer } = {}) {
     try {
-        const collect = lib.site.form.collect;
+        const collect = lib.dom.form.collect;
 
         const source = trigger || job.e;
         lib.dom.attempt(source, true);

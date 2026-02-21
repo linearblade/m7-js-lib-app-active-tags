@@ -37,10 +37,13 @@ Service constants are defined in:
 
 ## Runtime form helpers
 
-Form and HTTP-related builtins expect form helpers on `lib.site.form`, including:
+Form and HTTP-related builtins expect form helpers on `lib.dom.form`, including:
 
-* `lib.site.form.collect`
-* `lib.site.form.submit`
+* `lib.dom.form.collect`
+* `lib.dom.form.submit`
+
+`http.send` now routes transport through `lib.request.send(...)`, so
+`lib.request` is also required when HTTP/form envelope flows are used.
 
 Current integration posture is to include these in the m7-js-lib v1 distribution.
 
@@ -57,7 +60,8 @@ Before constructing ActiveTags, verify:
 * a valid `lib` instance is available for `new ActiveTags(lib, ...)`
 * `lib.require.all(...)` resolves core dependencies
 * `lib.require.service(...)` resolves required services
-* `lib.site.form.collect` and `lib.site.form.submit` are available when form/HTTP builtins are used
+* `lib.dom.form.collect` and `lib.dom.form.submit` are available when form/HTTP builtins are used
+* `lib.request.send` is available when `http.send` is used
 
 ---
 

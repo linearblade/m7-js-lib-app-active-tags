@@ -24,6 +24,7 @@ Key runtime behavior:
   * named request in `job.config.schema.requests`
   * `buffer` payload (optional)
   * inline `request` override
+* Transport execution is delegated to `lib.request.send(...)`.
 * Response is always written to `buffer` and `inputs.response`.
 * Optional response policy can project/validate response output.
 
@@ -89,10 +90,10 @@ Credentials:
 
 ## 4) Transport execution path
 
-Execution order:
+Execution path:
 
-1. Try `fetch` (`lib._env.root.fetch` or global `fetch`)
-2. Fallback to `lib._http.request(...)`
+1. ActiveTags `http.send` calls `lib.request.send(envelope)`
+2. `lib.request` handles fetch/XHR fallback and response normalization
 
 Response payload normalization:
 
@@ -140,11 +141,15 @@ Successful stage returns:
 * `status: "ok"`
 * detail includes `op`, `refs`, `url`, `method`, and response `status`
 
-Policy/transport failure returns:
+Error stage returns:
 
 * `status: "error"`
 * error info in StageResult
 * response export may still be present in buffer/meta
+
+Network/transport note:
+
+* some transport failures may be normalized into payload (`ok:false`, `status:0`) and still return `status:"ok"` unless `request.response.requireOk` or `acceptedStatus` enforces failure.
 
 ---
 
@@ -217,4 +222,3 @@ Policy/transport failure returns:
 * [Examples Library](./EXAMPLES_LIBRARY.md)
 * [Usage TOC](./TOC.md)
 * [README](../../README.md)
-

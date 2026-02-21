@@ -4,14 +4,14 @@
  *
  * ActiveTags builtin: `form.submit`
  *
- * Pipeline-aware wrapper around `lib.site.form.submit` that integrates
+ * Pipeline-aware wrapper around `lib.dom.form.submit` that integrates
  * form submission into the ActiveTags execution model.
  *
  * Responsibilities
  * ----------------
  * - Resolves request options via pipeline metadata (`buffer.meta()`) and runtime args.
  * - Normalizes the submission source (DOM element or prior form.collect output).
- * - Delegates collection, encoding, transport, and response parsing to `lib.site.form.submit`.
+ * - Delegates collection, encoding, transport, and response parsing to `lib.dom.form.submit`.
  * - Records the request/response pair as a transaction on the job.
  * - Advances the pipeline conveyor by writing the response into the buffer.
  *
@@ -39,7 +39,7 @@
 
 export default async function formSubmit({ job, lib, args, trigger, buffer, step } = {}) {
     try {
-        const submit = lib.site.form.submit;
+        const submit = lib.dom.form.submit;
 
         // request metadata (headers etc.)
         const opts = makeOpts({ lib, buffer, args });
@@ -91,7 +91,7 @@ export default async function formSubmit({ job, lib, args, trigger, buffer, step
  * @param {Object} deps.lib
  * @param {Object} deps.buffer
  * @param {*} [deps.args]
- * @returns {Object} Final options hash for `lib.site.form.submit`.
+ * @returns {Object} Final options hash for `lib.dom.form.submit`.
  */
 function makeOpts({ lib, buffer, args } = {}) {
     const staged = buffer.meta() || {};

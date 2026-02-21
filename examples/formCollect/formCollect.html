@@ -1,0 +1,101 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ActiveTags Form Collect Example</title>
+    <link rel="stylesheet" href="formCollect.css">
+    <script type="module" src="./formCollect.js"></script>
+  </head>
+  <body>
+    <header data-activetag at-name="header" at-at="import:header.js" class="tutorial-header">
+      <div class="tutorial-brand">ActiveTags Form Collect Playground</div>
+      <div class="tutorial-user">
+        <div class="tutorial-user-details is-hidden">
+          <div class="tutorial-user-text">...</div>
+          <div class="tutorial-user-metrics">
+            <div class="tutorial-user-balance">Balance: $0.00</div>
+            <div class="tutorial-user-stock">Stock: 0</div>
+          </div>
+        </div>
+        <button class="tutorial-login-btn secondary" type="button">Login</button>
+      </div>
+    </header>
+
+    <main id="tutorial-tags-root">
+      <section
+        data-activetag
+        at-name="form-collect"
+        at-at="import:form-collect.js"
+        id="tutorial-form-card">
+        <h1 class="tutorial-title">Form Collect Test</h1>
+        <p class="tutorial-copy">
+          This example runs <code>@form.collect</code> and prints the collected payload.
+        </p>
+
+        <form id="testForm" action="/fake" method="post">
+          <fieldset>
+            <legend>Basic</legend>
+            <label>Username <input type="text" name="user.name" value="alice"></label>
+            <label>Email <input type="email" name="user.email" value="alice@example.com"></label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Nested</legend>
+            <label>City <input type="text" name="profile.address.city" value="Austin"></label>
+            <label>Zip <input type="text" name="profile.address.zip" value="78701"></label>
+            <label>Theme
+              <select name="prefs.theme">
+                <option value="light">light</option>
+                <option value="dark" selected>dark</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Checkbox / radio</legend>
+            <label><input type="checkbox" name="flags.newsletter" checked> Newsletter</label>
+            <label><input type="checkbox" name="flags.beta" data-uncheck="0"> Beta</label>
+
+            <label><input type="radio" name="role.type" value="admin" checked> Admin</label>
+            <label><input type="radio" name="role.type" value="user"> User</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Array-like Fields</legend>
+
+            <label><input type="checkbox" name="tags" value="frontend" checked> frontend</label>
+            <label><input type="checkbox" name="tags" value="backend" checked> backend</label>
+            <label><input type="checkbox" name="tags" value="ops"> ops</label>
+
+            <label>Favorite colors (multi-select)
+              <select name="colors" multiple size="4">
+                <option value="red" selected>red</option>
+                <option value="green" selected>green</option>
+                <option value="blue">blue</option>
+                <option value="black" selected>black</option>
+              </select>
+            </label>
+
+            <label>Phone #1 <input type="text" name="phones" value="+1-555-1000"></label>
+            <label>Phone #2 <input type="text" name="phones" value="+1-555-2000"></label>
+
+            <label>Address line 1 <input type="text" name="addresses.0.line1" value="100 Main St"></label>
+            <label>Address line 2 <input type="text" name="addresses.1.line1" value="200 Oak Ave"></label>
+          </fieldset>
+
+          <div class="row">
+            <button id="collectBtn" type="button" name="action" value="collect">Collect</button>
+            <button id="submitBtn" type="button" name="action" value="submit">Submit Trigger</button>
+          </div>
+        </form>
+
+        <div class="tutorial-meta">
+          <strong>Last Trigger:</strong>
+          <span id="collect-status">idle</span>
+        </div>
+
+        <pre id="collect-output">{}</pre>
+      </section>
+    </main>
+  </body>
+</html>

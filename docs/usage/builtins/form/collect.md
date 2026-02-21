@@ -8,7 +8,7 @@ Source:
 
 ## Args
 
-* `args` (hash) is forwarded to `lib.site.form.collect(source, opts)`.
+* `args` (hash) is forwarded to `lib.dom.form.collect(source, opts)`.
 
 Source resolution:
 

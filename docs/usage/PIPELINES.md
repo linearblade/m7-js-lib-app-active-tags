@@ -91,7 +91,7 @@ Per-item merge order is:
   },
   pipelines: {
     save: { run: "form.prepare form.submit" },
-    patch: { run: "dom.patch" }
+    patch: { run: "target.patch" }
   }
 }
 ```
@@ -138,7 +138,7 @@ Default pipeline notes:
       error: [{ op: "error.dump", args: { throw: true } }]
     },
     hover_on: {
-      run: "target.closest dom.patch",
+      run: "target.closest target.patch",
       error: "error.dump"
     }
   }

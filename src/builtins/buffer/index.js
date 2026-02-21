@@ -1,5 +1,5 @@
 // builtins/buffer/index.js
-// Builtins: buffer.set, buffer.get, buffer.traverse, buffer.clear, buffer.assert
+// Builtins: buffer.set, buffer.get, buffer.clear, buffer.dump, buffer.traverse, buffer.assert
 // VM signature: ({ job, lib, args, trigger, ticket, inputs, buffer, ctx, step }) => StageResultLike
 
 import helpers from "../../class/engine/helpers.js";
@@ -186,6 +186,80 @@ export async function bufferClear({ inputs, buffer, step } = {}) {
     }
 }
 
+/**
+ * `buffer.dump` builtin.
+ *
+ * Logs current buffer value and metadata to console for diagnostics.
+ *
+ * Behavior:
+ * - Always returns `ok`, even if logging throws.
+ * - Does not mutate buffer contents.
+ * - Optionally mirrors snapshot into `inputs.bufferDump`.
+ *
+ * Args (optional hash):
+ * - `label`       : console label prefix
+ * - `includeMeta` : include `buffer.meta()` in log output (default true)
+ * - `includeValue`: include `buffer.get()` in log output (default true)
+ * - `toInputs`    : when true, write snapshot to `inputs.bufferDump`
+ *
+ * @param {Object} params
+ * @param {Object} params.lib
+ * @param {*} [params.args]
+ * @param {Object} [params.inputs]
+ * @param {Object} params.buffer
+ * @param {*} [params.step]
+ * @returns {Promise<Object>} StageResult-like `ok`.
+ */
+export async function bufferDump({ lib, args, inputs, buffer, step } = {}) {
+    const opts = lib.hash.to(args);
+    const includeMeta = !lib.bool.no(lib.hash.get(opts, "includeMeta"));
+    const includeValue = !lib.bool.no(lib.hash.get(opts, "includeValue"));
+    const label = lib.str.to(lib.hash.get(opts, "label"), true).trim() || "[AT][buffer.dump]";
+    const toInputs = lib.bool.yes(lib.hash.get(opts, "toInputs"));
+
+    let value = null;
+    let meta = null;
+    let logError = null;
+
+    try {
+        value = includeValue ? buffer.get() : null;
+        meta = includeMeta ? buffer.meta() : null;
+
+        if (includeValue && includeMeta) {
+            console.warn(label);
+            console.warn({ value, meta });
+        } else if (includeValue) {
+            console.warn(label);
+            console.warn({ value });
+        } else if (includeMeta) {
+            console.warn(label);
+            console.warn({ meta });
+        } else {
+            console.warn(label);
+        }
+    } catch (err) {
+        logError = err;
+        try {
+            console.warn(`${label} (logging failed)`, err);
+        } catch (noop) {
+            // keep stage success semantics
+        }
+    }
+
+    if (toInputs && inputs && typeof inputs === "object") {
+        inputs.bufferDump = { value, meta, error: logError ? String(logError.message || logError) : null };
+    }
+
+    return helpers.SR_ok({
+        op: "buffer.dump",
+        step,
+        dumped: true,
+        includeMeta,
+        includeValue,
+        logError: !!logError,
+    });
+}
+
 export { bufferTraverse, bufferAssert };
 
 // -----------------------------------------------------------------------------
@@ -195,6 +269,7 @@ export const BUFFER = {
     set: bufferSet,
     get: bufferGet,
     clear: bufferClear,
+    dump: bufferDump,
     traverse: bufferTraverse,
     assert: bufferAssert,
 };

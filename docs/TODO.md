@@ -22,6 +22,7 @@
 ### Open
 - [ ] Add starter configuration profiles users can copy/import and then modify (`strict`, `standard`, `flexible`, `tutorial`) to reduce policy complexity at adoption time.
   Include a concise profile matrix in docs that maps each profile to security posture (`evalEnabled`/`importEnabled`/`importPath`) and intended use case.
+- [ ] Expand `form.toEnvelope` with filter/query/response-policy shaping and docs coverage => `todo/form_to_envelope_enhancements.md`
 
 ### Open Example cleanup -- this is important, but should be separated from the main 'problem children'
 - [ ] Decide on a 'best practices' methodology for users to easily use this product. ALLOW perl style, but encourage 'modern' organizational concepts.

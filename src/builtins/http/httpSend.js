@@ -185,6 +185,23 @@ function resolveResponseOutcome({ lib, payload, responseCfg }) {
     return { exportValue, policy, responsePolicyMeta, responseParse };
 }
 
+function normalizeLibRequestPayload(payload, url) {
+    if (payload && typeof payload === "object") {
+	if ("status" in payload || "ok" in payload || "body" in payload || "headers" in payload) {
+	    return payload;
+	}
+    }
+
+    return {
+	ok: false,
+	status: 0,
+	statusText: "Invalid request payload",
+	url: url || null,
+	headers: {},
+	body: payload,
+    };
+}
+
 /**
  * Resolve effective request config for `http.send`.
  *
@@ -284,10 +301,27 @@ function hasHeader(headers, name) {
 function normalizeRequestBody(lib, request, headers) {
     let body = request.body;
     const encoding = lib.str.to(request.encoding, true).trim().toLowerCase();
+    const headerCT = lib.str.to(
+	hasHeader(headers, "content-type")
+	    ? (headers["content-type"] ?? headers["Content-Type"])
+	    : "",
+	true
+    ).trim().toLowerCase();
 
     if (body === undefined || body === null) return { body, encoding };
 
-    if (encoding === "json" && (lib.hash.is(body) || lib.array.is(body))) {
+    const isJsonMode =
+	encoding === "json" ||
+	encoding === "application/json" ||
+	(encoding === "" && headerCT.indexOf("application/json") !== -1);
+
+    const isFormMode =
+	encoding === "urlencoded" ||
+	encoding === "form" ||
+	encoding === "application/x-www-form-urlencoded" ||
+	(encoding === "" && headerCT.indexOf("application/x-www-form-urlencoded") !== -1);
+
+    if (isJsonMode && (lib.hash.is(body) || lib.array.is(body))) {
 	body = JSON.stringify(body);
 	if (!hasHeader(headers, "content-type")) {
 	    headers["content-type"] = "application/json";
@@ -295,7 +329,7 @@ function normalizeRequestBody(lib, request, headers) {
 	return { body, encoding };
     }
 
-    if (encoding === "urlencoded" && lib.hash.is(body)) {
+    if (isFormMode && lib.hash.is(body)) {
 	body = toQueryString(lib, body);
 	if (!hasHeader(headers, "content-type")) {
 	    headers["content-type"] = "application/x-www-form-urlencoded";
@@ -303,6 +337,22 @@ function normalizeRequestBody(lib, request, headers) {
     }
 
     return { body, encoding };
+}
+
+function storeHttpTransaction({ job, name, request, response, meta, type } = {}) {
+    const txName = name || "default";
+    if (!job.transactions) job.transactions = {};
+
+    const tx = {
+	ts: Date.now(),
+	request: request ?? null,
+	response: response ?? null,
+	type: type || "HTTP/1",
+	meta: meta || null,
+    };
+
+    job.transactions[txName] = tx;
+    return tx;
 }
 
 function resolveFetchFn(lib) {
@@ -416,7 +466,7 @@ async function sendWithXhr({ lib, request, url, method, headers, body, encoding,
  * - `transport` must be `"http"` or empty.
  *
  * Output model:
- * - awaits transport result
+ * - delegates transport to `lib.request.send(...)` and awaits normalized payload
  * - applies optional `request.response` policy controls:
  *   - parse / return / path projection
  *   - requireOk / acceptedStatus gating
@@ -447,48 +497,44 @@ export default async function httpSend({ job, lib, args, buffer, inputs, step } 
 
 	const method = lib.str.to(request.method, true).trim().toUpperCase() || "GET";
 	const headers = lib.hash.to(request.headers);
-	const bodyMeta = normalizeRequestBody(lib, request, headers);
 	const timeoutMs = lib.number.toInt(request.timeoutMs, 0);
 	const responseCfg = lib.hash.to(request.response);
-	const responseParse = resolveResponseParseMode(lib, responseCfg);
 
-	let payload = await sendWithFetch({
-	    lib,
-	    request,
-	    url,
-	    method,
-	    headers,
-	    body: bodyMeta.body,
-	    timeoutMs
-	});
+	// Route transport through lib.request and force payload return so
+	// ActiveTags can apply its existing response projection + policy model.
+	const sendRequest = lib.hash.deepCopy(request);
+	const sendResponseCfg = lib.hash.to(sendRequest.response);
+	sendResponseCfg.parse = lib.str.to(lib.hash.get(responseCfg, "parse"), true).trim().toLowerCase() || "auto";
+	sendResponseCfg.return = "payload";
+	delete sendResponseCfg.path;
+	sendRequest.response = sendResponseCfg;
 
-	if (payload === undefined) {
-	    payload = await sendWithXhr({
-		lib,
-		request,
-		url,
-		method,
-		headers,
-		body: bodyMeta.body,
-		encoding: bodyMeta.encoding,
-		responseParse
-	    });
-	}
+	let payload = await lib.request.send(sendRequest);
+	payload = normalizeLibRequestPayload(payload, url);
 
 	const outcome = resolveResponseOutcome({ lib, payload, responseCfg });
+	const txName = lib.str.to(refs[0], true).trim();
+	storeHttpTransaction({
+	    job,
+	    name: (!lib.utils.isEmpty(txName) && txName.charAt(0) !== "[") ? txName : "default",
+	    request: request,
+	    response: payload,
+	    type: "HTTP/1",
+	    meta: { op: "http.send", refs, step },
+	});
 
 	const meta = {
 	    http: {
 		op: "http.send",
 		refs,
-		request: {
-		    transport: transport || "http",
-		    url,
-		    method,
-		    encoding: bodyMeta.encoding || null,
-		    timeoutMs: timeoutMs > 0 ? timeoutMs : null,
-		    headers
-		},
+			request: {
+			    transport: transport || "http",
+			    url,
+			    method,
+			    encoding: lib.str.to(request.encoding, true).trim().toLowerCase() || null,
+			    timeoutMs: timeoutMs > 0 ? timeoutMs : null,
+			    headers
+			},
 		response: {
 		    ok: payload && ("ok" in payload) ? !!payload.ok : null,
 		    status: payload && ("status" in payload) ? payload.status : null

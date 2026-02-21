@@ -37,7 +37,7 @@
 export const LIB_HASH = "hash";
 
 export const CORE_DEPS = [
-    "primitive.workspace",
+    //"primitive.workspace", //leave unrequired at this time.
     "dom",
     "str.interp",
 ];

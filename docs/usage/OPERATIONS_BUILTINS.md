@@ -151,6 +151,7 @@ Available builtin operations:
 * `form.collect`
 * `form.prepare`
 * `form.submit`
+* `form.toEnvelope`
 * `form.headers`
 * `dom.attempt`
 * `error.dump`
@@ -158,6 +159,7 @@ Available builtin operations:
 * `buffer.set`
 * `buffer.get`
 * `buffer.clear`
+* `buffer.dump`
 * `buffer.traverse`
 * `buffer.assert`
 * `target.patch`
@@ -236,6 +238,24 @@ Family source folders/files:
       { op: "@form.headers", args: { headers: { "X-CSRF": "${config:csrf}" } } },
       "@form.submit"
     ]
+  }
+}
+```
+
+### Collect -> envelope -> send
+
+```js
+{
+  pipelines: {
+    submit: {
+      run: [
+        "@form.collect",
+        { op: "@form.toEnvelope", args: { json: true, structured: true } },
+        { op: "@http.send", args: { adhoc: true, buffer: true } },
+        { op: "@buffer.dump", args: { label: "after http.send" } }
+      ],
+      error: ["@error.dump"]
+    }
   }
 }
 ```

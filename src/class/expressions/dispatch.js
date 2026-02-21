@@ -144,7 +144,7 @@ export default function buildDispatch(resolver, ctx, loc) {
             const base = tgt || e;
             if (!base) return undefined;
 
-            const collect = lib.hash.get(lib, "site.form.collect");
+            const collect = lib.hash.get(lib, "dom.form.collect");
             if (!collect) return undefined;
 
             const out = collect(base);

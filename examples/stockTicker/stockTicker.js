@@ -4,10 +4,10 @@ import installDomChangeObserver from  "/vendor/m7-js-lib-primitive-dom-changeobs
 import installEventDelegator    from  "/vendor/m7-js-lib-primitive-dom-eventdelegator/src/install.js";
 import installLog               from  "/vendor/m7-js-lib-primitive-log/src/install.js";
 import installInterval          from  "/vendor/m7-js-lib-primitive-interval/src/install.js";
-import installStrInterp         from  "/vendor/m7-js-lib-str-interp/src/install.js";
-import installSiteForm          from  "/vendor/m7-js-lib-site-form/src/install.js";
+//import installStrInterp         from  "/vendor/m7-js-lib-str-interp/src/install.js";
+//import installSiteForm          from  "/vendor/m7-js-lib-site-form/src/install.js";
 import installTree              from  "/vendor/m7-js-lib-tree/src/install.js";
-import installWorkspace         from  "/vendor/m7-js-workspace/src/install.js";
+//import installWorkspace         from  "/vendor/m7-js-workspace/src/install.js";
 initLib();
 //window.lib = lib;
 
@@ -25,11 +25,11 @@ async function loadStockTickerDeps() {
 
 document.addEventListener("DOMContentLoaded", async () => {
     await loadStockTickerDeps();
-    installWorkspace(lib);
+    //installWorkspace(lib);
     installTree(lib);
     installInterval(lib);
-    installStrInterp(lib);
-    installSiteForm(lib);
+    //installStrInterp(lib);
+    //installSiteForm(lib);
     installLog(lib, {
 	host: window,
 	root: window,

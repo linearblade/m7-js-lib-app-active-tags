@@ -13,5 +13,6 @@ Module sources:
 * [`buffer.set`](./set.md)
 * [`buffer.get`](./get.md)
 * [`buffer.clear`](./clear.md)
+* [`buffer.dump`](./dump.md)
 * [`buffer.traverse`](./traverse.md)
 * [`buffer.assert`](./assert.md)
