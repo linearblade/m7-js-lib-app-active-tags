@@ -1,5 +1,7 @@
 # TODO Index
 
+[Protocol](./PROTOCOL.md)
+
 Structured TODO layout:
 
 - section-level indexes track active/completed work
