@@ -8,17 +8,21 @@ Structured TODO layout:
 ## Section Indexes
 
 *`examples`:*
-  - [open](./examples/OPEN.md)
-  - [done](./examples/DONE.md)
+
+- [open](./examples/OPEN.md)
+- [done](./examples/DONE.md)
   
 *`builtins`:*
-  - [open](./builtins/OPEN.md)
-  - [done](./builtins/DONE.md)
+
+- [open](./builtins/OPEN.md)
+- [done](./builtins/DONE.md)
   
 *`runtime`:*
-  - [open](./runtime/OPEN.md)
-  - [done](./runtime/DONE.md)
+
+- [open](./runtime/OPEN.md)
+- [done](./runtime/DONE.md)
   
 *`architecture`:*
-  - [open](./architecture/OPEN.md)
-  - [done](./architecture/DONE.md)
+
+- [open](./architecture/OPEN.md)
+- [done](./architecture/DONE.md)
