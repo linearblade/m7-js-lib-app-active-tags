@@ -5,17 +5,40 @@ Structured TODO layout:
 - section-level indexes track active/completed work
 - detailed tickets live under each section `tickets/` folder
 
-## Sections
+## Directory Tree
 
-- Examples
+```txt
+docs/todo/
+  INDEX.md
+  examples/
+    OPEN.md
+    DONE.md
+    tickets/
+  builtins/
+    OPEN.md
+    DONE.md
+    tickets/
+  runtime/
+    OPEN.md
+    DONE.md
+    tickets/
+  architecture/
+    OPEN.md
+    DONE.md
+    tickets/
+```
+
+## Section Indexes
+
+- `examples`
   - [OPEN](./examples/OPEN.md)
   - [DONE](./examples/DONE.md)
-- Builtins
+- `builtins`
   - [OPEN](./builtins/OPEN.md)
   - [DONE](./builtins/DONE.md)
-- Runtime
+- `runtime`
   - [OPEN](./runtime/OPEN.md)
   - [DONE](./runtime/DONE.md)
-- Architecture
+- `architecture`
   - [OPEN](./architecture/OPEN.md)
   - [DONE](./architecture/DONE.md)
