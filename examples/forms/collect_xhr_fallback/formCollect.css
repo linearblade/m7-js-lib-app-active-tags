@@ -1,0 +1,163 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 20px;
+  background: #0f0f1a;
+  color: #e0e0ff;
+}
+
+button {
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  background: #334;
+  color: #fff;
+}
+
+button:hover {
+  background: #556;
+}
+
+button.secondary {
+  background: #4b5470;
+}
+
+.tutorial-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border: 1px solid #3a3a4f;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #1a1a28, #20253a);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.tutorial-brand {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.tutorial-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #d7e7ff;
+}
+
+.tutorial-user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tutorial-user-metrics {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.tutorial-user-text {
+  font-weight: 600;
+}
+
+.tutorial-user-balance,
+.tutorial-user-stock {
+  font-size: 12px;
+  color: #a9b9d6;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+#tutorial-tags-root {
+  display: flex;
+  justify-content: center;
+}
+
+#tutorial-form-card {
+  width: min(100%, 760px);
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #111;
+}
+
+.tutorial-title {
+  margin: 0 0 6px 0;
+}
+
+.tutorial-copy {
+  margin: 0 0 12px 0;
+  color: #aaa;
+}
+
+form fieldset {
+  margin-bottom: 12px;
+  border: 1px solid #333c54;
+  border-radius: 8px;
+}
+
+form legend {
+  color: #ced6ef;
+  padding: 0 8px;
+}
+
+form label {
+  display: block;
+  margin: 8px 0;
+}
+
+form input,
+form select {
+  margin-left: 6px;
+  padding: 6px 8px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #1a1a28;
+  color: #e0e0ff;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tutorial-meta {
+  margin-top: 14px;
+  color: #a9b9d6;
+}
+
+#collect-output {
+  margin-top: 10px;
+  border-radius: 10px;
+  border: 1px solid #2d3447;
+  background: #161c2e;
+  padding: 12px;
+  min-height: 220px;
+  overflow: auto;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  body {
+    margin: 12px;
+  }
+
+  #tutorial-form-card {
+    width: 100%;
+    padding: 14px;
+  }
+
+  .row button {
+    min-height: 44px;
+    flex: 1 1 48%;
+  }
+}

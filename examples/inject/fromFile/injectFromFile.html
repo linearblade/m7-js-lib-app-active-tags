@@ -1,0 +1,25 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ActiveTags Inject From File Example</title>
+    <link rel="stylesheet" href="injectFromFile.css">
+    <script type="module" src="./injectFromFile.js"></script>
+  </head>
+  <body>
+    <main class="inject-page">
+      <h1 class="inject-title">Inject Local File Into Active Tag</h1>
+      <p class="inject-copy">
+        This job fetches <code>fragment.html</code> from this directory and injects it directly into the active tag element.
+      </p>
+
+      <div
+        data-activetag
+        at-name="inject-from-file"
+        at-at="import:inject-file.js"
+        class="inject-host">
+        injected content appears here.
+      </div>
+    </main>
+  </body>
+</html>
