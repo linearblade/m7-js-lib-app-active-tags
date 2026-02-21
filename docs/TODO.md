@@ -31,6 +31,7 @@
 ### Open
 - [ ] Add starter configuration profiles users can copy/import and then modify (`strict`, `standard`, `flexible`, `tutorial`) to reduce policy complexity at adoption time.
   Include a concise profile matrix in docs that maps each profile to security posture (`evalEnabled`/`importEnabled`/`importPath`) and intended use case.
+- [ ] Tag repository files with a standardized license note/header policy => `todo/architecture/tickets/repo_wide_license_note_tagging.md`
 - [ ] Expand `form.toEnvelope` with filter/query/response-policy shaping and docs coverage => `todo/builtins/tickets/form_to_envelope_enhancements.md`
 
 ### Open Example cleanup -- this is important, but should be separated from the main 'problem children'
