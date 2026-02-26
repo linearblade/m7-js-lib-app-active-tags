@@ -208,7 +208,7 @@ class ActiveTags {
 	this.expr = new ExpressionResolver({
 	    lib: this.lib,
 	    toJob: (x) => this.toJob(x),
-	    logger: this.logger,
+	    logger: null,// this.svc.log,
 	    env: this.conf.env
 	});
 

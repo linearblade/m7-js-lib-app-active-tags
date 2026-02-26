@@ -207,7 +207,7 @@ function normalizeLibRequestPayload(payload, url) {
  *
  * Parse contract:
  * - `args` is parsed with:
- *   `lib.args.parse(args, { adhoc:false }, { parms:"name buffer request adhoc", pop:true })`
+ *   `lib.args.parse(args, { adhoc:false }, { parms:"name buffer request adhoc url", pop:true })`
  * - `adhoc:false`:
  *   - missing `name` defaults to `"default"`
  * - `adhoc:true`:
@@ -217,6 +217,7 @@ function normalizeLibRequestPayload(payload, url) {
  * 1) named request from `job.config.schema.requests[name]` (when name exists)
  * 2) `buffer.get()` when `buffer` flag is bool-yes
  * 3) inline `request` hash from args
+ * 4) top-level `url` shorthand mapped to `request.endpoint.url`
  *
  * Merge semantics:
  * - uses `REQUEST_MERGE_OPTS` (array replacement; array+scalar overwrite)
@@ -232,7 +233,7 @@ function normalizeLibRequestPayload(payload, url) {
  *   When `name` is provided but request config does not exist.
  */
 function resolveRequestConfig({ lib, job, args, buffer }) {
-    const parsed = lib.args.parse(args, { adhoc: false }, { parms: "name buffer request adhoc", pop: true });
+    const parsed = lib.args.parse(args, { adhoc: false }, { parms: "name buffer request adhoc url", pop: true });
     const adhoc = lib.bool.yes(parsed.adhoc);
     const nameRaw = lib.str.to(parsed.name, true).trim();
     const name = adhoc ? nameRaw : (nameRaw || "default");
@@ -260,6 +261,12 @@ function resolveRequestConfig({ lib, job, args, buffer }) {
     if (!lib.utils.isEmpty(fromRequest)) {
 	out = lib.hash.merge(out, fromRequest, REQUEST_MERGE_OPTS) || out;
 	refs.push("[request]");
+    }
+
+    const url = lib.str.to(parsed.url, true).trim();
+    if (!lib.utils.isEmpty(url)) {
+	lib.hash.set(out, "endpoint.url", url);
+	refs.push("[url]");
     }
 
     return { request: out, refs };
