@@ -479,7 +479,20 @@ export class ExpressionResolver {
      * - object builtin flag (for example { op: "dom.patch", builtin: true })
      *
      * Output record shape for normalized entries:
-     *   { op, args, raw, builtin }
+     *   { op, args, raw, builtin, pos, kv }
+     *
+     * Parsing strategy:
+     * - First pass via `lib.func.parseList(..., { fn:"op", args:"auto" })`
+     *   for semicolon-delimited DSL rows and named/positional arg projection.
+     * - Second pass applies ActiveTags op normalization (builtin markers, etc).
+     *
+     * String DSL notes:
+     * - Rows are delimited by `;` (for example `"op.a;op.b:x=1"`).
+     * - Row args support positional (`a,b`) and named (`x=1,y=2`) forms.
+     * - `args` uses parse-list auto projection:
+     *     - no `=` in row args  -> positional array
+     *     - any `=` in row args -> key/value hash
+     * - `pos` and `kv` are retained for downstream consumers.
      *
      * @param {*} input
      * @param {Function} [err]
@@ -487,12 +500,43 @@ export class ExpressionResolver {
      */
     parseOpList(input, err) {
 	const lib = this.lib;
-	const src = lib.array.to(lib.utils.deepCopy(input), CONSTANTS.ARR_TO_OPTS);
+	const src = lib.array.to(lib.utils.deepCopy(input), { split: /;/, trim: true });
+	const firstPass = [];
 	const out = [];
 	const onErr = lib.func.get(err);
 
 	for (let i = 0; i < src.length; i++) {
-	    const rec = this._normalizeOpListItem(src[i], { index: i, onErr });
+	    const item = src[i];
+
+	    if (typeof item === "function") {
+		firstPass.push({ op: item, args: [], raw: item, builtin: false });
+		continue;
+	    }
+
+	    if (lib.hash.is(item)) {
+		const row = Object.assign({}, item);
+		if (!Object.prototype.hasOwnProperty.call(row, "args")) row.args = undefined;
+		if (!Object.prototype.hasOwnProperty.call(row, "raw")) row.raw = item;
+		firstPass.push(row);
+		continue;
+	    }
+
+	    if (lib.str.is(item)) {
+		firstPass.push(item);
+		continue;
+	    }
+
+	    if (onErr) onErr("invalid_item", { item, index: i });
+	    throw new Error(`[ExpressionResolver.parseOpList] invalid_item at index ${i} (type: ${lib.utils.baseType(item)})`);
+	}
+
+	const parsed = lib.func.parseList(firstPass, { fn: "op", args: "auto" });
+
+	for (let i = 0; i < parsed.length; i++) {
+	    const row = parsed[i];
+	    if (lib.hash.is(row) && row.raw == null) row.raw = firstPass[i];
+
+	    const rec = this._normalizeOpListItem(row, { index: i, onErr });
 	    if (rec) out.push(rec);
 	}
 
@@ -514,7 +558,7 @@ export class ExpressionResolver {
 
 	// already object-ish; normalize only if it carries an op field
 	if (lib.hash.is(item)) {
-	    const rec = lib.hash.slice(item, "op args raw builtin");
+	    const rec = lib.hash.slice(item, "op args raw builtin pos kv");
 	    // can only be a non-empty string or function at this point
 	    if (lib.utils.isEmpty(rec.op) || !lib.utils.baseType(rec.op, "string function")) return null;
 

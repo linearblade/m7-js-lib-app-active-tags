@@ -44,7 +44,7 @@
  * CURRENT BEHAVIOR
  * ----------------
  * - Coerces run and error blocks into canonical list form using
- *   ExpressionResolver.parseList().
+ *   ExpressionResolver.parseOpList().
  * - Mutates the provided output object in place.
  * - Ensures each pipeline object is aware of its own name.
  *
@@ -233,8 +233,8 @@ export class DSL {
      * BEHAVIOR
      * --------
      * 1. Coerces p and ctx to safe object hashes.
-     * 2. Normalizes p.run into canonical list form via expr.parseList().
-     * 3. Normalizes p.error into canonical list form via expr.parseList().
+     * 2. Normalizes p.run into canonical list form via expr.parseOpList().
+     * 3. Normalizes p.error into canonical list form via expr.parseOpList().
      * 4. Returns the mutated pipeline object.
      *
      * Canonical list form ensures:
@@ -280,11 +280,54 @@ export class DSL {
 	ctx = lib.hash.to(ctx);
 
 	//console.log(`scrubbing pipeline ${ctx.key}`);
-	
-	p.run     = this.expr.parseOpList(p.run);
-	p.error = this.expr.parseOpList(p.error);
+
+	p.run = this._parsePipelinePhase(report, p.run, {
+	    pipelineKey: ctx.key,
+	    phase: "run",
+	});
+	p.error = this._parsePipelinePhase(report, p.error, {
+	    pipelineKey: ctx.key,
+	    phase: "error",
+	});
 
 	return p;
+    }
+
+    /**
+     * Parse one pipeline phase with non-throwing diagnostics.
+     *
+     * This method is intentionally defensive because parser backends may throw
+     * on malformed user DSL. Compilation should continue and report the issue.
+     *
+     * @private
+     * @param {Report} report
+     * @param {*} phaseInput
+     * @param {Object} [ctx]
+     * @param {string} [ctx.pipelineKey="unknown"]
+     * @param {string} [ctx.phase="run"]
+     * @returns {Array<Object>}
+     */
+    _parsePipelinePhase(report, phaseInput, { pipelineKey = "unknown", phase = "run" } = {}) {
+	const lib = this.lib;
+
+	try {
+	    return this.expr.parseOpList(phaseInput);
+	} catch (err) {
+	    const message = lib.str.to(err?.message, true).trim() || "pipeline phase parse failed";
+	    const path = `pipelines.${pipelineKey}.${phase}`;
+	    const meta = {
+		pipeline: pipelineKey,
+		phase,
+		inputType: lib.utils.baseType(phaseInput),
+		input: phaseInput,
+	    };
+
+	    if (report && typeof report.error === "function") {
+		report.error("E401_PIPELINE_DSL_PARSE", path, message, meta);
+	    }
+
+	    return [];
+	}
     }
 
 }
