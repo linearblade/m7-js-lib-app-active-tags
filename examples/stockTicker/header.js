@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 //no need to export, just link directly to the config.
 /**
    simulate login success response. like username etc with a status wrapper, possibly some meta information

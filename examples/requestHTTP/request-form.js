@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 function prepareRequestFromInput({ lib, job, buffer } = {}) {
     const root = job.e;
     const input = root.querySelector("#request-http-url");

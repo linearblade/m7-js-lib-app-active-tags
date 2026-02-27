@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 export default {
     name: "inject-from-file-string",
     enabled: true,

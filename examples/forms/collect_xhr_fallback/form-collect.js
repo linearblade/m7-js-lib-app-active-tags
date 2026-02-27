@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 function renderCollected({ job, buffer, ticket, lib } = {}) {
     const root = job && job.e;
     const statusEl = root && root.querySelector ? root.querySelector("#collect-status") : null;

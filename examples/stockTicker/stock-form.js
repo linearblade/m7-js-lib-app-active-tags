@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 function pull_quote({ job, buffer, lib } = {}) {
   const ws = (job && job.ws) ? job.ws : {};
 

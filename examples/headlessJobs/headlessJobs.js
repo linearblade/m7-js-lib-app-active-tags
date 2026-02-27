@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 import {lib, init as initLib}   from  "/vendor/m7-js-lib/src/index.js";
 import ActiveTags               from  "/vendor/m7-js-lib-active-tags/src/ActiveTags.js";
 import installDomChangeObserver from  "/vendor/m7-js-lib-primitive-dom-changeobserver/src/install.js";

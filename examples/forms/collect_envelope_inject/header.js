@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 function dummy_login({ buffer, job, lib } = {}) {
     const ws = (job && job.ws) ? job.ws : {};
     const wsLoginName = (lib && lib.hash) ? lib.hash.get(ws, "session.loginame") : undefined;
