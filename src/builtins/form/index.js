@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 import  formCollect      from './formCollect.js';
 import  formPrepare      from './formPrepare.js';
 import  formSubmit       from './formSubmit.js';

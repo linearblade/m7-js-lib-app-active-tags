@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 // expr/dispatch.js
 // Build the parseTarget dispatch table for ExpressionResolver.parse(ctx, target)
 //

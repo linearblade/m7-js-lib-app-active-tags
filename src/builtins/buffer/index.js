@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 // builtins/buffer/index.js
 // Builtins: buffer.set, buffer.get, buffer.clear, buffer.dump, buffer.traverse, buffer.assert
 // VM signature: ({ job, lib, args, trigger, ticket, inputs, buffer, ctx, step }) => StageResultLike

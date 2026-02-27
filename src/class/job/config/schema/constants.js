@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 //arr_to_opts duplicated from the main constants...
 export const ARR_TO_OPTS = {split:/\s+/,trim:true};
 

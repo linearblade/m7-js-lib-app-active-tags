@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 import  dom          from './dom/index.js';
 import  form         from './form/index.js';
 import  http         from './http/index.js';

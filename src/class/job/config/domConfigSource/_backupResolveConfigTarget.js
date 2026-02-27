@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
     async _backup_resolveConfigTarget({ report, ref, source } = {}) {
 	const lib = this.lib;
 

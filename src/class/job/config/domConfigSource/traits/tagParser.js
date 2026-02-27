@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 import { ARR_TO_OPTS,  MERGE_OPTS_V1 } from '../../../../../constants.js';
 
 const trait_tagParser = {

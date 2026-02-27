@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 m7.org
+ * License: MTL-10 (see LICENSE.md)
+ */
+
 import freezeDeep from '../helpers/freezeDeep.js';
 /**
  * ActiveTags default configuration baseline.
