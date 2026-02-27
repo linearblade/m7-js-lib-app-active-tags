@@ -21,8 +21,8 @@ pipeline item:
   error : <phase>
 
 <phase>       ::= <string-list> | <step-array>
-<string-list> ::= "token token token"
-token         ::= op | op:arg1,arg2,arg3
+<string-list> ::= "token;token;token"
+token         ::= op | op:arg1,arg2,key=value
 
 <step-array>  ::= [ <step>, ... ]
 <step>        ::= "op"
@@ -90,7 +90,7 @@ Per-item merge order is:
     error: "error.dump"
   },
   pipelines: {
-    save: { run: "form.prepare form.submit" },
+    save: { run: "form.prepare;form.submit" },
     patch: { run: "target.patch" }
   }
 }
@@ -111,7 +111,7 @@ Key mapping detail:
 ```js
 {
   pipeline: {
-    run: "form.prepare form.collect form.submit",
+    run: "form.prepare;form.collect;form.submit",
     error: "error.dump"
   }
 }
@@ -138,7 +138,7 @@ Default pipeline notes:
       error: [{ op: "error.dump", args: { throw: true } }]
     },
     hover_on: {
-      run: "target.closest target.patch",
+      run: "target.closest;target.patch",
       error: "error.dump"
     }
   }
@@ -157,20 +157,28 @@ Use `error`, not `onError`.
 
 ## 4) Step formats supported by the compiler
 
-Pipeline phase fields (`run`, `error`) are compiled by `ExpressionResolver.parseList(...)`.
+Pipeline phase fields (`run`, `error`) are compiled by `ExpressionResolver.parseOpList(...)`.
 Accepted step shapes:
 
-* space-delimited string:
-  * `run: "space delimited string"` -> `["space", "delimited", "string"]`
+* semicolon-delimited string rows:
+  * `run: "op.a;op.b:x=1"` -> two step records
 * array of step strings and/or step objects:
-  * `run: ["space", { op: "delimited" }, "string"]`
+  * `run: ["op.a", { op: "op.b" }, "op.c:x=1"]`
 
 String step parsing:
 
-* token form is `function:arg1,arg2,arg3`
+* row form is `<function>[:arg0,arg1,key=value,...]`
 * `"foo"` -> `{ op: "foo", args: [], raw: "foo" }`
 * `"foo:${window:bar},123,abc"` -> `{ op: "foo", args: ["${window:bar}", "123", "abc"], raw: "foo:${window:bar},123,abc" }`
-* shorthand-string args are positional and remain strings after parse
+* `"foo:key=abc,enabled=true"` -> `{ op: "foo", args: { key:"abc", enabled:"true" }, pos:[...], kv:{...}, raw: "..." }`
+* dot-notation keys are expanded into nested hashes:
+  * `"foo:a.b=1"` -> `args: { a: { b: "1" } }`
+* repeated keys are accumulated (push mode):
+  * `"foo:a=1,a=2"` -> `args: { a: ["1", "2"] }`
+* `args` projection is auto:
+  * if any `=` appears in a row’s arg segment, `args` is the row kv hash
+  * otherwise `args` is the row positional array
+* `pos` and `kv` metadata are retained on parsed steps
 
 Object step form:
 
@@ -248,9 +256,9 @@ Because prefixed attributes are inflated by `-`, these map naturally:
 <div
   data-activetag
   data-name="demo-job"
-  data-pipeline-run="form.prepare form.collect form.submit"
+  data-pipeline-run="form.prepare;form.collect;form.submit"
   data-pipeline-error="error.dump"
-  data-pipelines-save-run="form.prepare form.collect form.submit"
+  data-pipelines-save-run="form.prepare;form.collect;form.submit"
   data-events-submit-event="click"
   data-events-submit-selector="[data-save]"
   data-events-submit-pipeline="save">

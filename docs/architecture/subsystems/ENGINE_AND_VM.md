@@ -41,6 +41,19 @@ Ticket-local state includes:
 
 ---
 
+## Headless stage context
+
+For headless jobs (`job.e === null`), VM derives an execution-time effective
+element from `AT.conf.env.document.body` and forwards it to stage handlers as:
+
+* `job.e` (stage-local execution object)
+* `e` (top-level handler field)
+
+This fallback is execution-only and does not mutate canonical job identity in
+the registry.
+
+---
+
 ## Error posture
 
 Errors are normalized into stage responses and routed through error-phase semantics when configured.

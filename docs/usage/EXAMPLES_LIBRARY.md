@@ -50,6 +50,31 @@ Demonstrates user-defined callable stage functions used by example pipelines.
 
 ---
 
+## Inject-from-file demos
+
+* [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
+* [../../examples/inject/fromFileString/injectFromFile.html](../../examples/inject/fromFileString/injectFromFile.html)
+
+Demonstrates:
+
+* fetching local fragments with `http.send`
+* patching DOM content via `target.find` + `target.patch`
+* string pipeline DSL with semicolon stage separation and named args
+
+---
+
+## Headless runtime demo
+
+* [../../examples/headlessJobs/headlessJobs.html](../../examples/headlessJobs/headlessJobs.html)
+
+Demonstrates:
+
+* creating a headless job via `AT.runtime.createHeadlessJob(...)`
+* registering and controlling intervals programmatically
+* updating page state from a headless interval pipeline
+
+---
+
 ## Usage note
 
 Some files in `examples/` are iterative or backup variants (`~` suffix). Use the non-suffixed files as current references.

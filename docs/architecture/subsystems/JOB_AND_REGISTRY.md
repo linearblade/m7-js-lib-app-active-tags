@@ -19,7 +19,7 @@ This subsystem owns job identity, lookup, and lifecycle anchoring.
 ### Job
 
 * stable identity metadata
-* DOM anchor (`job.e`)
+* DOM anchor (`job.e`) for attached jobs; `null` for headless jobs
 * runtime flags/status
 * delegated config compiler (`job.config`)
 

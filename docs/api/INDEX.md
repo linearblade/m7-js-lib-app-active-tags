@@ -29,6 +29,7 @@ If you are new to the project, start with:
 
 * Reference Manual home -> [reference/INDEX.md](./reference/INDEX.md)
 * Top-level `AT` reference -> [reference/AT.md](./reference/AT.md)
+* `AT.runtime` reference -> [reference/AT_RUNTIME.md](./reference/AT_RUNTIME.md)
 * `AT.jobs` reference -> [reference/AT_JOBS.md](./reference/AT_JOBS.md)
 * `AT.discover` reference -> [reference/AT_DISCOVER.md](./reference/AT_DISCOVER.md)
 * `AT.observer` reference -> [reference/AT_OBSERVER.md](./reference/AT_OBSERVER.md)

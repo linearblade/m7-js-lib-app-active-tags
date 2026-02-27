@@ -17,7 +17,7 @@ High-level behavior:
 
 * compile top-level runtime config
 * resolve required services/dependencies
-* instantiate registry, engine, controllers
+* instantiate registry, engine, controllers, runtime helper
 
 ---
 
@@ -48,6 +48,21 @@ Source: [../../src/traits/job.js](../../src/traits/job.js)
 
 Source: [../../src/traits/engine.js](../../src/traits/engine.js)
 
+### Runtime controller surface
+
+* `AT.runtime.createInternalJob(...)`
+* `AT.runtime.createJob(...)`
+* `AT.runtime.createHeadlessJob(...)`
+
+Source: [../../src/class/runtime/Controller.js](../../src/class/runtime/Controller.js)
+
+Headless rule on `AT.runtime.createJob({...})`:
+
+* `headless:true` drops `e`
+* `headless:true` forces `indexElement=false`
+* `headless:true` forces configure mode to `from`
+* during stage execution, VM provides `AT.conf.env.document.body` as the
+  effective `e`/`job.e` when no bound element exists
 
 ---
 

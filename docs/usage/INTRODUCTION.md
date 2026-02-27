@@ -12,7 +12,7 @@ For simple behavior, inline attributes can be enough. Example:
 
 ```html
 <a
-  at-pipeline="http.get:/foo/bar buffer.out:innerHtml"
+  at-pipeline="http.get:/foo/bar;buffer.out:innerHtml"
   at-event-event="click"
   at-event-pipeline="default">
   About

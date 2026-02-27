@@ -8,11 +8,12 @@ This section is the method-level reference for callable runtime surfaces.
 
 1. [Top-level `AT` instance](./AT.md)
 2. [`AT.jobs` registry](./AT_JOBS.md)
-3. [`AT.discover` controller](./AT_DISCOVER.md)
-4. [`AT.observer` controller](./AT_OBSERVER.md)
-5. [`AT.events` controller](./AT_EVENTS.md)
-6. [`AT.intervals` controller](./AT_INTERVALS.md)
-7. [`AT.engine` facade](./AT_ENGINE.md)
+3. [`AT.runtime` helper](./AT_RUNTIME.md)
+4. [`AT.discover` controller](./AT_DISCOVER.md)
+5. [`AT.observer` controller](./AT_OBSERVER.md)
+6. [`AT.events` controller](./AT_EVENTS.md)
+7. [`AT.intervals` controller](./AT_INTERVALS.md)
+8. [`AT.engine` facade](./AT_ENGINE.md)
 
 ## Scope notes
 

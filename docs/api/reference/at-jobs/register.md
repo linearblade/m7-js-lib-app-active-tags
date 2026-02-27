@@ -6,17 +6,20 @@
 
 ### Signature
 
-`register(job) -> Job`
+`register(job, opts?) -> Job`
 
 ### Parameters
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `job` | `Job` | Yes | Job instance with a DOM element (`job.e`). |
+| `job` | `Job` | Yes | Job instance to register. |
+| `opts` | `Object` | No | Registration options. |
+| `opts.indexElement` | `boolean` | No | When `true` (default), index by `job.e` and require an element. |
+| `opts.returnExisting` | `boolean` | No | When `true`, may return existing job by id/name before new registration. |
 
 ### Returns
 
-Registered job. If the element is already registered, returns the existing job.
+Registered job. May return an existing job when reuse rules match.
 
 ### Side effects
 
@@ -25,13 +28,14 @@ Registered job. If the element is already registered, returns the existing job.
 
 ### Failure modes
 
-* Throws if `job` or `job.e` is missing.
+* Throws if `job` is missing.
+* Throws if `opts.indexElement` is `true` and `job.e` is missing.
 * Throws on id collision with another registered job.
 
 ### Example
 
 ```js
-const registered = AT.jobs.register(job);
+const registered = AT.jobs.register(job, { indexElement: false, returnExisting: true });
 ```
 
 ### Related methods

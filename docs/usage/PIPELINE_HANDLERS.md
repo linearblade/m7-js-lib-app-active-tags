@@ -50,7 +50,7 @@ When the VM executes a function step, the handler receives one object:
   inputs,              // ticket.inputs
   trigger,             // trigger element/event source when present
   target,              // ticket.target (current mutable target pointer)
-  e,                   // job.e (root element for the job)
+  e,                   // effective root element for this stage
   ticket,              // current run ticket
   ctx,                 // per-run mutable context object
   AT,                  // owning ActiveTags instance
@@ -63,6 +63,8 @@ Notes:
 * `ctx` is run-scoped and mutable (for example `ctx.error`).
 * `AT.ctx` is global runtime/app context and is separate from per-run `ctx`.
 * `target` is a convenience alias to `ticket.target`.
+* For attached jobs, `e === job.e`.
+* For headless jobs with no bound element, VM falls back to `AT.conf.env.document.body` for `e` and stage-local `job.e`.
 
 ---
 
@@ -133,4 +135,3 @@ This avoids relying on `window.AT`.
 * [Runtime Lifecycle](./RUNTIME_LIFECYCLE.md)
 * [Usage TOC](./TOC.md)
 * [README](../../README.md)
-

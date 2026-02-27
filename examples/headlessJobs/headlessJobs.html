@@ -1,0 +1,46 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ActiveTags Headless Job Example</title>
+    <link rel="stylesheet" href="headlessJobs.css">
+    <script type="module" src="./headlessJobs.js"></script>
+  </head>
+  <body>
+    <main id="headless-demo-root">
+      <section class="headless-card">
+        <h1>Headless Job Interval Demo</h1>
+        <p class="headless-copy">
+          This example creates a headless runtime job, registers its interval,
+          and writes interval output to this page.
+        </p>
+
+        <div class="headless-row">
+          <span class="headless-label">Status</span>
+          <code id="headless-status">booting...</code>
+        </div>
+
+        <div class="headless-row">
+          <span class="headless-label">Interval Output</span>
+          <code id="headless-output">waiting for first tick...</code>
+        </div>
+
+        <div class="headless-row">
+          <span class="headless-label">AT.jobs.listNames()</span>
+          <code id="headless-job-names">[]</code>
+        </div>
+
+        <div class="headless-row">
+          <span class="headless-label">AT.jobs.listIds()</span>
+          <code id="headless-job-ids">[]</code>
+        </div>
+
+        <div class="headless-actions">
+          <button id="headless-start" type="button">Start Interval</button>
+          <button id="headless-stop" type="button">Stop Interval</button>
+          <button id="headless-tick" type="button">Run Once</button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

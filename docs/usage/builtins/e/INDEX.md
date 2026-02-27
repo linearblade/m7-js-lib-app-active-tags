@@ -6,7 +6,10 @@ Module source:
 
 * [../../../../src/builtins/e/index.js](../../../../src/builtins/e/index.js)
 
-`e.*` ops always resolve from `job.e` (job root element), not from current `ticket.target`.
+`e.*` ops resolve from `job.e` (job root element), not from current `ticket.target`.
+
+For headless jobs, VM provides an execution-time `job.e` fallback from
+`AT.conf.env.document.body` when no bound element exists.
 
 ## Functions
 

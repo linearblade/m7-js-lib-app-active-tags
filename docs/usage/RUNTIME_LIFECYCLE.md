@@ -71,6 +71,25 @@ This explicit conveyor model is a core design strength for deterministic workflo
 
 ---
 
+## 6) Programmatic jobs (`AT.runtime`)
+
+For advanced/runtime-only flows, jobs may be created directly through:
+
+* `AT.runtime.createInternalJob(name, def?, opts?, e?)`
+* `AT.runtime.createJob({ name, def?, opts?, e?, headless? })`
+* `AT.runtime.createHeadlessJob(name, def?, opts?)`
+
+Headless policy on `createJob`:
+
+* `headless:true` drops any element binding (`e`)
+* `headless:true` forces `indexElement = false` (no override)
+* `headless:true` forces configure mode to `from` (`configureFrom(def)`)
+* during stage execution, VM provides `AT.conf.env.document.body` as effective `e`/`job.e` when no element is bound
+
+Reference: [../../src/class/runtime/Controller.js](../../src/class/runtime/Controller.js)
+
+---
+
 ## Related
 
 * Builtins & operations -> [OPERATIONS_BUILTINS.md](./OPERATIONS_BUILTINS.md)

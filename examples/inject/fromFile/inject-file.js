@@ -1,15 +1,3 @@
-function injectMarkupIntoTag({ buffer, job, lib } = {}) {
-    const host = job && job.e;
-    lib.dom.attempt(host, true);
-
-    const slot = host.querySelector(".inject-content");
-    lib.dom.attempt(slot, true);
-
-    const html = lib.str.to(buffer.get(), true);
-    lib.dom.set(slot, "innerHTML", html);
-    return true;
-}
-
 export default {
     name: "inject-from-file",
     enabled: true,
@@ -38,7 +26,21 @@ export default {
                         url: "./fragment.html"
                     }
                 },
-                injectMarkupIntoTag
+                {
+                    op: "@target.find",
+                    args: {
+                        selector: ".inject-content"
+                    }
+                },
+                {
+                    op: "@target.patch",
+                    args: {
+                        innerHTML: "${buffer}"
+                    }
+                },
+                {
+                    op: "@target.reset"
+                }
             ],
             error: [
                 "@error.dump"
@@ -57,7 +59,21 @@ export default {
                         }
                     }
                 },
-                injectMarkupIntoTag
+                {
+                    op: "@target.find",
+                    args: {
+                        selector: ".inject-content"
+                    }
+                },
+                {
+                    op: "@target.patch",
+                    args: {
+                        innerHTML: "${buffer}"
+                    }
+                },
+                {
+                    op: "@target.reset"
+                }
             ],
             error: [
                 "@error.dump"

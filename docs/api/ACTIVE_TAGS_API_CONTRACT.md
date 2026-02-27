@@ -18,7 +18,7 @@ This contract defines the **public, stable interface** for `ActiveTags`, includi
 
 * construction and startup lifecycle
 * required dependencies and service contracts
-* top-level runtime composition (`engine`, `jobs`, controllers)
+* top-level runtime composition (`engine`, `jobs`, controllers, runtime helper)
 * enqueue-oriented execution model
 * optional `auto.js` integration behavior
 
@@ -41,7 +41,8 @@ It is not a rendering framework.
 
 ### Job
 
-A Job is a runtime identity anchored to a DOM element and registered in `AT.jobs`.
+A Job is a runtime identity registered in `AT.jobs`.
+Most jobs are DOM-anchored (`job.e`), and headless runtime jobs may set `job.e = null`.
 
 ### Ticket
 
@@ -181,6 +182,7 @@ After successful construction, the instance exposes these stable subsystem ancho
 
 * `AT.engine`
 * `AT.jobs`
+* `AT.runtime`
 * `AT.events`
 * `AT.intervals`
 * `AT.observer`
@@ -202,6 +204,24 @@ The Engine facade provides stable runtime control methods including:
 * `lock(...)` / `unlock(...)`
 
 Exact scheduling internals are not part of this contract.
+
+---
+
+## Runtime helper surface (via `AT.runtime`)
+
+The runtime helper provides programmatic job creation methods including:
+
+* `createInternalJob(name, def?, opts?, e?)`
+* `createJob({ name, def?, opts?, e?, headless? })`
+* `createHeadlessJob(name, def?, opts?)`
+
+Headless policy for `createJob`:
+
+* when `headless:true`, element binding is dropped (`e` is ignored)
+* when `headless:true`, `indexElement` is forced to `false` (no override path)
+* when `headless:true`, configure mode is forced to `from` (`configureFrom(def)`)
+* during stage execution, VM provides `AT.conf.env.document.body` as effective
+  `e`/`job.e` when no bound element exists
 
 ---
 

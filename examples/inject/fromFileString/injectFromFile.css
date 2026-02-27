@@ -1,0 +1,79 @@
+:root {
+  --ink: #162025;
+  --muted: #5a6c74;
+  --paper: #f4f6f8;
+  --line: #d8e0e5;
+  --accent: #0d6e6e;
+}
+
+body {
+  margin: 0;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: linear-gradient(180deg, #f8fbfc 0%, var(--paper) 100%);
+}
+
+.inject-page {
+  max-width: 860px;
+  margin: 48px auto;
+  padding: 0 20px;
+}
+
+.inject-title {
+  margin: 0 0 8px;
+  font-size: 30px;
+}
+
+.inject-copy {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+.inject-host {
+  min-height: 120px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(22, 32, 37, 0.06);
+}
+
+.inject-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.inject-btn {
+  border: 1px solid #bfd4d9;
+  border-radius: 8px;
+  background: #e9f4f4;
+  color: #14494a;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.inject-btn-alt {
+  background: #f4efe1;
+  border-color: #e2d4ab;
+  color: #5c4410;
+}
+
+.inject-content {
+  min-height: 84px;
+}
+
+.inject-fragment {
+  border-left: 4px solid var(--accent);
+  padding-left: 12px;
+}
+
+.inject-fragment h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+
+.inject-fragment p {
+  margin: 0;
+  color: var(--muted);
+}

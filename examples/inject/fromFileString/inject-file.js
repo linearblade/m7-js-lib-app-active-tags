@@ -18,11 +18,11 @@ export default {
     },
     pipelines: {
         original: {
-            run: "@http.send:name=default,url=./fragment.html;@target.find:selector=.inject-content;@target.patch:innerHTML=${buffer:};@target.reset",
+            run: "@http.send:name=default,url=./fragment.html;@target.find:selector=.inject-content;@target.patch:innerHTML=${buffer};@target.reset",
             error: "@error.dump"
         },
         new: {
-            run: "@http.send:name=default,url=./fragment-new.html;@target.find:selector=.inject-content;@target.patch:innerHTML=${buffer:};@target.reset",
+            run: "@http.send:name=default,url=./fragment-new.html;@target.find:selector=.inject-content;@target.patch:innerHTML=${buffer};@target.reset",
             error: "@error.dump"
         }
     },
