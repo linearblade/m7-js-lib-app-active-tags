@@ -38,6 +38,31 @@ body {
   box-shadow: 0 8px 24px rgba(22, 32, 37, 0.06);
 }
 
+.inject-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.inject-btn {
+  border: 1px solid #bfd4d9;
+  border-radius: 8px;
+  background: #e9f4f4;
+  color: #14494a;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.inject-btn-alt {
+  background: #f4efe1;
+  border-color: #e2d4ab;
+  color: #5c4410;
+}
+
+.inject-content {
+  min-height: 84px;
+}
+
 .inject-fragment {
   border-left: 4px solid var(--accent);
   padding-left: 12px;

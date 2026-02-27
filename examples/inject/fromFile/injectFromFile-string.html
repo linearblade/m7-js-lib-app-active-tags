@@ -2,21 +2,21 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ActiveTags Inject From File Example</title>
+    <title>ActiveTags Inject From File Example (String Pipelines)</title>
     <link rel="stylesheet" href="injectFromFile.css">
     <script type="module" src="./injectFromFile.js"></script>
   </head>
   <body>
     <main class="inject-page">
-      <h1 class="inject-title">Inject Local File Into Active Tag</h1>
+      <h1 class="inject-title">Inject Local File Into Active Tag (String Pipelines)</h1>
       <p class="inject-copy">
         Click a button to fetch a fragment file from this directory and inject it into the active tag content slot.
       </p>
 
       <div
         data-activetag
-        at-name="inject-from-file"
-        at-at="import:inject-file.js"
+        at-name="inject-from-file-string"
+        at-at="import:inject-file-string.js"
         class="inject-host">
         <div class="inject-actions">
           <button id="loadOriginal" type="button" class="inject-btn">original</button>
