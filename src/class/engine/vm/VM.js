@@ -43,6 +43,9 @@
  * 3) Stage execution (if applicable)
  *    - Materializes arguments via `expr`.
  *    - Invokes stage function.
+ *    - For headless jobs with no `job.e`, computes an execution-only
+ *      effective element from `AT.conf.env.document.body` and forwards that
+ *      as `job.e`/`e` for the stage invocation.
  *    - Catches thrown errors and converts to `SR_error`.
  *    - Normalizes return value via OP._normalizeReturn().
  *
@@ -158,8 +161,11 @@ export class VM {
      * 3) Stage execution (when applicable)
      *    - Materializes arguments via `expr.materialize`.
      *    - Invokes the resolved stage function.
+     *    - For headless jobs with no element, derives an execution-only
+     *      effective element from `AT.conf.env.document.body`.
      *    - Current invocation payload shape is:
-     *      `{ job, lib, expr, args, buffer, inputs, trigger, ticket, ctx, AT, step }`.
+     *      `{ job, lib, expr, args, buffer, inputs, trigger, target, e, ticket, ctx, AT, step }`.
+     *      where `e` and `job.e` are the same execution-time effective element.
      *    - `AT` runtime anchor is injected into VM (`this.AT`) by constructor.
      *      It is forwarded to each stage as top-level `AT`.
      *    - Catches thrown errors and converts them to `helpers.SR_error`.
@@ -238,10 +244,21 @@ export class VM {
 	    return sr;
 	};
 
+	// For headless jobs, provide a per-stage element fallback without mutating
+	// canonical job identity state.
+	const isHeadlessJob = lib.bool.yes(lib.hash.get(job, "headless"));
+	const effectiveE =
+	      lib.hash.get(job, "e") ||
+	      (isHeadlessJob ? lib.hash.get(this.AT, "conf.env.document.body") : null);
+	const stageJob =
+	      (isHeadlessJob && !lib.hash.get(job, "e") && effectiveE)
+	      ? Object.assign(Object.create(Object.getPrototypeOf(job)), job, { e: effectiveE })
+	      : job;
+
 	// always compute trigger + snapshot (even for validate errors)
 	const trigger =
 	      lib.hash.get(ticket, "inputs.trigger") ||
-	      lib.hash.get(job, "e") ||
+	      lib.hash.get(stageJob, "e") ||
 	      null;
 
 	const snapShot = this._snapShot({ v, ticket });
@@ -261,9 +278,9 @@ export class VM {
 	    // 2) Normal stage execution
 	    // ------------------------------------------------------------
 	    try {
-		const args = this.expr.materialize({ticket,job},v.args);
+		const args = this.expr.materialize({ticket,job: stageJob},v.args);
 		res = await v.fn({
-		    job,
+		    job: stageJob,
 		    lib,
 		    expr: this.expr,
 		    args: args,
@@ -271,7 +288,7 @@ export class VM {
 		    inputs: ticket.inputs,
 		    trigger,
 		    target :  ticket.target,
-		    e : job.e,
+		    e : stageJob.e,
 		    ticket,
 		    ctx,
 		    AT:this.AT,

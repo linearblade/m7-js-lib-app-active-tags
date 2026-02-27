@@ -482,13 +482,16 @@ export class ExpressionResolver {
      *   { op, args, raw, builtin, pos, kv }
      *
      * Parsing strategy:
-     * - First pass via `lib.func.parseList(..., { fn:"op", args:"auto" })`
+     * - First pass via
+     *   `lib.func.parseList(..., { fn:"op", args:"auto", dot:true, push:true })`
      *   for semicolon-delimited DSL rows and named/positional arg projection.
      * - Second pass applies ActiveTags op normalization (builtin markers, etc).
      *
      * String DSL notes:
      * - Rows are delimited by `;` (for example `"op.a;op.b:x=1"`).
      * - Row args support positional (`a,b`) and named (`x=1,y=2`) forms.
+     * - Named args support dot notation (`a.b=1`) and repeated keys
+     *   (`a=1,a=2`) via parse-list `dot` + `push` options.
      * - `args` uses parse-list auto projection:
      *     - no `=` in row args  -> positional array
      *     - any `=` in row args -> key/value hash
@@ -530,7 +533,12 @@ export class ExpressionResolver {
 	    throw new Error(`[ExpressionResolver.parseOpList] invalid_item at index ${i} (type: ${lib.utils.baseType(item)})`);
 	}
 
-	const parsed = lib.func.parseList(firstPass, { fn: "op", args: "auto" });
+	const parsed = lib.func.parseList(firstPass, {
+	    fn: "op",
+	    args: "auto",
+	    dot: true,
+	    push: true,
+	});
 
 	for (let i = 0; i < parsed.length; i++) {
 	    const row = parsed[i];

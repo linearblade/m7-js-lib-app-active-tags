@@ -52,7 +52,8 @@
  *
  * INVARIANTS
  * ----------
- * - job.e must be a DOM element for the Job to be considered attachable.
+ * - Non-headless jobs require a DOM element anchor at `job.e`.
+ * - Headless jobs intentionally allow `job.e === null`.
  * - A Job may exist before configuration is successfully built.
  * - Configuration state is isolated within job.config.
  *
@@ -85,9 +86,10 @@ export default class Job {
      * -------------------
      * - opts.lib is required and must be a valid m7 lib instance.
      * - opts.expr is required and must be an ExpressionResolver instance.
-     * - opts.e is required and must be a DOM element.
      * - opts.env is required and supplies the runtime environment context.
      * - opts.conf is required and supplies configuration policy defaults.
+     * - For non-headless jobs, opts.e is required and must be a DOM element.
+     * - For headless jobs, opts.e may be null.
      *
      *
      * IDENTITY MODEL
@@ -122,7 +124,10 @@ export default class Job {
      *   Required expression resolver used by configuration resolution.
      *
      * @param {Element} opts.e
-     *   Required DOM element this Job is bound to.
+     *   DOM element this Job is bound to (required unless headless).
+     *
+     * @param {boolean} [opts.headless=false]
+     *   Headless intent flag. When true, DOM anchor requirements are relaxed.
      *
      * @param {Object} opts.env
      *   Required environment context (document, baseURI, hooks).
@@ -152,7 +157,8 @@ export default class Job {
      * FAILURE MODES
      * -------------
      * Throws if any required dependency is missing:
-     *   lib, expr, e, env, conf
+     *   lib, expr, env, conf
+     * Throws for missing `e` only when `headless` is not true.
      *
      *
      * NON-RESPONSIBILITIES
@@ -165,21 +171,24 @@ export default class Job {
     constructor(opts = {}) {
 
 	if (!opts?.lib) throw new Error("[Job] missing required option (opts.lib)");
-	if (!opts.e)    throw new Error("[Job] missing required option (opts.e)");
+	const lib = opts.lib;
+	opts = lib.hash.to(opts);
+	const isHeadless = lib.bool.yes(opts.headless);
+
 	if (!opts.expr) throw new Error("[Job] missing required option (opts.expr)");
 	if (!opts.env)  throw new Error("[Job] missing required option (opts.env)");
 	if (!opts.conf) throw new Error("[Job] missing required option (opts.conf)");
-	const lib = opts.lib;
-	opts = lib.hash.to(opts);
+	if (!isHeadless && !opts.e) throw new Error("[Job] missing required option (opts.e)");
 
 	this.opts = opts;
 	// ---- core dependencies ----
 	this.lib  = lib;
 	this.expr = opts.expr;
+	this.headless = isHeadless;
 
 	// ---- DOM binding ----
 	// The element this job is bound to (identity anchor for Scheduler)
-	this.e = opts.e;
+	this.e = isHeadless ? null : opts.e;
 
 	// ---- identity (scheduler-owned, may be assigned later) ----
 	this.id        = lib.hash.get(opts, "id", null);
@@ -191,7 +200,8 @@ export default class Job {
             lib,
 	    conf      : opts.conf,
             expr      : opts.expr,
-            e         : opts.e,
+            e         : this.e,
+	    headless  : this.headless,
             job       : this,
 	    env       : opts.env
 	});
@@ -215,7 +225,7 @@ export default class Job {
 	// ---- runtime flags ----
 	// These describe job lifecycle, not configuration
 	this.flags = lib.hash.merge({
-            attached : true,   // bound to DOM + scheduler
+            attached : !isHeadless,   // bound to DOM + scheduler unless headless
             hasRun   : false,  // has executed at least once
             dirty    : false   // marked for reconfigure/rebuild
 	    
@@ -406,6 +416,13 @@ export default class Job {
      * Does not alter registry state.
      */
     async configure(opts) {
+	if (this.headless === true) {
+	    const err = new Error("[Job] configure() is unavailable for headless jobs; use configureFrom()");
+	    this.status = JOB_STATUS.ERROR;
+	    this.error = err;
+	    return this;
+	}
+
 	const lib = this.lib;
 	const cOpts = lib.hash.merge(lib.hash.to(this.opts.conf.config) , lib.hash.to(opts) );
 	const status = await this.config.build({...cOpts});

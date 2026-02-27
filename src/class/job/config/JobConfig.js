@@ -104,8 +104,11 @@ export class JobConfig {
      *   Required ExpressionResolver used to resolve config references.
      *
      * @param {Element} opts.e
-     *   Required DOM element used as the configuration source root.
-     *   All DOM reads and config-at resolution are relative to this element.
+     *   DOM element used as the configuration source root.
+     *   Required unless headless.
+     *
+     * @param {boolean} [opts.headless=false]
+     *   Headless intent flag. When true, DOM-source requirements are relaxed.
      *
      * @param {Job} opts.job
      *   Required owning Job instance.
@@ -134,7 +137,8 @@ export class JobConfig {
      * FAILURE MODES
      * -------------
      * Throws if any required dependency is missing:
-     *   lib, expr, e, job, conf
+     *   lib, expr, job, conf
+     * Throws for missing `e` only when headless is not true.
      *
      *
      * NON-RESPONSIBILITIES
@@ -145,21 +149,25 @@ export class JobConfig {
      */
     constructor(opts = {}) {
 	if (!opts.lib)  throw new Error("[Job] missing required option (opts.lib)");
-	if (!opts.e)    throw new Error("[Job] missing required option (opts.e)");
 	if (!opts.expr) throw new Error("[Job] missing required option (opts.expr)");
 	if (!opts.job)  throw new Error("[Job] missing required option (opts.job)");
 	if (!opts.conf)  throw new Error("[Job] missing required option (opts.conf)");
 	
 	const lib = opts.lib;
+	opts = lib.hash.to(opts);
+	const isHeadless = lib.bool.yes(opts.headless) || lib.bool.yes(lib.hash.get(opts, "job.headless"));
+	if (!isHeadless && !opts.e) throw new Error("[Job] missing required option (opts.e)");
+
 	this.startupConf = opts.conf;
 	this.job = opts.job;
 	this.env = opts.env; //root , document etc
 	// core deps (config needs these)
 	this.lib  = lib;
 	this.expr = opts.expr;
+	this.headless = isHeadless;
 
 	// DOM binding (config source root)
-	this.e = opts.e;
+	this.e = isHeadless ? null : opts.e;
 
 	// persistent per-job workspace root (config/runtime shared)
 	//this.ws = lib.hash.to(opts.ws);
@@ -260,6 +268,10 @@ export class JobConfig {
     async build(opts = {}){
 	//---- read dom ----
 	opts = this.lib.hash.to(opts);
+	if (this.headless === true) {
+	    this.error = new Error("[JobConfig] build() is unavailable for headless jobs; use buildFrom()");
+	    return this.status = JOB_CONFIG_STATUS.ERROR_DOM;
+	}
 
 	const domService = new DomConfigSource(
 	    {

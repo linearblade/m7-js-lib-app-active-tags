@@ -453,6 +453,36 @@ export default class Registry {
     }
 
     /**
+     * List all registered Job identifiers.
+     *
+     * CONTRACT
+     * --------
+     * listIds() returns a snapshot array of ids for all Jobs currently
+     * registered within this Registry.
+     *
+     * @returns {Array<string|number>}
+     *   Array of Job ids.
+     */
+    listIds() {
+	return Array.from(this.byId.values()).map((job) => job && job.id);
+    }
+
+    /**
+     * List all registered Job names.
+     *
+     * CONTRACT
+     * --------
+     * listNames() returns a snapshot array of names for all Jobs currently
+     * registered within this Registry.
+     *
+     * @returns {Array<string|null|undefined>}
+     *   Array of Job names as currently assigned.
+     */
+    listNames() {
+	return Array.from(this.byId.values()).map((job) => job && job.name);
+    }
+
+    /**
      * List all Jobs matching a given lifecycle status.
      *
      * CONTRACT
@@ -552,13 +582,14 @@ export default class Registry {
      * register() binds a Job into the Registry and establishes canonical
      * identity and resolution indexes.
      *
-     * Registration is idempotent by DOM element:
+     * When element indexing is enabled, registration is idempotent by DOM element:
      *   - If a Job is already registered for job.e, the existing Job is returned.
      *
      *
      * RESPONSIBILITIES
      * ----------------
-     * - Ensure a single Job instance is associated with a given DOM element.
+     * - Ensure a single Job instance is associated with a given DOM element
+     *   when element indexing is enabled.
      * - Assign stable identity (id, createdAt) when missing.
      * - Maintain indexes:
      *     - byId:   id -> Job
@@ -596,7 +627,18 @@ export default class Registry {
      * INPUT
      * -----
      * @param {Job} job
-     *   Job instance to register. Must have a bound DOM element at job.e.
+     *   Job instance to register.
+     *
+     * @param {Object} [opts={}]
+     *   Registration options.
+     *
+     * @param {boolean} [opts.indexElement=true]
+     *   Whether to index/resolve by `job.e`.
+     *   When true, `job.e` is required.
+     *
+     * @param {boolean} [opts.returnExisting=false]
+     *   When true, returns matching existing records by id/name before
+     *   creating a new identity binding.
      *
      *
      * RETURN VALUE
@@ -608,7 +650,8 @@ export default class Registry {
      * FAILURE MODES
      * -------------
      * Throws if:
-     * - job is missing or job.e is missing
+     * - job is missing
+     * - opts.indexElement is true and job.e is missing
      * - an id collision is detected with an existing registered Job
      */
     register(job, opts = {}) {
@@ -952,8 +995,8 @@ export default class Registry {
      * 3) DOM Element
      *    - Resolve via element binding (getByElement)
      *
-     * 4) Job-like object (id and e present)
-     *    - Assumed to already represent a Job; returned as-is
+     * 4) Object with id property
+     *    - Attempt id lookup via getById()
      *
      * 5) Object with e property
      *    - Resolve via element binding
@@ -976,7 +1019,7 @@ export default class Registry {
      *     - name (string)
      *     - DOM element
      *     - Job instance
-     *     - object containing { e: Element }
+     *     - object containing { id?: string, e?: Element }
      *
      *
      * RETURN VALUE
@@ -1006,8 +1049,11 @@ export default class Registry {
 	// element
 	if (x.nodeType === 1) return this.getByElement(x);
 
-	// job-like (already a job)
-	if (x.id && x.e) return x;
+	// object with id: resolve through primary id index
+	if (x && typeof x === "object" && x.id) {
+	    const byId = this.getById(x.id);
+	    if (byId) return byId;
+	}
 
 	// object containing element
 	if (x.e) return this.getByElement(x.e);
