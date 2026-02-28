@@ -8,8 +8,12 @@ This page defines the runtime requirements for ActiveTags.
 
 ActiveTags requires:
 
-1. [m7-js-lib v1 or later](/m7-js-lib/...)
-2. [m7-js-lib-primitive-* modules](/m7-js-lib-primitive-.../)
+1. [m7-js-lib](https://github.com/linearblade/m7-js-lib) (v1+)
+2. Primitive dependencies (manual/source install paths):
+   * [m7-js-lib-primitive-dom-changeobserver](https://github.com/linearblade/m7-js-lib-primitive-dom-changeobserver)
+   * [m7-js-lib-primitive-dom-eventdelegator](https://github.com/linearblade/m7-js-lib-primitive-dom-eventdelegator)
+   * [m7-js-lib-primitive-interval](https://github.com/linearblade/m7-js-lib-primitive-interval)
+   * [m7-js-lib-primitive-log](https://github.com/linearblade/m7-js-lib-primitive-log)
 
 ## Required runtime surface
 
@@ -52,6 +56,9 @@ Current integration posture is to include these in the m7-js-lib v1 distribution
 The ActiveTags minified distribution is intended to include required primitive/runtime dependencies directly.
 
 Including ActiveTags directly should not negatively affect minified installation behavior.
+
+If you consume the versioned standalone dist file, you do not need to clone/download
+the dependency repositories above separately.
 
 Recommended release path:
 

@@ -112,6 +112,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 ## Notes
 
 * Standalone install delegates final setup to canonical [../../src/install.js](../../src/install.js).
+* Consumers using `dist/activeTags.standalone.v<version>.min.js` do not need to clone/download `m7-js-lib` or primitive dependency repos separately.
 * In browser environments, standalone install auto-starts:
   * `primitive.dom.eventdelegator`
   * `primitive.dom.changeobserver`

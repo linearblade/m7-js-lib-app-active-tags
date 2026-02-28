@@ -31,6 +31,14 @@ Service keys are defined in: [../../src/constants.js](../../src/constants.js)
 
 If you use the versioned standalone bundle, these prerequisites are installed automatically during `install({ conf })`.
 
+Dependency repository locations (manual/source install paths):
+
+* [m7-js-lib](https://github.com/linearblade/m7-js-lib)
+* [m7-js-lib-primitive-dom-changeobserver](https://github.com/linearblade/m7-js-lib-primitive-dom-changeobserver)
+* [m7-js-lib-primitive-dom-eventdelegator](https://github.com/linearblade/m7-js-lib-primitive-dom-eventdelegator)
+* [m7-js-lib-primitive-interval](https://github.com/linearblade/m7-js-lib-primitive-interval)
+* [m7-js-lib-primitive-log](https://github.com/linearblade/m7-js-lib-primitive-log)
+
 ---
 
 ## Module entry choices

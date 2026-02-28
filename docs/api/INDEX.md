@@ -14,19 +14,29 @@ If you are new to the project, start with:
 
 ---
 
-## Core surfaces
+## Builtins (Primary Surface)
+
+Most production pipeline authoring happens here.
+
+* **Builtins Surface** -> [BUILTINS.md](./BUILTINS.md)
+* **Standalone install and usage** -> [../usage/INSTALLATION.md](../usage/INSTALLATION.md)
+* **Quick Start** -> [../usage/QUICKSTART.md](../usage/QUICKSTART.md)
+* **What Makes ActiveTags Different** -> [../WHAT_MAKES_US_DIFFERENT.md](../WHAT_MAKES_US_DIFFERENT.md)
+
+---
+
+## Runtime Surfaces (Secondary)
+
+Use this section when you need instance/class-level details.
 
 * **ActiveTags Class** -> [ACTIVE_TAGS.md](./ACTIVE_TAGS.md)
 * **Reference Manual (method-level)** -> [reference/INDEX.md](./reference/INDEX.md)
 * **Engine Runtime** -> [ENGINE.md](./ENGINE.md)
 * **Controllers** -> [CONTROLLERS.md](./CONTROLLERS.md)
-* **Builtins Surface** -> [BUILTINS.md](./BUILTINS.md)
-* **Standalone Entry (preview)** -> [../usage/INSTALLATION.md](../usage/INSTALLATION.md)
-* **What Makes ActiveTags Different** -> [../WHAT_MAKES_US_DIFFERENT.md](../WHAT_MAKES_US_DIFFERENT.md)
 
 ---
 
-## Reference entry points
+## Object Reference Entry Points
 
 * Reference Manual home -> [reference/INDEX.md](./reference/INDEX.md)
 * Top-level `AT` reference -> [reference/AT.md](./reference/AT.md)
