@@ -78,6 +78,8 @@ Default selector is configured in top-level schema (`boot.selector`).
 
 Use these files as first references:
 
+* Complete tutorial example -> [../../examples/tutorial/tutorial.html](../../examples/tutorial/tutorial.html)
+  Demonstrates: full install-to-runtime walkthrough including events, intervals, and `http.send` + target patch flow.
 * Inject example -> [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
   Demonstrates: event handling (`click`), `http.send` request usage, and DOM patching via `target.find` + `target.patch`.
 * Stock ticker example -> [../../examples/stockTicker/stockTicker.html](../../examples/stockTicker/stockTicker.html)

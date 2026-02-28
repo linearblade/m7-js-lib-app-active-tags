@@ -15,6 +15,12 @@ You will build a small interactive component and progressively add:
 
 This tutorial uses the versioned standalone minified bundle for fastest setup.
 
+Complete runnable tutorial example:
+
+* [../../examples/tutorial/tutorial.html](../../examples/tutorial/tutorial.html)
+
+This runnable example includes a startup marker job (`tutorial-loaded`) that writes `ActiveTags loaded.` once immediately after `AT.start()`.
+
 ---
 
 ## 1) ActiveTags setup
@@ -29,7 +35,10 @@ Create an HTML file (for example `tutorial.html`) with one module script.
     <title>ActiveTags Tutorial</title>
   </head>
   <body>
-    <div data-activetag at-name="counter-demo" at-at="import:tutorial-counter-job.js"></div>
+    <div data-activetag at-name="tutorial-loaded" at-at="import:tutorial-loaded-job.js">
+      waiting for ActiveTags...
+    </div>
+    <div data-activetag at-name="tutorial-counter" at-at="import:tutorial-job.js"></div>
 
     <script type="module">
       import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
@@ -50,7 +59,7 @@ Create an HTML file (for example `tutorial.html`) with one module script.
             evalEnabled: true,
             evalType: "text/at-eval",
             importEnabled: true,
-            importPath: ["/vendor/m7-js-lib-active-tags/examples/", "./"],
+            importPath: ["/vendor/m7-js-lib-active-tags/examples/"],
           },
         },
       };
@@ -60,6 +69,16 @@ Create an HTML file (for example `tutorial.html`) with one module script.
       if (!AT) throw new Error(`missing ActiveTags service '${SERVICE_ID}'.`);
 
       await AT.start();
+
+      // one-time startup marker run
+      const loadedJob = AT.toJob("tutorial-loaded");
+      if (loadedJob) {
+        const ticket = AT.engine.enqueue(loadedJob, "default", {
+          inputs: { reason: "tutorial.startup" },
+          meta: { source: "tutorial-example" },
+        });
+        if (ticket) await AT.engine.drain({ ticket });
+      }
 
       // Optional console helpers while learning.
       window.lib = lib;
@@ -74,22 +93,32 @@ What this gives you:
 * all required primitives installed automatically via standalone install
 * ActiveTags installed to namespace (`lib.app.ActiveTags`) and service (`lib.service.get(SERVICE_ID)`)
 * runtime booted and ready to discover `data-activetag` elements
+* visible startup confirmation (`tutorial-loaded` writes `ActiveTags loaded.`)
 
 ---
 
 ## 2) Defining some tags
 
-Now replace the root tag markup with a small UI inside the ActiveTag root.
+Define two tags: one startup marker tag and one interactive counter tag.
 
 ```html
-<div data-activetag at-name="counter-demo" at-at="import:tutorial-counter-job.js">
-  <section class="counter-card">
-    <h2>Counter Tutorial</h2>
-    <p>Count: <strong class="counter-value">0</strong></p>
+<div data-activetag at-name="tutorial-loaded" at-at="import:tutorial-loaded-job.js" class="tutorial-loaded-flag">
+  waiting for ActiveTags...
+</div>
 
-    <div class="controls">
+<div data-activetag at-name="tutorial-counter" at-at="import:tutorial-job.js">
+  <section class="tutorial-host">
+    <h2>Counter Tutorial</h2>
+    <p>Count: <strong class="tutorial-count">0</strong></p>
+
+    <div class="tutorial-actions">
       <button type="button" data-inc>Increment</button>
       <button type="button" data-reset>Reset</button>
+      <button type="button" data-load-fragment>Load Fragment</button>
+    </div>
+
+    <div class="tutorial-fragment">
+      Fragment output appears here.
     </div>
   </section>
 </div>
@@ -98,14 +127,15 @@ Now replace the root tag markup with a small UI inside the ActiveTag root.
 Key points:
 
 * `data-activetag` marks discoverable job roots.
-* `at-name="counter-demo"` gives this job a stable runtime identity.
-* `at-at="import:tutorial-counter-job.js"` loads job config from module import.
+* `tutorial-loaded` is a simple startup marker job.
+* `tutorial-counter` is the interactive tutorial job.
+* `at-at="import:..."` resolves both module configs from the example directory.
 
 ---
 
 ## 3) Adding basic configs
 
-Create `tutorial-counter-job.js` next to the HTML file.
+Create `tutorial-job.js` next to the HTML file.
 
 ```js
 function readCounter({ job, lib, buffer } = {}) {
@@ -121,17 +151,38 @@ function readCounter({ job, lib, buffer } = {}) {
 }
 
 export default {
-  name: "counter-demo",
+  name: "tutorial-counter",
   enabled: true,
   autorun: true,
 
   pipeline: {
     run: [
       readCounter,
-      "@target.find:selector=.counter-value,reset=true",
+      "@target.find:selector=.tutorial-count,reset=true",
       "@target.patch:textContent=${buffer:count}",
       "@target.reset",
     ],
+    error: ["@error.dump"],
+  },
+};
+```
+
+Create `tutorial-loaded-job.js` for the startup marker:
+
+```js
+function markLoaded({ job } = {}) {
+  const root = job && job.e;
+  if (!root) return true;
+  root.innerHTML = "ActiveTags loaded.";
+  return true;
+}
+
+export default {
+  name: "tutorial-loaded",
+  enabled: true,
+  autorun: false,
+  pipeline: {
+    run: [markLoaded],
     error: ["@error.dump"],
   },
 };
@@ -158,7 +209,13 @@ lib.service.list();
 You should see primitive services plus `app.activetags`.
 
 ```js
-const job = AT.toJob("counter-demo");
+const loaded = AT.toJob("tutorial-loaded");
+loaded && loaded.e && loaded.e.textContent;
+// expected: "ActiveTags loaded."
+```
+
+```js
+const job = AT.toJob("tutorial-counter");
 job;
 job.config.schema;
 ```
@@ -179,7 +236,7 @@ If this works, your install + discovery + pipeline execution loop is healthy.
 
 ## 5) Adding intervals
 
-Now evolve `tutorial-counter-job.js` so the count increments every second.
+Now evolve `tutorial-job.js` so the count increments every second.
 
 ```js
 function getCounter({ job, lib } = {}) {
@@ -206,14 +263,14 @@ function renderCounter({ job, lib, buffer } = {}) {
 }
 
 export default {
-  name: "counter-demo",
+  name: "tutorial-counter",
   enabled: true,
   autorun: true,
 
   pipeline: {
     run: [
       renderCounter,
-      "@target.find:selector=.counter-value,reset=true",
+      "@target.find:selector=.tutorial-count,reset=true",
       "@target.patch:textContent=${buffer:count}",
       "@target.reset",
     ],
@@ -225,7 +282,7 @@ export default {
       run: [
         incrementCounter,
         renderCounter,
-        "@target.find:selector=.counter-value,reset=true",
+        "@target.find:selector=.tutorial-count,reset=true",
         "@target.patch:textContent=${buffer:count}",
         "@target.reset",
       ],
@@ -254,7 +311,7 @@ Note: interval bindings are registered and started by `AT.start()` when `boot.in
 
 Add click-driven controls to increment and reset.
 
-Update pipelines/events in `tutorial-counter-job.js`:
+Update pipelines/events in `tutorial-job.js`:
 
 ```js
 function resetCounter({ job, lib } = {}) {
@@ -267,7 +324,7 @@ export default {
   pipeline: {
     run: [
       renderCounter,
-      "@target.find:selector=.counter-value,reset=true",
+      "@target.find:selector=.tutorial-count,reset=true",
       "@target.patch:textContent=${buffer:count}",
       "@target.reset",
     ],
@@ -279,7 +336,7 @@ export default {
       run: [
         incrementCounter,
         renderCounter,
-        "@target.find:selector=.counter-value,reset=true",
+        "@target.find:selector=.tutorial-count,reset=true",
         "@target.patch:textContent=${buffer:count}",
         "@target.reset",
       ],
@@ -289,7 +346,7 @@ export default {
       run: [
         resetCounter,
         renderCounter,
-        "@target.find:selector=.counter-value,reset=true",
+        "@target.find:selector=.tutorial-count,reset=true",
         "@target.patch:textContent=${buffer:count}",
         "@target.reset",
       ],
@@ -299,7 +356,7 @@ export default {
       run: [
         incrementCounter,
         renderCounter,
-        "@target.find:selector=.counter-value,reset=true",
+        "@target.find:selector=.tutorial-count,reset=true",
         "@target.patch:textContent=${buffer:count}",
         "@target.reset",
       ],
@@ -351,7 +408,7 @@ A common pattern:
 Example stage row:
 
 ```js
-"@http.send:name=default,url=./fragment.html;@target.find:selector=.inject-slot,reset=true;@target.patch:innerHTML=${buffer};@target.reset"
+"@http.send:name=fragment,url=./fragment.html;@target.find:selector=.tutorial-fragment,reset=true;@target.patch:innerHTML=${buffer};@target.reset"
 ```
 
 ### B) Runtime control APIs
@@ -359,7 +416,7 @@ Example stage row:
 You can toggle bindings at runtime without changing config:
 
 ```js
-const job = AT.toJob("counter-demo");
+const job = AT.toJob("tutorial-counter");
 
 AT.intervals.off(job, "tick");   // pause interval
 AT.intervals.on(job, "tick");    // resume interval
@@ -370,6 +427,7 @@ AT.events.on(job, "inc_click");  // re-enable
 
 ### C) Learn from canonical repository examples
 
+* Complete tutorial reference implementation: [../../examples/tutorial/tutorial.html](../../examples/tutorial/tutorial.html)
 * Inject flow (`http.send` + target patch): [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
 * Multi-job auth/event/interval composition: [../../examples/stockTicker/stockTicker.html](../../examples/stockTicker/stockTicker.html)
 * Headless jobs + interval control: [../../examples/headlessJobs/headlessJobs.html](../../examples/headlessJobs/headlessJobs.html)

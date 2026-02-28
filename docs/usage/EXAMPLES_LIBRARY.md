@@ -21,6 +21,18 @@ Demonstrates:
 
 ---
 
+## Complete tutorial example
+
+* [../../examples/tutorial/tutorial.html](../../examples/tutorial/tutorial.html)
+
+Demonstrates:
+
+* full tutorial flow from install/startup through events/intervals
+* buffer + target conveyor usage in one job (`counter + render`)
+* `http.send` to `target.patch` fragment injection pattern
+
+---
+
 ## Job configuration example
 
 * [../../examples/test-job.js](../../examples/test-job.js)
