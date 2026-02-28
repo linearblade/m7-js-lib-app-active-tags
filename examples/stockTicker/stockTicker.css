@@ -95,6 +95,54 @@ button.secondary {
   display: none !important;
 }
 
+.tutorial-copy {
+  width: max-content;
+  max-width: 100%;
+  margin: 14px auto 0;
+  padding: 10px 12px;
+  border: 1px solid #384561;
+  border-radius: 10px;
+  background: #161d2d;
+  color: #d5ddf0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.tutorial-runtime-label {
+  font-size: 13px;
+  color: #b9c4df;
+}
+
+.tutorial-runtime-link {
+  color: #ffe4a3;
+  background: #2a334d;
+  border: 1px solid #4f5f87;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.tutorial-runtime-link:visited {
+  color: #ffe4a3;
+}
+
+.tutorial-runtime-link:hover,
+.tutorial-runtime-link:focus-visible {
+  color: #fff3cf;
+  background: #344164;
+  border-color: #6a7db0;
+}
+
+.tutorial-runtime-sep {
+  color: #7f90b3;
+  font-size: 12px;
+}
+
 #tutorial-tags-root {
   display: flex;
   justify-content: center;
@@ -184,6 +232,17 @@ button.secondary {
 
   .tutorial-login-btn {
     min-height: 40px;
+  }
+
+  .tutorial-copy {
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    gap: 6px;
+  }
+
+  .tutorial-runtime-sep {
+    display: none;
   }
 
   #tutorial-stock-card {

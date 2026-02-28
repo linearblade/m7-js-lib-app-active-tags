@@ -1,4 +1,4 @@
-# stockTicker Example
+# stockTicker Example (Auth-Enabled)
 
 This example directory is spec'd for the **ActiveTags standalone 1.0** runtime.
 

@@ -37,7 +37,6 @@ Related documents:
 * **Use Policy** -> [docs/USE_POLICY.md](docs/USE_POLICY.md)
 * **AI Disclosure** -> [docs/AI_DISCLOSURE.md](docs/AI_DISCLOSURE.md)
 * **Requirements** -> [docs/usage/REQUIREMENTS.md](docs/usage/REQUIREMENTS.md)
-* **About ActiveTags** -> [docs/ABOUT.md](docs/ABOUT.md)
 * **What Makes ActiveTags Different** -> [docs/WHAT_MAKES_US_DIFFERENT.md](docs/WHAT_MAKES_US_DIFFERENT.md)
 
 ---
@@ -131,8 +130,10 @@ It does not:
 * Introduction -> [docs/usage/INTRODUCTION.md](docs/usage/INTRODUCTION.md)
 * Architecture docs -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
 * API docs -> [docs/api/INDEX.md](docs/api/INDEX.md)
+* Buffer + Target flow (API quick path) -> [docs/api/BUILTINS.md#start-here-buffer-and-target-flow-important](docs/api/BUILTINS.md#start-here-buffer-and-target-flow-important)
 * Release bundle -> [dist/activeTags.standalone.v1.0.min.js](dist/activeTags.standalone.v1.0.min.js)
-* Source entry (manual/internal) -> [src/ActiveTags.js](src/ActiveTags.js)
+* Source entry (manual/internal) -> [src/install.js](src/install.js)
+* Standalone source entry -> [src/standalone/prebundle.js](src/standalone/prebundle.js)
 * Examples -> [examples/](examples/)
 
 ---
@@ -147,8 +148,8 @@ It does not:
 
 See [LICENSE.md](LICENSE.md) for full terms.
 
-* Free for personal, non-commercial use
-* Commercial licensing available under the M7 Moderate Team License (MTL-10)
+* Usage rights and restrictions are defined in [LICENSE.md](LICENSE.md)
+* Commercial licensing inquiries: [legal@m7.org](mailto:legal@m7.org)
 
 ---
 

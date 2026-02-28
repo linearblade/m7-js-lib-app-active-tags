@@ -207,24 +207,24 @@ export default {
     quote_tick: {
       run: [
         pull_quote,
-        "buffer.traverse:data",
+        "@buffer.traverse:data",
         write_quote,
       ],
-      error: ["error.dump"],
+      error: ["@error.dump"],
     },
     buy: {
       run: [
         require_logged_in,
         buy_stock,
       ],
-      error: [alert_ctx_error, "error.dump"],
+      error: [alert_ctx_error, "@error.dump"],
     },
     sell: {
       run: [
         require_logged_in,
         sell_stock,
       ],
-      error: [alert_ctx_error, "error.dump"],
+      error: [alert_ctx_error, "@error.dump"],
     },
   },
 

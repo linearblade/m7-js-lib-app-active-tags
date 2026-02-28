@@ -3,6 +3,10 @@
  * License: MTL-10 (see LICENSE.md)
  */
 
+const STOCK_FORM_JOB_NAME = "stock-form";
+const TRADE_INTERVAL_NAME = "quote_tick";
+const TRADE_EVENT_NAMES = Object.freeze(["buy_click", "sell_click"]);
+
 //no need to export, just link directly to the config.
 /**
    simulate login success response. like username etc with a status wrapper, possibly some meta information
@@ -80,17 +84,70 @@ function writeStock({buffer,ticket,job}){
     return true;
 }
 
-function revealUserDetails({ ticket }) {
-    if (ticket && ticket.target && ticket.target.classList) {
-	ticket.target.classList.remove("is-hidden");
+function set_logged_out_session({ job, lib } = {}) {
+    const ws = (job && job.ws) ? job.ws : {};
+    if (lib && lib.hash) {
+	lib.hash.set(ws, "session.loggedIn", false);
     }
     return true;
 }
 
-function hideLoginButton({ ticket }) {
-    if (ticket && ticket.target && ticket.target.classList) {
-	ticket.target.classList.add("is-hidden");
+function get_doc({ job } = {}) {
+    const root = job && job.e;
+    if (root && root.ownerDocument) return root.ownerDocument;
+    if (typeof document !== "undefined") return document;
+    return null;
+}
+
+function resetUserDisplay({ job } = {}) {
+    const doc = get_doc({ job });
+    if (!doc) return true;
+
+    const userEl = doc.querySelector(".tutorial-user-text");
+    const balEl = doc.querySelector(".tutorial-user-balance");
+    const stockEl = doc.querySelector(".tutorial-user-stock");
+
+    if (userEl) userEl.textContent = "...";
+    if (balEl) balEl.textContent = "Balance: $0.00";
+    if (stockEl) stockEl.textContent = "Stock: 0";
+
+    return true;
+}
+
+function get_stock_form_job({ AT } = {}) {
+    if (!AT || typeof AT.toJob !== "function") return null;
+    return AT.toJob(STOCK_FORM_JOB_NAME);
+}
+
+function resume_trading({ AT } = {}) {
+    const stockJob = get_stock_form_job({ AT });
+    if (!stockJob) return true;
+
+    if (AT.intervals && typeof AT.intervals.on === "function") {
+	AT.intervals.on(stockJob, TRADE_INTERVAL_NAME);
     }
+    if (AT.events && typeof AT.events.on === "function") {
+	for (const eventName of TRADE_EVENT_NAMES) {
+	    AT.events.on(stockJob, eventName);
+	}
+    }
+
+    return true;
+}
+
+function pause_trading({ AT } = {}) {
+    const stockJob = get_stock_form_job({ AT });
+    if (!stockJob) return true;
+
+    if (AT.intervals && typeof AT.intervals.off === "function") {
+	AT.intervals.off(stockJob, TRADE_INTERVAL_NAME);
+    }
+    if (AT.events && typeof AT.events.off === "function") {
+	for (const eventName of TRADE_EVENT_NAMES) {
+	    AT.events.off(stockJob, eventName);
+	}
+    }
+
     return true;
 }
 
@@ -108,30 +165,47 @@ export default {
 		    "@buffer.traverse:data",
 		    "@target.find:.tutorial-user-text",
 		    writeUser,
-		    "target.reset",
-		    "target.find:.tutorial-user-balance",
+		    "@target.find:selector=.tutorial-user-balance,reset=true",
 		    writeBalance,
-		    "target.reset",
-		    "target.find:.tutorial-user-stock",
+		    "@target.find:selector=.tutorial-user-stock,reset=true",
 		    writeStock,
-		    "target.reset",
-		    "target.find:.tutorial-user-details",
-		    revealUserDetails,
-		    "target.reset",
-		    "target.find:.tutorial-login-btn",
-		     hideLoginButton,
+		    "@target.classRemove:class=is-hidden,target=.tutorial-user-details",
+		    "@target.classAdd:class=is-hidden,target=.tutorial-login-btn",
+		    "@target.classRemove:class=is-hidden,target=.tutorial-logout-btn",
+		    "@target.classRemove:class=is-hidden,target=#tutorial-buy-btn",
+		    "@target.classRemove:class=is-hidden,target=#tutorial-sell-btn",
+		    "@target.classRemove:class=is-hidden,target=#tutorial-stock-qty-field",
+		    resume_trading,
 		],
 	      error: ["@error.dump"],
   },
     pipelines: {
-
+	logout: {
+	    run: [
+		set_logged_out_session,
+		"@target.classAdd:class=is-hidden,target=.tutorial-user-details",
+		resetUserDisplay,
+		"@target.classRemove:class=is-hidden,target=.tutorial-login-btn",
+		"@target.classAdd:class=is-hidden,target=.tutorial-logout-btn",
+		"@target.classAdd:class=is-hidden,target=#tutorial-buy-btn",
+		"@target.classAdd:class=is-hidden,target=#tutorial-sell-btn",
+		"@target.classAdd:class=is-hidden,target=#tutorial-stock-qty-field",
+		pause_trading,
+	    ],
+	    error: ["@error.dump"],
+	},
     },
   events: {
       login_click: {
 	  event: "click",
 	  selector: ".tutorial-login-btn",
 	  pipeline: "default",
-      }
+      },
+      logout_click: {
+	  event: "click",
+	  selector: ".tutorial-logout-btn",
+	  pipeline: "logout",
+      },
   },
 
   env: {

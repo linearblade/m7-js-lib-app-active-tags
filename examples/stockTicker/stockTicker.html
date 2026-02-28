@@ -20,18 +20,21 @@
           </div>
         </div>
         <button class="tutorial-login-btn secondary" type="button">Login</button>
+        <button class="tutorial-logout-btn danger is-hidden" type="button">Logout</button>
       </div>
     </header>
 
+    <p class="tutorial-copy">
+      <span class="tutorial-runtime-label">Runtime:</span>
+      <a class="tutorial-runtime-link" href="?runtime=dev">dev (standalone source)</a>
+      <span class="tutorial-runtime-sep">|</span>
+      <a class="tutorial-runtime-link" href="?runtime=dist">dist (versioned minified bundle)</a>
+    </p>
+
+    
     <div id="tutorial-tags-root">
       <section id="tutorial-stock-card">
         <h1 class="tutorial-title">Stock Ticker (Demo)</h1>
-        <p class="tutorial-copy">
-          Runtime:
-          <a href="?runtime=dev">dev (standalone source)</a>
-          |
-          <a href="?runtime=dist">dist (versioned minified bundle)</a>
-        </p>
         <form data-activetag at-name="stock-form" at-at="import:stock-form.js" id="tutorial-stock-form">
           <div class="tutorial-field">
             <label for="tutorial-stock-symbol">Ticker Symbol</label>
@@ -63,7 +66,7 @@
             </div>
           </div>
 
-          <div class="tutorial-field tutorial-field-gap">
+          <div id="tutorial-stock-qty-field" class="tutorial-field tutorial-field-gap is-hidden">
             <label for="tutorial-stock-qty">Quantity</label>
             <input
               class="tutorial-input"
@@ -76,8 +79,8 @@
           </div>
 
           <div class="tutorial-actions">
-            <button id="tutorial-buy-btn" class="primary" type="button">Buy</button>
-            <button id="tutorial-sell-btn" class="danger" type="button">Sell</button>
+            <button id="tutorial-buy-btn" class="primary is-hidden" type="button">Buy</button>
+            <button id="tutorial-sell-btn" class="danger is-hidden" type="button">Sell</button>
           </div>
         </form>
       </section>

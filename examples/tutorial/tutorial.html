@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/jpeg" href="/vendor/m7-js-lib-active-tags/favicon.jpg">
+    <title>ActiveTags Complete Tutorial Example</title>
+    <link rel="stylesheet" href="tutorial.css">
+    <script type="module" src="./tutorial.js"></script>
+  </head>
+  <body>
+    <main class="tutorial-page">
+      <section class="tutorial-card">
+        <h1>ActiveTags Complete Tutorial</h1>
+        <p class="tutorial-copy">
+          This page is the runnable counterpart to <code>docs/usage/TUTORIAL.md</code>.
+        </p>
+        <p class="tutorial-copy">
+          Runtime:
+          <a href="?runtime=dev">dev (standalone source)</a>
+          |
+          <a href="?runtime=dist">dist (versioned minified bundle)</a>
+        </p>
+
+        <div class="tutorial-meta-row">
+          <span class="tutorial-label">Status</span>
+          <code id="tutorial-status">booting...</code>
+        </div>
+        <div class="tutorial-meta-row">
+          <span class="tutorial-label">Services</span>
+          <code id="tutorial-services">[]</code>
+        </div>
+
+        <div
+          data-activetag
+          at-name="tutorial-loaded"
+          at-at="import:tutorial-loaded-job.js"
+          class="tutorial-loaded-flag">
+          waiting for ActiveTags...
+        </div>
+
+        <div
+          data-activetag
+          at-name="tutorial-counter"
+          at-at="import:tutorial-job.js"
+          class="tutorial-host">
+          <h2>Counter Job</h2>
+          <p>Count: <strong class="tutorial-count">0</strong></p>
+
+          <div class="tutorial-actions">
+            <button type="button" data-inc>Increment</button>
+            <button type="button" data-reset>Reset</button>
+            <button type="button" data-load-fragment>Load Fragment</button>
+          </div>
+
+          <div class="tutorial-fragment">
+            Fragment output appears here.
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
