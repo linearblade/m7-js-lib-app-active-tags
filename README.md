@@ -30,9 +30,10 @@ If you are new to the project, the recommended reading order is:
 1. **About ActiveTags** -> [docs/ABOUT.md](docs/ABOUT.md)
 2. **Introduction** -> [docs/usage/INTRODUCTION.md](docs/usage/INTRODUCTION.md)
 3. **Quick Start** -> [docs/usage/QUICKSTART.md](docs/usage/QUICKSTART.md)
-4. **Usage TOC** -> [docs/usage/TOC.md](docs/usage/TOC.md)
-5. **Architecture Index** -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
-6. **API Index** -> [docs/api/INDEX.md](docs/api/INDEX.md)
+4. **Tutorial** -> [docs/usage/TUTORIAL.md](docs/usage/TUTORIAL.md)
+5. **Usage TOC** -> [docs/usage/TOC.md](docs/usage/TOC.md)
+6. **Architecture Index** -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
+7. **API Index** -> [docs/api/INDEX.md](docs/api/INDEX.md)
 
 ---
 
