@@ -39,13 +39,101 @@ Service keys are defined in: [../../src/constants.js](../../src/constants.js)
 import ActiveTags from "../../src/ActiveTags.js";
 ```
 
+### Standalone barrel entry (preview)
+
+```js
+import {
+  lib,
+  ActiveTags,
+  createActiveTags,
+  startActiveTags
+} from "../../src/standalone/index.js";
+```
+
+`src/standalone/index.js` exports:
+
+* `lib` (best-effort `globalThis.lib`, may be `null`)
+* `ActiveTags`
+* `CONSTANTS`
+* `resolveStandaloneLib(opts?)`
+* `createActiveTags(conf?, opts?)`
+* `startActiveTags(conf?, opts?)`
+
+Basic startup:
+
+```js
+const { AT } = await startActiveTags({
+  boot: { events: true, intervals: true, observeDom: true }
+});
+```
+
+### Monorepo prebundle entry (single-blob target)
+
+If you want one bundled/minified distributable that includes `lib`,
+ActiveTags, and primitive installers, use:
+
+```js
+import {
+  lib,
+  initLib,
+  ActiveTags,
+  VERSION,
+  installDomChangeObserver,
+  installEventDelegator,
+  installLog,
+  installInterval,
+  installAll,
+  createActiveTags,
+  startActiveTags
+} from "../../src/standalone/prebundle.js";
+```
+
+Equivalent raw imports (before bundling/minification):
+
+```js
+import { lib, init as initLib } from "/vendor/m7-js-lib/src/index.js";
+import ActiveTags from "/vendor/m7-js-lib-active-tags/src/ActiveTags.js";
+import installDomChangeObserver from "/vendor/m7-js-lib-primitive-dom-changeobserver/src/install.js";
+import installEventDelegator from "/vendor/m7-js-lib-primitive-dom-eventdelegator/src/install.js";
+import installLog from "/vendor/m7-js-lib-primitive-log/src/install.js";
+import installInterval from "/vendor/m7-js-lib-primitive-interval/src/install.js";
+```
+
+One-call boot path:
+
+```js
+const { AT } = await startActiveTags({
+  boot: { events: true, intervals: true, observeDom: true }
+});
+```
+
+If you want direct control, `installAll()` returns the lib instance.
+You can assign it to `window.lib` on DOM ready:
+
+```js
+const runtimeLib = installAll();
+
+document.addEventListener("DOMContentLoaded", () => {
+  window.lib = runtimeLib;
+}, { once: true });
+```
+
+Bundle/minify example (versioned standalone artifact):
+
+```bash
+scripts/build-standalone.sh --with-map
+```
+
+This emits `dist/activeTags.standalone.v<version>.min.js` (plus `.LEGAL.txt` and optional `.map`).
+See [BUNDLING.md](./BUNDLING.md) for full release workflow.
+
 ### Auto-registration entry
 
 ```js
 import "../../src/auto.js";
 ```
 
-`auto.js` registers `ActiveTags` at `lib.site.activeTags`.
+`auto.js` registers `ActiveTags` at `lib.app.ActiveTags`.
 
 ---
 

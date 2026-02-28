@@ -95,7 +95,7 @@ When used in browser + m7-lib environment, `src/auto.js`:
 
 * validates `window.lib` (auto mode only)
 * validates `lib.hash.set`
-* registers constructor at `lib.site.activeTags`
+* registers constructor at `lib.app.ActiveTags`
 
 `auto.js` must not alter runtime semantics defined by this contract.
 
@@ -320,6 +320,7 @@ Existing guarantees in this contract should not be weakened.
 ## See also
 
 * [API Index](./INDEX.md)
+* [Happy Hacker Handbook for LLMs](./HAPPY_HACKER_HANDBOOK_LLM.md)
 * [Usage TOC](../usage/TOC.md)
 * [Architecture Index](../architecture/INDEX.md)
 * [README](../../README.md)

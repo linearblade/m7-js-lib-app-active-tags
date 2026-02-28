@@ -3,7 +3,7 @@
  * License: MTL-10 (see LICENSE.md)
  */
 
-import ActiveTags from './ActiveTags.js';
+import install, { ActiveTags } from './install.js';
 
 const MOD = '[activeTags]';
 
@@ -19,8 +19,12 @@ if (!lib.site?.delegator && lib.site?.delagator) {
   lib.site.delegator = lib.site.delagator;
 }
 
-// Register
-lib.hash.set(lib, 'site.activeTags', ActiveTags);
+// Install ActiveTags namespace + service into lib.
+const result = install(lib);
+const activeTags =
+  result && result.namespace && typeof result.namespace.ActiveTags === 'function'
+    ? result.namespace.ActiveTags
+    : ActiveTags;
 
-export { ActiveTags };
-export default ActiveTags;
+export { ActiveTags, activeTags, install };
+export default activeTags;

@@ -150,6 +150,7 @@ import RuntimeController  from './class/runtime/Controller.js';
 
 import atSchema           from './at_config/Schema.js';
 import DEFAULT_CONFIG     from './at_config/DEFAULT_CONFIG.js';
+import VERSION            from './version.js';
 class ActiveTags {
     /**
      * Construct an ActiveTags runtime instance.
@@ -181,6 +182,7 @@ class ActiveTags {
 
 	// allow helpers to assume this.lib exists
 	this.lib = lib;
+	this.VERSION = ActiveTags.VERSION;
 	
 	// minimal require so we can normalize config
 	lib.require.all(CONSTANTS.LIB_HASH, { mod: '[activeTags]' });
@@ -419,5 +421,6 @@ applyMixins(
     trait_job,   // no config deps
     trait_eng
 );
+ActiveTags.VERSION = VERSION;
 export { ActiveTags };
 export default ActiveTags;

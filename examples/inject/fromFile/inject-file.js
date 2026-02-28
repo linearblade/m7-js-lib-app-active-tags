@@ -57,11 +57,7 @@ export default {
                     op: "@http.send",
                     args: {
                         name: "default",
-                        request: {
-                            endpoint: {
-                                url: "./fragment-new.html"
-                            }
-                        }
+                        url: "./fragment-new.html"
                     }
                 },
                 {

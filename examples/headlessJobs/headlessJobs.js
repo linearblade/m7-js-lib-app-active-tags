@@ -3,15 +3,30 @@
  * License: MTL-10 (see LICENSE.md)
  */
 
-import {lib, init as initLib}   from  "/vendor/m7-js-lib/src/index.js";
-import ActiveTags               from  "/vendor/m7-js-lib-active-tags/src/ActiveTags.js";
-import installDomChangeObserver from  "/vendor/m7-js-lib-primitive-dom-changeobserver/src/install.js";
-import installEventDelegator    from  "/vendor/m7-js-lib-primitive-dom-eventdelegator/src/install.js";
-import installLog               from  "/vendor/m7-js-lib-primitive-log/src/install.js";
-import installInterval          from  "/vendor/m7-js-lib-primitive-interval/src/install.js";
-import installTree              from  "/vendor/m7-js-lib-tree/src/install.js";
+const RUNTIME_PATHS = Object.freeze({
+    dev: "/vendor/m7-js-lib-active-tags/src/standalone/prebundle.js",
+    dist: "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js",
+});
 
-initLib();
+// Runtime selector:
+// - ?runtime=dev  -> source standalone prebundle
+// - ?runtime=dist -> versioned minified bundle
+function resolveRuntimeMode() {
+    const params = new URLSearchParams(window.location.search);
+    const runtime = String(params.get("runtime") || "dist").trim().toLowerCase();
+    return runtime === "dist" ? "dist" : "dev";
+}
+
+async function loadRuntimeModule(mode) {
+    const path = RUNTIME_PATHS[mode] || RUNTIME_PATHS.dev;
+    const mod = await import(path);
+
+    if (!mod || typeof mod.install !== "function" || typeof mod.SERVICE_ID !== "string") {
+        throw new Error(`[headlessJobs] invalid runtime module '${path}'.`);
+    }
+
+    return { mod, path };
+}
 
 const HEADLESS_JOB_NAME = "headless-clock-demo";
 const HEADLESS_INTERVAL_NAME = "clock";
@@ -79,44 +94,41 @@ function headlessError({ error } = {}) {
 }
 
 async function createRuntime() {
-    installTree(lib);
-    installInterval(lib);
-    installLog(lib, {
-	host: window,
-	root: window,
-	managerOptions: { lib },
-    });
-    installDomChangeObserver(lib, { host: window, root: document.body, start: true });
-    installEventDelegator(lib, { host: window, root: document, start: true });
+    const runtimeMode = resolveRuntimeMode();
+    const runtime = await loadRuntimeModule(runtimeMode);
+    const { install, SERVICE_ID } = runtime.mod;
 
-    const AT = new ActiveTags(lib, {
-	env: {
-	    window,
-	    document,
-	    root: window,
-	},
-	boot: {
-	    intervals: true,
-	    events: true,
-	},
-	engine: {
-	    opResolution: {
-		auto: true,
-	    },
-	},
-	job: {
-	    config: {
-		evalEnabled: true,
-		evalType: "text/at-eval",
-		importEnabled: true,
-		importPath: ["/vendor/m7-js-lib-active-tags/examples/"],
-	    },
-	},
-    });
+    const conf = {
+        boot: {
+            intervals: true,
+            events: true,
+        },
+        engine: {
+            opResolution: {
+                auto: true,
+            },
+        },
+        job: {
+            config: {
+                evalEnabled: true,
+                evalType: "text/at-eval",
+                importEnabled: true,
+                importPath: ["/vendor/m7-js-lib-active-tags/examples/"],
+            },
+        },
+    };
 
-    lib.service.set("activeTags", AT);
+    const lib = install({ conf });
+    const AT = lib.service.get(SERVICE_ID);
+    if (!AT) throw new Error(`[headlessJobs] missing ActiveTags service '${SERVICE_ID}'.`);
+
     await AT.start();
+    window.lib = lib;
     window.AT = AT;
+    window.activeTagsRuntime = {
+        mode: runtimeMode,
+        path: runtime.path,
+    };
 
     return AT;
 }

@@ -21,6 +21,7 @@ If you are new to the project, start with:
 * **Engine Runtime** -> [ENGINE.md](./ENGINE.md)
 * **Controllers** -> [CONTROLLERS.md](./CONTROLLERS.md)
 * **Builtins Surface** -> [BUILTINS.md](./BUILTINS.md)
+* **Standalone Entry (preview)** -> [../usage/INSTALLATION.md](../usage/INSTALLATION.md)
 * **What Makes ActiveTags Different** -> [../WHAT_MAKES_US_DIFFERENT.md](../WHAT_MAKES_US_DIFFERENT.md)
 
 ---
@@ -42,6 +43,7 @@ If you are new to the project, start with:
 ## Contracts
 
 * **ActiveTags API Contract (LLM/tooling-safe)** -> [ACTIVE_TAGS_API_CONTRACT.md](./ACTIVE_TAGS_API_CONTRACT.md)
+* **Happy Hacker Handbook for LLMs** -> [HAPPY_HACKER_HANDBOOK_LLM.md](./HAPPY_HACKER_HANDBOOK_LLM.md)
 
 Source-independent behavioral guarantees intended for tooling, integration layers, and LLM guidance.
 

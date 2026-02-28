@@ -34,6 +34,9 @@ If you are new, read top-to-bottom.
 * **Installation & Dependencies** -> [INSTALLATION.md](./INSTALLATION.md)
   Required m7 services, module loading, and runtime prerequisites.
 
+* **Standalone Bundling** -> [BUNDLING.md](./BUNDLING.md)
+  Build a versioned single-file minified standalone distribution (`activeTags.standalone.v<version>.min.js`).
+
 * **Requirements** -> [REQUIREMENTS.md](./REQUIREMENTS.md)
   Version baseline, required dependency keys/services, and minified distribution posture.
 

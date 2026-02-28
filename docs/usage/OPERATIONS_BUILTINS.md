@@ -167,6 +167,11 @@ Available builtin operations:
 * `target.set`
 * `target.propGet`
 * `target.propSet`
+* `target.classAdd`
+* `target.classRemove`
+* `target.classSet`
+* `target.classReset`
+* `target.classToggle`
 * `target.fromBuffer`
 * `target.toBuffer`
 * `target.closest`
@@ -206,6 +211,27 @@ Family source folders/files:
     run: [
       "@e.find:.save-status",
       { op: "@target.patch", args: { textContent: "Saved", className: "ok" } }
+    ]
+  }
+}
+```
+
+### Target KV shortcuts (`target=...`, `reset=true`)
+
+```js
+{
+  pipeline: {
+    run: [
+      // Search from job root without a standalone target.reset step
+      "target.find:selector=.status,reset=true",
+      // Toggle classes on explicit elements without find/set ceremony
+      "target.classAdd:class=is-active,target=#save-btn",
+      "target.classRemove:class=is-hidden,target=.loading",
+      // target can also be an interpolated element value
+      "target.classAdd:class=is-hot,target=${doc:#save-btn}",
+      // Property read/write with explicit target scope
+      "target.propGet:prop=textContent,target=.status,dst=window:ws.statusText",
+      "target.propSet:prop=textContent,value=Done,target=.status"
     ]
   }
 }
@@ -325,10 +351,10 @@ Helper contracts:
 
 * String op shorthand uses compact parsing (`op:arg1,arg2`) and splits args on commas.
 * For structured args, prefer object step form (`{ op, args: {...} }`).
-* `target.patch` is target-driven; resolve target first (`e.find`/`target.find`/`target.reset`).
+* `target.patch` is target-driven; resolve scope via `target=...` or `reset=true`, or via prior target operations.
 * `e.*` resolves from `job.e` (root) and writes result to `ticket.target`.
 * For headless jobs, VM supplies an execution-time fallback root from `AT.conf.env.document.body` when `job.e` is not bound.
-* `target.propGet` reads from current target and can optionally write to unresolved destination DSL expression (`dst`), for example `window:ws.user.id`.
+* `target.propGet` reads from resolved target (current target unless `target`/`reset` is provided) and can optionally write to unresolved destination DSL expression (`dst`), for example `window:ws.user.id`.
 * `target.propGet` also mirrors the read value into `buffer` when available.
 * `dom.attempt` is a strict wrapper around `lib.dom.attempt(source, true)` and writes the resolved node to `ticket.target`.
 

@@ -4,6 +4,26 @@
  */
 
 /**
+ * ---------------------------------------------------------------------------
+ * LEGACY V0.98 RESOLVER - INERT / REFERENCE ONLY
+ * ---------------------------------------------------------------------------
+ * [AT_INERT_LEGACY_V098]
+ * @internal
+ * @deprecated
+ *
+ * This file exists only as historical compatibility/reference material.
+ * It is NOT the active resolver for current runtime behavior.
+ *
+ * Active file:
+ * - `src/class/expressions/ExpressionResolver.js`
+ *
+ * Maintenance policy:
+ * - DO NOT import this file in runtime paths.
+ * - DO NOT use this file as source of truth for docs or behavior.
+ * ---------------------------------------------------------------------------
+ */
+
+/**
  * ExpressionResolver
  * ------------------
  *

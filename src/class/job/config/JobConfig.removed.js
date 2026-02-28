@@ -5,14 +5,17 @@
 
 /**
  * ---------------------------------------------------------------------------
- * LEGACY / INACTIVE FILE - NOT USED BY ACTIVE TAGS RUNTIME
+ * INERT ARCHIVAL FILE - NOT USED BY ACTIVE TAGS RUNTIME
  * ---------------------------------------------------------------------------
+ * [AT_INERT_ARCHIVE]
  * @internal
+ * @deprecated
  *
  * This file is retained for historical/reference purposes only.
  * It is not imported by the current runtime path and is not part of v1 execution.
  *
  * Maintenance policy:
+ * - DO NOT import this file from runtime code.
  * - Do not treat this file as source of truth for current behavior.
  * - Do not use this file for user/public documentation generation.
  * - Prefer `JobConfig.js` and related active schema modules instead.

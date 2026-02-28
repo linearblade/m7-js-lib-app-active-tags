@@ -3,6 +3,26 @@
  * License: MTL-10 (see LICENSE.md)
  */
 
+/**
+ * ---------------------------------------------------------------------------
+ * INERT ARCHIVAL FILE - NOT USED BY ACTIVE TAGS RUNTIME
+ * ---------------------------------------------------------------------------
+ * [AT_INERT_ARCHIVE]
+ * @internal
+ * @deprecated
+ *
+ * This file is a backup snapshot retained for local reference only.
+ * It is not imported by runtime code and must not be used as source of truth.
+ *
+ * Use active implementation path:
+ * - `src/class/job/config/domConfigSource/traits/configTargetResolver.js`
+ *
+ * Maintenance policy:
+ * - DO NOT import this file from runtime code.
+ * - DO NOT use this file for generated docs or API contracts.
+ * ---------------------------------------------------------------------------
+ */
+
     async _backup_resolveConfigTarget({ report, ref, source } = {}) {
 	const lib = this.lib;
 

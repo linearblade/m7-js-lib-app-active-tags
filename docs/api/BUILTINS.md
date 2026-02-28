@@ -48,6 +48,11 @@ Builtins root export:
 * set
 * propGet
 * propSet
+* classAdd
+* classRemove
+* classSet
+* classReset
+* classToggle
 * fromBuffer
 * toBuffer
 * closest

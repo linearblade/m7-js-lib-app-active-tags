@@ -9,11 +9,13 @@ Make file-request + DOM-inject flows concise, reliable, and builtin-driven.
 - `examples/inject/fromFile/injectFromFile.html`
 - `examples/inject/fromFile/injectFromFile.js`
 - `examples/inject/fromFile/inject-file.js`
+- `examples/inject/fromFileString/injectFromFile.html`
+- `examples/inject/fromFileString/inject-file.js`
 - `examples/inject/fromFile/fragment.html`
 
 ## Action List
 
-- [ ] Simplify HTTP request construction for local file fetches (ideally a one-liner op/builtin route).
+- [x] Simplify HTTP request construction for local file fetches (ideally a one-liner op/builtin route).
   Pointers:
   - `src/builtins/http/httpSend.js`
   - `src/builtins/http/index.js`
@@ -21,15 +23,18 @@ Make file-request + DOM-inject flows concise, reliable, and builtin-driven.
   - `examples/inject/fromFile/inject-file.js`
   - `../m7-js-lib/src/lib/request/http.js`
 
-- [ ] Investigate autorun startup path; verify `AT.start()` reliably enqueues/runs autorun jobs without manual `enqueueAll()` + `engine.drain()`.
+- [x] Investigate autorun startup path; verify `AT.start()` reliably enqueues/runs autorun jobs without manual `enqueueAll()` + `engine.drain()`.
   Pointers:
   - `src/ActiveTags.js`
   - `src/traits/engine.js`
   - `src/class/job/config/schema/Master.js`
   - `examples/inject/fromFile/injectFromFile.js`
   - `examples/inject/fromFile/inject-file.js`
+  Result:
+  - `AT.start()` currently performs discover/register/conditional activation and `engine.drain()`
+  - it does not call `enqueueAll()`; autorun enqueue remains a separate runtime path
 
-- [ ] Replace custom injection helper with builtin route (`target.propSet` / `dom.*`) or add missing DOM toolkit builtin(s).
+- [x] Replace custom injection helper with builtin route (`target.propSet` / `dom.*`) or add missing DOM toolkit builtin(s).
   Pointers:
   - `examples/inject/fromFile/inject-file.js`
   - `src/builtins/target/index.js`
