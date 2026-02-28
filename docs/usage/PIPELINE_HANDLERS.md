@@ -131,7 +131,7 @@ This avoids relying on `window.AT`.
 
 * [Pipelines](./PIPELINES.md)
 * [Builtins & Operations](./OPERATIONS_BUILTINS.md)
-* [v098 DSL Manual](./DSL_V098.md)
+* [v1.0 DSL Manual](./DSL_V100.md)
 * [Runtime Lifecycle](./RUNTIME_LIFECYCLE.md)
 * [Usage TOC](./TOC.md)
 * [README](../../README.md)

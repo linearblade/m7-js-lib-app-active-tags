@@ -79,8 +79,11 @@ Default selector is configured in top-level schema (`boot.selector`).
 Use these files as first references:
 
 * Inject example -> [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
+  Demonstrates: event handling (`click`), `http.send` request usage, and DOM patching via `target.find` + `target.patch`.
 * Stock ticker example -> [../../examples/stockTicker/stockTicker.html](../../examples/stockTicker/stockTicker.html)
+  Demonstrates: multi-job coordination, auth-gated UI behavior, event-driven trade actions, and interval-driven quote updates.
 * Headless jobs example -> [../../examples/headlessJobs/headlessJobs.html](../../examples/headlessJobs/headlessJobs.html)
+  Demonstrates: `AT.runtime.createHeadlessJob(...)`, programmatic interval control (`on/off`), and manual enqueue/drain ticks.
 
 These examples default to the versioned dist bundle and support `?runtime=dev` for source debugging.
 

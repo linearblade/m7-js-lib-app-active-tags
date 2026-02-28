@@ -1,9 +1,8 @@
-# v098 DSL Manual (Legacy) — ActiveTags
+# v1.0 DSL Manual — ActiveTags
 
 [README](../../README.md) -> [Usage TOC](./TOC.md)
 
-This manual documents the legacy v098 expression DSL profile.
-For current runtime behavior, use [v1.0 DSL Manual](./DSL_V100.md).
+This manual documents the current (v1.0) expression and op-list DSL profile used by ActiveTags runtime parsing/evaluation.
 
 Primary sources:
 
@@ -17,9 +16,9 @@ Primary sources:
 
 Current status:
 
-* runtime source of truth is `ExpressionResolver.js` (v1.0 profile)
-* this page is retained for legacy compatibility/reference
-* `ExpressionResolver.098.js` is legacy/inactive reference material
+* v1.0 resolver profile is active in `ExpressionResolver.js`.
+* v1.0 op-list parsing supports semicolon-delimited rows plus named/positional args.
+* `ExpressionResolver.098.js` and [DSL_V098.md](./DSL_V098.md) are retained as legacy/reference material.
 
 ---
 
@@ -54,7 +53,7 @@ Unknown target types resolve to `undefined` unless provided by context override 
 
 ---
 
-## 2) Dispatch targets (v098 profile)
+## 2) Dispatch targets (v1.0 profile)
 
 The dispatch table is defined in [../../src/class/expressions/dispatch.js](../../src/class/expressions/dispatch.js).
 
@@ -148,15 +147,51 @@ Materialization helper:
 
 ---
 
-## 6) v098 op-list shorthand
+## 6) Op-list syntax (v1.0)
 
-ExpressionResolver also provides a v098-style list parser for compact op strings:
+Pipeline phase rows are normalized by `ExpressionResolver.parseOpList(...)`.
 
-* `"op"` -> `{ op: "op", args: [], raw: "op" }`
-* `"op:a,b,c"` -> `{ op: "op", args: ["a", "b", "c"], raw: "op:a,b,c" }`
+Row/arg delimiters:
 
-Object items pass through unchanged.
-This is tokenization/normalization only; it does not execute operations.
+* row delimiter: `;`
+* arg delimiter: `,`
+
+Row form:
+
+```txt
+<op>[:arg0,arg1,key=value,...]
+```
+
+Examples:
+
+* `"target.reset"` -> one row
+* `"target.find:target=.box,reset=true;@target.classAdd:class=is-active"` -> two rows
+* `"foo:key=abc,enabled=true"` -> named args form
+
+Supported arg projections:
+
+* positional:
+  * `"foo:a,b,c"` -> `args: ["a", "b", "c"]`
+* key/value:
+  * `"foo:key=abc,enabled=true"` -> `args: { key: "abc", enabled: "true" }`
+* dot-notation expansion:
+  * `"foo:a.b=1"` -> `args: { a: { b: "1" } }`
+* repeated key accumulation:
+  * `"foo:a=1,a=2"` -> `args: { a: ["1", "2"] }`
+
+Normalized row metadata shape:
+
+* `{ op, args, raw, builtin, pos, kv }`
+* `args` auto-projection:
+  * if any `=` appears in the row arg segment, `args` is the row `kv` hash
+  * otherwise `args` is the row positional array (`pos`)
+
+Builtin resolution markers:
+
+* prefix form: `@target.patch`
+* object form: `{ op: "target.patch", builtin: true, args: { ... } }`
+
+Object/function row input is also accepted and normalized.
 
 ---
 
@@ -185,10 +220,11 @@ Useful pointers:
 
 ## See also
 
-* [v1.0 DSL Manual (current)](./DSL_V100.md)
 * [Basic Tag Setup](./BASIC_TAG_SETUP.md)
 * [Configuration Model](./CONFIGURATION.md)
+* [Pipelines](./PIPELINES.md)
 * [Builtins & Operations](./OPERATIONS_BUILTINS.md)
+* [Legacy v098 DSL Manual](./DSL_V098.md)
 * [../../src/class/expressions/ExpressionResolver.js](../../src/class/expressions/ExpressionResolver.js)
 * [../../src/class/expressions/dispatch.js](../../src/class/expressions/dispatch.js)
 * [../../src/class/expressions/Interpolator.js](../../src/class/expressions/Interpolator.js)

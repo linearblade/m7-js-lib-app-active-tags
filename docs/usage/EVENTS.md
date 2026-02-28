@@ -275,7 +275,7 @@ This maps to:
 * [Requests](./REQUESTS.md)
 * [Configuration Model](./CONFIGURATION.md)
 * [Runtime Lifecycle](./RUNTIME_LIFECYCLE.md)
-* [v098 DSL Manual](./DSL_V098.md)
+* [v1.0 DSL Manual](./DSL_V100.md)
 * [AT.events Reference](../api/reference/AT_EVENTS.md)
 * [Event Subsystem Architecture](../architecture/subsystems/EVENTS.md)
 * [Usage TOC](./TOC.md)

@@ -35,7 +35,7 @@ Key runtime behavior:
 `http.send` parses args using:
 
 ```js
-lib.args.parse(args, { adhoc: false }, { parms: "name buffer request adhoc", pop: true })
+lib.args.parse(args, { adhoc: false }, { parms: "name buffer request adhoc url", pop: true })
 ```
 
 Fields:
@@ -48,6 +48,8 @@ Fields:
   inline request hash override
 * `adhoc`:
   if true, `name` may be omitted
+* `url`:
+  shorthand override for `request.endpoint.url`
 
 Name behavior:
 
@@ -59,6 +61,7 @@ Merge order:
 1. named request (`name`) when provided
 2. `buffer` payload when `buffer` is true
 3. inline `request`
+4. `url` shorthand mapped to `request.endpoint.url`
 
 Arrays are replaced (not concatenated) during merge.
 

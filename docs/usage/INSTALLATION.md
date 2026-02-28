@@ -5,6 +5,11 @@
 
 ActiveTags is a browser-oriented runtime module.
 
+> [!IMPORTANT]
+> ActiveTags has multiple dependencies when installed from source.
+> For fastest startup, use the versioned minified standalone bundle, which includes m7 lib, required primitives, and the ActiveTags install flow.
+> Jump to [Recommended: versioned standalone bundle](#recommended-versioned-standalone-bundle).
+
 For canonical dependency/version requirements, see:
 
 * [REQUIREMENTS.md](./REQUIREMENTS.md)

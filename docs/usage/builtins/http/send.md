@@ -11,7 +11,7 @@ Source:
 Parsed with:
 
 ```js
-lib.args.parse(args, { adhoc: false }, { parms: "name buffer request adhoc", pop: true })
+lib.args.parse(args, { adhoc: false }, { parms: "name buffer request adhoc url", pop: true })
 ```
 
 Fields:
@@ -20,12 +20,14 @@ Fields:
 * `buffer`: boolish merge toggle for `buffer.get()`
 * `request`: inline request override
 * `adhoc`: allow unnamed request mode
+* `url`: shorthand override for `request.endpoint.url`
 
 Merge order:
 
 1. named request
 2. buffer
 3. inline request
+4. url shorthand -> `request.endpoint.url`
 
 ## Side Effects
 

@@ -75,13 +75,16 @@ If you are new, read top-to-bottom.
   Defining normalized request blocks (`request`, `requests`, `request_shape`) for builtins and user functions.
 
 * **HTTP Send (`http.send`)** -> [HTTP_SEND.md](./HTTP_SEND.md)
-  Request resolution, args contract (`name/buffer/request/adhoc`), response policy, and output behavior.
+  Request resolution, args contract (`name/buffer/request/adhoc/url`), response policy, and output behavior.
 
 * **Builtins Reference (Module -> Function)** -> [builtins/INDEX.md](./builtins/INDEX.md)
   Dedicated reference generated from `src/builtins/**` JSDoc with per-op args, side-effects, and return contracts.
 
-* **v098 DSL Manual** -> [DSL_V098.md](./DSL_V098.md)
-  Expression target grammar (`type:locator`), dispatch targets, interpolation, and compatibility notes.
+* **v1.0 DSL Manual (Current)** -> [DSL_V100.md](./DSL_V100.md)
+  Expression target grammar plus semicolon-delimited op rows with positional and key/value args.
+
+* **v098 DSL Manual (Legacy / Optional)** -> [DSL_V098.md](./DSL_V098.md)
+  Older resolver profile kept for reference and possible compatibility mode.
 
 * **Runtime Lifecycle** -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
   From `new ActiveTags(...)` through `start()`, enqueue, tick, and drain.

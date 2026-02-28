@@ -288,7 +288,7 @@ This produces config paths like:
 * [Events](./EVENTS.md)
 * [Intervals](./INTERVALS.md)
 * [Requests](./REQUESTS.md)
-* [v098 DSL Manual](./DSL_V098.md)
+* [v1.0 DSL Manual](./DSL_V100.md)
 * [Builtins & Operations](./OPERATIONS_BUILTINS.md)
 * [Runtime Lifecycle](./RUNTIME_LIFECYCLE.md)
 * [Basic Tag Setup](./BASIC_TAG_SETUP.md)
