@@ -1,0 +1,91 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/jpeg" href="/vendor/m7-js-lib-active-tags/favicon.jpg">
+    <title>m7 Active Tags test page</title>
+    <link rel="stylesheet" href="stockTicker.css">
+    <script type="module" src="./stockTicker.js"></script>
+  </head>
+  <body>
+    <header data-activetag at-name="header" at-at="import:header.js" class="tutorial-header">
+      <div class="tutorial-brand">ActiveTags Tutorial Playground</div>
+      <div class="tutorial-user">
+        <span role="img" aria-label="user avatar" class="tutorial-avatar">🧑‍💻</span>
+        <div class="tutorial-user-details is-hidden">
+          <div class="tutorial-user-text">...</div>
+          <div class="tutorial-user-metrics">
+            <div class="tutorial-user-balance">Balance: $0.00</div>
+            <div class="tutorial-user-stock">Stock: 0</div>
+          </div>
+        </div>
+        <button class="tutorial-login-btn secondary" type="button">Login</button>
+        <button class="tutorial-logout-btn danger is-hidden" type="button">Logout</button>
+      </div>
+    </header>
+
+    <p class="tutorial-copy">
+      <span class="tutorial-runtime-label">Runtime:</span>
+      <a class="tutorial-runtime-link" href="?runtime=dev">dev (standalone source)</a>
+      <span class="tutorial-runtime-sep">|</span>
+      <a class="tutorial-runtime-link" href="?runtime=dist">dist (versioned minified bundle)</a>
+    </p>
+
+    
+    <div id="tutorial-tags-root">
+      <section id="tutorial-stock-card">
+        <h1 class="tutorial-title">Stock Ticker (Demo)</h1>
+        <form data-activetag at-name="stock-form" at-at="import:stock-form.js" id="tutorial-stock-form">
+          <div class="tutorial-field">
+            <label for="tutorial-stock-symbol">Ticker Symbol</label>
+            <input
+              class="tutorial-input"
+              id="tutorial-stock-symbol"
+              name="symbol"
+              type="text"
+              value="M7X">
+          </div>
+
+          <div class="tutorial-field">
+            <div class="tutorial-quote-grid">
+              <div class="tutorial-quote-item">
+                <strong>Current Price:</strong>
+                <span id="tutorial-stock-price">$184.52</span>
+              </div>
+              <div class="tutorial-quote-item">
+                <strong>Change:</strong>
+                <span id="tutorial-stock-change">+0.00</span>
+              </div>
+              <div class="tutorial-quote-item">
+                <strong>Vol:</strong>
+                <span id="tutorial-stock-vol">0</span>
+              </div>
+            </div>
+            <div class="tutorial-price-note">
+              Demo price (fabricated for tutorial).
+            </div>
+          </div>
+
+          <div id="tutorial-stock-qty-field" class="tutorial-field tutorial-field-gap is-hidden">
+            <label for="tutorial-stock-qty">Quantity</label>
+            <input
+              class="tutorial-input"
+              id="tutorial-stock-qty"
+              name="qty"
+              type="number"
+              min="1"
+              step="1"
+              value="10">
+          </div>
+
+          <div class="tutorial-actions">
+            <button id="tutorial-buy-btn" class="primary is-hidden" type="button">Buy</button>
+            <button id="tutorial-sell-btn" class="danger is-hidden" type="button">Sell</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    
+  </body>
+</html>
