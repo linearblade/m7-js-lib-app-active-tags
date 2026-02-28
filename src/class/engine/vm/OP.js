@@ -33,7 +33,8 @@
  * -----------------
  * - Control flow must be explicit.
  * - Truthy values do NOT imply continuation.
- * - Legacy behavior is recognized but coerced into explicit helpers.SR_* results.
+ * - Shorthand convenience returns are recognized and coerced into explicit
+ *   helpers.SR_* results, so authors can use simple return values.
  * - All outcomes are reduced to helpers.STAGE_STATUS.*.
  *
  * Normalization Rules (v1)
@@ -48,7 +49,7 @@
  *   - If `status` is already in helpers.STAGE_STATUS_RANGE →
  *       passed through (cloned)
  *   - If `{ wait: true }` →
- *       coerced to helpers.SR_wait (legacy compatibility)
+ *       coerced to helpers.SR_wait (shorthand convenience form)
  *
  * All other values:
  *   → helpers.SR_error
@@ -132,7 +133,7 @@ export class OP {
      *        returned as a shallow clone.
      *
      *    - If `{ wait: true }` →
-     *        coerced to helpers.SR_wait (legacy compatibility).
+     *        coerced to helpers.SR_wait (shorthand convenience form).
      *
      * 3) All other values:
      *    → helpers.SR_error
@@ -158,16 +159,17 @@ export class OP {
      */    
     _normalizeReturn(res, { pipelineKey, op } = {}) {
 	if (this.lib.utils.isScalar(res)) {
+            const shorthandDetail = { pipelineKey, op, shorthand: true, value: res };
 
 	    // Explicit continue
 	    if (this.lib.bool.yes(res)) {
-		return helpers.SR_ok({ pipelineKey, op, legacy: true, value: res });
+		return helpers.SR_ok(shorthandDetail);
 	    }
 
 	    // Scalar but not recognized as continue => error
 	    return helpers.SR_error(
 		new Error("Stage returned falsy or unrecognized scalar"),
-		{ pipelineKey, op, legacy: true, value: res }
+		shorthandDetail
 	    );
 	}
 	
@@ -176,7 +178,7 @@ export class OP {
 	if(this.lib.utils.baseType(res,'object')) {
 	    // Already a StageResult ... return new object in order to minimize fuckery in user func.
 	    const status = res.status;
-	    // Coerce boolish legacy status FIRST 
+	    // Coerce boolish shorthand status FIRST
 	    if (this.lib.bool.isIntent(status)) {
 		const coerced = this.lib.bool.yes(status)
 		      ? helpers.STAGE_STATUS.OK
@@ -190,12 +192,12 @@ export class OP {
 
 	    
 	    //console.log('invalid status... ', res.status);
-	    // Explicit legacy wait
+	    // Explicit shorthand wait
 	    if (res.wait === true) {
 		return helpers.SR_wait({
 		    pipelineKey,
 		    op,
-		    legacy: true,
+		    shorthand: true,
 		    value: res.value ?? null,
 		    await: res.await ?? null,
 		});
@@ -204,7 +206,7 @@ export class OP {
 
         return helpers.SR_error(
 	    new Error("Stage returned value with no recognized continuation semantics"),
-	    { pipelineKey, op, legacy: true, value:res }
+	    { pipelineKey, op, shorthand: true, value:res }
         );
     }
     

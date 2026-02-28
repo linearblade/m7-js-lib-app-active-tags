@@ -75,6 +75,20 @@ Build details:
 
 ---
 
+## Release gate
+
+Before tagging/publishing, run:
+
+```bash
+sh scripts/release-check.sh
+```
+
+This validates dist artifact presence for current `VERSION`, docs/example link integrity, and canonical naming/install references across active docs and examples.
+
+See [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) for full flow.
+
+---
+
 ## Consume the bundle
 
 Use a module import (browser `type="module"` context):

@@ -128,7 +128,7 @@ Related:
 Compiled per discovered element through:
 
 * [../../src/class/job/config/JobConfig.js](../../src/class/job/config/JobConfig.js)
-* [../../src/class/job/config/DomConfigSource.js](../../src/class/job/config/DomConfigSource.js)
+* [../../src/class/job/config/domConfigSource/DomConfigSource.js](../../src/class/job/config/domConfigSource/DomConfigSource.js)
 * [../../src/class/job/config/schema/Master.js](../../src/class/job/config/schema/Master.js)
 
 This layer produces normalized job-level schema blocks (pipelines, events, intervals, requests).
@@ -168,7 +168,7 @@ For job config, effective input can include:
 * config references (`data-config-at`/`at` path)
 * optional eval/import paths (policy gated)
 
-See repository example: [../../examples/test-job.js](../../examples/test-job.js)
+See repository example: [../../examples/tutorial/tutorial-job.js](../../examples/tutorial/tutorial-job.js)
 
 ---
 

@@ -21,19 +21,28 @@ At runtime, a valid m7 `lib` instance must be available with these dependency ke
 The reference may come from an import, DI container, or any stored variable.
 No global `window.lib` binding is required.
 
-* [hash](/hash/...)
-* [primitive.workspace](/primitive.workspace/...)
-* [dom](/dom/...)
-* [str.interp](/str.interp/...)
+* [hash (m7-js-lib)](https://github.com/linearblade/m7-js-lib)
+* [dom (m7-js-lib)](https://github.com/linearblade/m7-js-lib)
+* [str.interp (m7-js-lib-str-interp)](https://github.com/linearblade/m7-js-lib-str-interp)
+
+Optional (currently not enforced by ActiveTags core dependency checks):
+
+* [primitive.workspace (m7-js-workspace)](https://github.com/linearblade/m7-js-workspace)
+
+Runtime enforcement posture:
+
+* `hash` is asserted directly via `lib.hash.set` in [../../src/install.js](../../src/install.js)
+* `dom` + `str.interp` are asserted through `CORE_DEPS` in [../../src/constants.js](../../src/constants.js)
+* required services are asserted through `CORE_SERVICES` in [../../src/constants.js](../../src/constants.js)
 
 ## Required services
 
 ActiveTags requires these service keys:
 
-* [primitive.dom.eventdelegator](/primitive.dom.eventdelegator/...)
-* [primitive.log](/primitive.log/...)
-* [primitive.interval](/primitive.interval/...)
-* [primitive.dom.changeobserver](/primitive.dom.changeobserver/...)
+* [primitive.dom.eventdelegator](https://github.com/linearblade/m7-js-lib-primitive-dom-eventdelegator)
+* [primitive.log](https://github.com/linearblade/m7-js-lib-primitive-log)
+* [primitive.interval](https://github.com/linearblade/m7-js-lib-primitive-interval)
+* [primitive.dom.changeobserver](https://github.com/linearblade/m7-js-lib-primitive-dom-changeobserver)
 
 Service constants are defined in:
 
@@ -70,7 +79,7 @@ Before starting runtime, verify:
 
 * bundle path resolves (`dist/activeTags.standalone.v1.0.min.js`)
 * `install({ conf })` returns lib successfully
-* `lib.service.get("app.activetags")` returns an instance
+* `lib.service.get(SERVICE_ID)` returns an instance (from the standalone import)
 
 For manual/source construction, verify:
 

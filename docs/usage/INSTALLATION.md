@@ -23,9 +23,9 @@ ActiveTags requires:
 1. A valid m7 `lib` instance (import, DI container, or any stored variable)
 2. Core utility dependencies:
    * `hash`
-   * `primitive.workspace`
    * `dom`
    * `str.interp`
+   * `primitive.workspace` (optional; not currently enforced by ActiveTags core dependency checks)
 3. Core services:
    * `primitive.dom.eventdelegator`
    * `primitive.interval`
@@ -169,16 +169,6 @@ scripts/build-standalone.sh --with-map
 This emits `dist/activeTags.standalone.v<version>.min.js` (plus `.LEGAL.txt` and optional `.map`).
 See [BUNDLING.md](./BUNDLING.md) for full release workflow.
 
-### Auto-registration entry
-
-```js
-import "../../src/auto.js";
-```
-
-`auto.js` registers `ActiveTags` at `lib.app.ActiveTags`.
-
----
-
 ## Example dependency boot sequence
 
 Reference implementation:
@@ -193,7 +183,8 @@ This file demonstrates dist-first standalone boot with a runtime toggle.
 
 * Modern browser with ES module support
 * DOM available (`document`, `MutationObserver` via observer service)
-* Services pre-registered in `lib` before runtime construction
+* For standalone dist install: required services are installed/validated by `install({ conf })`
+* For manual/class installs: required services must be pre-registered in `lib` before runtime construction
 
 ---
 
@@ -204,6 +195,7 @@ Before starting runtime, verify:
 * bundle path is valid (`dist/activeTags.standalone.v1.0.min.js`)
 * service instance resolves (`lib.service.get(SERVICE_ID)`)
 * page runs in ESM mode (`<script type="module">`)
+* for releases/commits, run `sh scripts/release-check.sh` (see [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md))
 
 For manual/source installs, verify:
 
@@ -216,6 +208,7 @@ For manual/source installs, verify:
 ## Related
 
 * Quick start -> [QUICKSTART.md](./QUICKSTART.md)
+* Release checklist -> [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)
 * Troubleshooting -> [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
 
 ---

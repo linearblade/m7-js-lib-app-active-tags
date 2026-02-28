@@ -18,7 +18,7 @@ Current status:
 
 * v1.0 resolver profile is active in `ExpressionResolver.js`.
 * v1.0 op-list parsing supports semicolon-delimited rows plus named/positional args.
-* `ExpressionResolver.098.js` and [DSL_V098.md](./DSL_V098.md) are retained as legacy/reference material.
+* legacy v098 reference material is archived outside the active usage path.
 
 ---
 
@@ -224,7 +224,6 @@ Useful pointers:
 * [Configuration Model](./CONFIGURATION.md)
 * [Pipelines](./PIPELINES.md)
 * [Builtins & Operations](./OPERATIONS_BUILTINS.md)
-* [Legacy v098 DSL Manual](./DSL_V098.md)
 * [../../src/class/expressions/ExpressionResolver.js](../../src/class/expressions/ExpressionResolver.js)
 * [../../src/class/expressions/dispatch.js](../../src/class/expressions/dispatch.js)
 * [../../src/class/expressions/Interpolator.js](../../src/class/expressions/Interpolator.js)

@@ -26,7 +26,7 @@ Expression resolver provides target parsing/evaluation for runtime interpolation
 ## Notes
 
 * current runtime file is `ExpressionResolver.js`
-* legacy `ExpressionResolver.098.js` is inactive/reference-only
+* legacy `archive/inert/ExpressionResolver.098.js` is inactive/reference-only
 
 
 ---

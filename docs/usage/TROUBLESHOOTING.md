@@ -17,7 +17,6 @@ Fix:
 
 * If using the standalone bundle, confirm you called `install({ conf })` before using the returned runtime/service handles.
 * Ensure a valid `lib` instance is available and passed as the first constructor argument.
-* If using `auto.js`, ensure `window.lib` exists before auto-registration executes.
 
 ---
 

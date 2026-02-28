@@ -83,9 +83,6 @@ If you are new, read top-to-bottom.
 * **v1.0 DSL Manual (Current)** -> [DSL_V100.md](./DSL_V100.md)
   Expression target grammar plus semicolon-delimited op rows with positional and key/value args.
 
-* **v098 DSL Manual (Legacy / Optional)** -> [DSL_V098.md](./DSL_V098.md)
-  Older resolver profile kept for reference and possible compatibility mode.
-
 * **Runtime Lifecycle** -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
   From `new ActiveTags(...)` through `start()`, enqueue, tick, and drain.
 
@@ -105,6 +102,9 @@ If you are new, read top-to-bottom.
 ---
 
 ## Operational Guidance
+
+* **Release Checklist** -> [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)
+  One-command release gate for dist artifacts, docs/example links, naming consistency, and canonical example layout.
 
 * **Reviewing Logs** -> [REVIEWING_LOGS.md](./REVIEWING_LOGS.md)
   How ActiveTags integrates with `primitive.log`, bucket setup, and practical log review flow.

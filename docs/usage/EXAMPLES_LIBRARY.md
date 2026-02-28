@@ -35,31 +35,32 @@ Demonstrates:
 
 ## Job configuration example
 
-* [../../examples/test-job.js](../../examples/test-job.js)
+* [../../examples/tutorial/tutorial-job.js](../../examples/tutorial/tutorial-job.js)
 
 Demonstrates:
 
-* events block
-* intervals block
-* pipeline definitions
-* request and shape config
-* mixed op styles (string/object stages)
+* `pipeline` and `pipelines` blocks
+* events and intervals blocks
+* request definitions
+* mixed stage styles (callable + string + object op records)
 
 ---
 
 ## Pipeline callable examples
 
-* [../../examples/testPipe.js](../../examples/testPipe.js)
+* [../../examples/tutorial/tutorial-job.js](../../examples/tutorial/tutorial-job.js)
+* [../../examples/stockTicker/header.js](../../examples/stockTicker/header.js)
+* [../../examples/stockTicker/stock-form.js](../../examples/stockTicker/stock-form.js)
 
-Demonstrates user-defined callable stage functions used by example pipelines.
+Demonstrates user-defined callable stage functions wired into named pipelines.
 
 ---
 
 ## Additional example artifacts
 
-* [../../examples/baseConfig.json](../../examples/baseConfig.json)
 * [../../examples/ATDefaultConf.js](../../examples/ATDefaultConf.js)
-* [../../examples/jumjum.import.js](../../examples/jumjum.import.js)
+* [../../examples/inject/fromFile/inject-file.js](../../examples/inject/fromFile/inject-file.js)
+* [../../examples/tutorial/tutorial-loaded-job.js](../../examples/tutorial/tutorial-loaded-job.js)
 
 ---
 
@@ -85,12 +86,6 @@ Demonstrates:
 * creating a headless job via `AT.runtime.createHeadlessJob(...)`
 * registering and controlling intervals programmatically
 * updating page state from a headless interval pipeline
-
----
-
-## Usage note
-
-Some files in `examples/` are iterative or backup variants (`~` suffix). Use the non-suffixed files as current references.
 
 ---
 

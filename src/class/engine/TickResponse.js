@@ -21,7 +21,8 @@
  *
  * Output contracts
  * - `_makeTickTrace(...)` returns an object that is safe to log/serialize and stable over time.
- * - Includes both `res` and `result` as aliases for back-compat.
+ * - Includes both `res` and `result` as shorthand aliases of the same value.
+ *   Reason: many consumers naturally ask for `result` while core internals use `res`.
  * - Provides uniform booleans: ok, waiting, complete, error, terminal, locked, missingJob, empty.
  * - Includes `stage` when available; null when not extractable.
  *
@@ -125,7 +126,7 @@ export class TickResponse {
      *   3) `summary.pipelineKey`
      * - Extracts a normalized stage pointer via `_extractStage(res, ticket)`.
      * - Preserves the original StageResult-like value under `res`.
-     * - Duplicates `res` into `result` for backwards compatibility.
+     * - Duplicates `res` into `result` as a shorthand convenience alias.
      * - Surfaces uniform booleans derived from `flags` so callers can test state
      *   without inspecting StageResult internals.
      *
@@ -187,7 +188,7 @@ export class TickResponse {
             // stage + result
             stage,        // may be null
             res: res || null,      // canonical name
-            result: res || null,   // back-compat alias
+            result: res || null,   // shorthand alias
 
             // terminal
             terminal: !!(flags?.terminal),

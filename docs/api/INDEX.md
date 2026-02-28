@@ -55,6 +55,7 @@ Use this section when you need instance/class-level details.
 
 * **ActiveTags API Contract (LLM/tooling-safe)** -> [ACTIVE_TAGS_API_CONTRACT.md](./ACTIVE_TAGS_API_CONTRACT.md)
 * **Happy Hacker Handbook for LLMs** -> [HAPPY_HACKER_HANDBOOK_LLM.md](./HAPPY_HACKER_HANDBOOK_LLM.md)
+* **Source Contracts (full behavioral specs)** -> [../contracts/INDEX.md](../contracts/INDEX.md)
 
 Source-independent behavioral guarantees intended for tooling, integration layers, and LLM guidance.
 

@@ -19,7 +19,7 @@ Produces `AT.conf` used by runtime subsystems.
 ### Per-job config compiler
 
 * [../../../src/class/job/config/JobConfig.js](../../../src/class/job/config/JobConfig.js)
-* [../../../src/class/job/config/DomConfigSource.js](../../../src/class/job/config/DomConfigSource.js)
+* [../../../src/class/job/config/domConfigSource/DomConfigSource.js](../../../src/class/job/config/domConfigSource/DomConfigSource.js)
 * [../../../src/class/job/config/schema/Master.js](../../../src/class/job/config/schema/Master.js)
 
 Produces `job.config.schema` for event/interval/pipeline registration.

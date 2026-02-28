@@ -76,9 +76,9 @@ Files tagged with these markers are inert and excluded from runtime truth:
 
 Current inert examples:
 
-* `src/class/job/config/JobConfig.removed.js`
-* `src/class/job/config/domConfigSource/_backupResolveConfigTarget.js`
-* `src/class/expressions/ExpressionResolver.098.js`
+* `archive/inert/JobConfig.removed.js`
+* `archive/inert/_backupResolveConfigTarget.js`
+* `archive/inert/ExpressionResolver.098.js`
 
 Rules:
 

@@ -3,9 +3,9 @@
 [README](../../README.md) -> [Usage TOC](./TOC.md)
 
 This page explains how to set up a single ActiveTag element and where its config can come from.
-Primary reference example: [../../examples/test1.html](../../examples/test1.html)
+Primary reference example: [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
 
-`examples/test1.html` includes some legacy/iterative inline attributes. They are still useful for understanding setup patterns and source references.
+`examples/inject/fromFile/injectFromFile.html` shows a minimal active tag with `data-activetag`, `at-name`, and `at-at="import:..."`.
 
 ---
 
@@ -59,7 +59,7 @@ Example:
 
 ## 3) Disabling inline attributes during iteration
 
-In `examples/test1.html`, some attributes are intentionally disabled during iteration by prefixing a leading `d` on the attribute name, for example:
+During local iteration, attributes can be temporarily disabled by prefixing a leading `d` on the attribute name, for example:
 
 ```html
 <div
@@ -89,7 +89,7 @@ That maps to attributes like:
 
 Each pointer value can contain one or more source tokens.
 Tokens are resolved left-to-right and merged in order (later tokens override earlier ones).
-This token parsing path is implemented in [../../src/class/job/config/DomConfigSource.js](../../src/class/job/config/DomConfigSource.js).
+This token parsing path is implemented in [../../src/class/job/config/domConfigSource/DomConfigSource.js](../../src/class/job/config/domConfigSource/DomConfigSource.js).
 Expression target syntax details are documented in [v1.0 DSL Manual](./DSL_V100.md).
 
 ---
@@ -140,7 +140,7 @@ Performance note:
 * If many tags each import config, startup/configuration time can increase.
 * For large setups, prefer importing once outside ActiveTags boot and then reference the in-memory object via `window:...` (or equivalent environment path).
 
-See setup example in [../../examples/test1.html](../../examples/test1.html), where import support is explicitly enabled.
+See setup example in [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html), where config import is enabled with `at-at="import:inject-file.js"`.
 
 ### D) DOM node `src` fallback
 
@@ -187,7 +187,7 @@ This makes ActiveTags workable across mixed construction styles (for example, PH
 
 ## 8) Minimal startup policy for basic tag experiments
 
-From [../../examples/test1.html](../../examples/test1.html), these runtime options are relevant for config-source behavior:
+From [../../examples/tutorial/tutorial.js](../../examples/tutorial/tutorial.js), these runtime options are relevant for config-source behavior:
 
 ```js
 import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
@@ -257,7 +257,8 @@ This split helps you quickly decide if the issue is:
 * [Configuration Model](./CONFIGURATION.md)
 * [v1.0 DSL Manual](./DSL_V100.md)
 * [Examples Library](./EXAMPLES_LIBRARY.md)
-* [../../examples/test1.html](../../examples/test1.html)
-* [../../src/class/job/config/DomConfigSource.js](../../src/class/job/config/DomConfigSource.js)
+* [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
+* [../../examples/tutorial/tutorial.html](../../examples/tutorial/tutorial.html)
+* [../../src/class/job/config/domConfigSource/DomConfigSource.js](../../src/class/job/config/domConfigSource/DomConfigSource.js)
 * [Usage TOC](./TOC.md)
 * [README](../../README.md)

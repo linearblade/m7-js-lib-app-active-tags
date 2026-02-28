@@ -406,7 +406,7 @@ export class ExpressionResolver {
     }
 
     /**
-     * Parse a compact v098-style op list into normalized op records.
+     * Parse a compact shorthand op list into normalized op records.
      *
      * Supported input items:
      * - Object: passed through unchanged (assumed already normalized)
@@ -415,7 +415,7 @@ export class ExpressionResolver {
      *    - "op:a,b,c"     -> { op:"op", args:["a","b","c"], raw:"op:a,b,c" }
      *
      * Notes:
-     * - This is a compatibility parser intended for v1 bridging.
+     * - This is a shorthand/convenience parser for compact stage rows.
      * - Malformed items are ignored unless an `err` handler is provided.
      * - This function does NOT evaluate expressions; it only tokenizes.
      *

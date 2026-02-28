@@ -20,7 +20,6 @@ This contract defines the **public, stable interface** for `ActiveTags`, includi
 * required dependencies and service contracts
 * top-level runtime composition (`engine`, `jobs`, controllers, runtime helper)
 * enqueue-oriented execution model
-* optional `auto.js` integration behavior
 
 This contract does **not** define:
 
@@ -88,18 +87,6 @@ The module exports `ActiveTags` as:
 Primary source entry:
 
 * `src/ActiveTags.js`
-
-### `auto.js` integration (optional)
-
-When used in browser + m7-lib environment, `src/auto.js`:
-
-* validates `window.lib` (auto mode only)
-* validates `lib.hash.set`
-* registers constructor at `lib.app.ActiveTags`
-
-`auto.js` must not alter runtime semantics defined by this contract.
-
----
 
 ## Environment and dependency requirements
 
@@ -292,8 +279,8 @@ ActiveTags does **not** guarantee:
 
 The following files are explicitly inactive and excluded from this contract:
 
-* `src/class/expressions/ExpressionResolver.098.js`
-* `src/class/job/config/JobConfig.removed.js`
+* `archive/inert/ExpressionResolver.098.js`
+* `archive/inert/JobConfig.removed.js`
 
 Only active runtime files are normative.
 

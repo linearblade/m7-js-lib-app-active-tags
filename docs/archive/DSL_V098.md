@@ -1,9 +1,9 @@
 # v098 DSL Manual (Legacy) — ActiveTags
 
-[README](../../README.md) -> [Usage TOC](./TOC.md)
+[README](../../README.md) -> [Docs Archive](./README.md) -> [Usage TOC](../usage/TOC.md)
 
 This manual documents the legacy v098 expression DSL profile.
-For current runtime behavior, use [v1.0 DSL Manual](./DSL_V100.md).
+For current runtime behavior, use [v1.0 DSL Manual](../usage/DSL_V100.md).
 
 Primary sources:
 
@@ -19,7 +19,7 @@ Current status:
 
 * runtime source of truth is `ExpressionResolver.js` (v1.0 profile)
 * this page is retained for legacy compatibility/reference
-* `ExpressionResolver.098.js` is legacy/inactive reference material
+* `archive/inert/ExpressionResolver.098.js` is legacy/inactive reference material
 
 ---
 
@@ -185,12 +185,12 @@ Useful pointers:
 
 ## See also
 
-* [v1.0 DSL Manual (current)](./DSL_V100.md)
-* [Basic Tag Setup](./BASIC_TAG_SETUP.md)
-* [Configuration Model](./CONFIGURATION.md)
-* [Builtins & Operations](./OPERATIONS_BUILTINS.md)
+* [v1.0 DSL Manual (current)](../usage/DSL_V100.md)
+* [Basic Tag Setup](../usage/BASIC_TAG_SETUP.md)
+* [Configuration Model](../usage/CONFIGURATION.md)
+* [Builtins & Operations](../usage/OPERATIONS_BUILTINS.md)
 * [../../src/class/expressions/ExpressionResolver.js](../../src/class/expressions/ExpressionResolver.js)
 * [../../src/class/expressions/dispatch.js](../../src/class/expressions/dispatch.js)
 * [../../src/class/expressions/Interpolator.js](../../src/class/expressions/Interpolator.js)
-* [Usage TOC](./TOC.md)
+* [Usage TOC](../usage/TOC.md)
 * [README](../../README.md)

@@ -12,17 +12,18 @@ const NAMESPACE_ID = 'app.ActiveTags';
 const SERVICE_ID = 'app.activetags';
 
 /**
- * installNamespace(lib)
+ * Canonical installer for ActiveTags namespace/service wiring.
  *
- * Install ActiveTags constructor namespace only.
+ * @see docs/contracts/INSTALL.contract.md
+ */
+
+/**
+ * Install ActiveTags constructor namespace at `lib.app.ActiveTags`.
  *
- * Registers constructor at `lib.app.ActiveTags`.
- *
- * @param {Object} lib
- * @returns {{
- *   namespace: Object,
- *   installedNamespace: boolean
- * }}
+ * @param {Object} lib Initialized m7 lib instance.
+ * @returns {{ namespace:Object, installedNamespace:boolean }}
+ * @throws {Error} When `lib` or `lib.hash.set` is missing.
+ * @see docs/contracts/INSTALL.contract.md
  */
 export function installNamespace(lib) {
     assertLibWithHashSet(lib, 'installNamespace(lib)');
@@ -38,21 +39,17 @@ export function installNamespace(lib) {
 }
 
 /**
- * installService(lib, opts?)
+ * Install/register ActiveTags service instance at `lib.service`.
  *
- * Install ActiveTags service instance only (namespace is ensured first).
- *
- * @param {Object} lib
- * @param {Object} [opts]
+ * @param {Object} lib Initialized m7 lib instance.
+ * @param {Object} [opts={}]
  * @param {Object} [opts.conf]
  * @param {ActiveTags} [opts.instance]
  * @param {boolean} [opts.force=false]
  * @param {Object} [opts.namespace]
- * @returns {{
- *   namespace: Object,
- *   instance: ActiveTags|null,
- *   installedService: boolean
- * }}
+ * @returns {{ namespace:Object, instance:ActiveTags|null, installedService:boolean }}
+ * @throws {Error} When required dependency/service checks fail.
+ * @see docs/contracts/INSTALL.contract.md
  */
 export function installService(lib, opts = {}) {
     assertLibWithHashSet(lib, 'installService(lib)');
@@ -108,22 +105,16 @@ export function installService(lib, opts = {}) {
 }
 
 /**
- * install(lib, opts?)
+ * Full install path: namespace install then service install.
  *
- * Full install path:
- * 1) install namespace
- * 2) install service instance
- *
- * @param {Object} lib
- * @param {Object} [opts]
+ * @param {Object} lib Initialized m7 lib instance.
+ * @param {Object} [opts={}]
  * @param {Object} [opts.conf]
  * @param {ActiveTags} [opts.instance]
  * @param {boolean} [opts.force=false]
- * @returns {{
- *   namespace: Object,
- *   instance: ActiveTags|null,
- *   installedService: boolean
- * }}
+ * @returns {{ namespace:Object, instance:ActiveTags|null, installedService:boolean }}
+ * @throws {Error} When namespace or service install preconditions fail.
+ * @see docs/contracts/INSTALL.contract.md
  */
 export function install(lib, opts = {}) {
     const namespaceResult = installNamespace(lib);

@@ -292,6 +292,6 @@ This produces config paths like:
 * [Builtins & Operations](./OPERATIONS_BUILTINS.md)
 * [Runtime Lifecycle](./RUNTIME_LIFECYCLE.md)
 * [Basic Tag Setup](./BASIC_TAG_SETUP.md)
-* [../../examples/test-job.js](../../examples/test-job.js)
+* [../../examples/tutorial/tutorial-job.js](../../examples/tutorial/tutorial-job.js)
 * [Usage TOC](./TOC.md)
 * [README](../../README.md)
