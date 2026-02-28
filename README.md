@@ -1,4 +1,4 @@
-# m7-js-lib-active-tags
+# m7-js-lib-app-active-tags v1.0
 
 ![ActiveTags Logo](logo.png)
 
