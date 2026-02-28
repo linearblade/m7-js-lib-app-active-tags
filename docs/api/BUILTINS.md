@@ -9,6 +9,29 @@ Builtins root export:
 
 ---
 
+## Start Here: Buffer and Target Flow (Important)
+
+If you are writing pipelines, this is the core mental model:
+
+* `buffer` is the ticket-local data conveyor (read/write payload between steps).
+* `target` is the ticket-local DOM pointer (current node focus for DOM ops).
+
+Typical flow:
+
+1. Load or compute data into `buffer` (`http.send`, `form.collect`, `buffer.set`).
+2. Move `target` to the right DOM node (`e.find`, `target.find`, `target.closest`).
+3. Apply DOM updates (`target.patch`, `target.propSet`, class ops).
+4. Traverse/project data as needed (`buffer.traverse`, `target.propGet`, `target.toBuffer`).
+
+Quick links:
+
+* Buffer module index -> [../usage/builtins/buffer/INDEX.md](../usage/builtins/buffer/INDEX.md)
+* Target module index -> [../usage/builtins/target/INDEX.md](../usage/builtins/target/INDEX.md)
+* Builtins practical patterns -> [../usage/OPERATIONS_BUILTINS.md](../usage/OPERATIONS_BUILTINS.md)
+* Handler context (`buffer`, `target`) -> [../usage/PIPELINE_HANDLERS.md](../usage/PIPELINE_HANDLERS.md)
+
+---
+
 ## Namespaces
 
 ### Root

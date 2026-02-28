@@ -2,60 +2,390 @@
 
 [README](../../README.md) -> [Usage TOC](./TOC.md)
 
-This page is the step-by-step tutorial track.
-Content is scaffolded and ready to be filled in.
+This tutorial is a practical end-to-end build path for ActiveTags v1.0.
+
+You will build a small interactive component and progressively add:
+
+1. runtime install/start
+2. a real ActiveTag job
+3. console validation
+4. interval-driven updates
+5. event-driven interactions
+6. advanced buffer/target + request flow
+
+This tutorial uses the versioned standalone minified bundle for fastest setup.
 
 ---
 
 ## 1) ActiveTags setup
 
-Tutorial content placeholder.
+Create an HTML file (for example `tutorial.html`) with one module script.
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ActiveTags Tutorial</title>
+  </head>
+  <body>
+    <div data-activetag at-name="counter-demo" at-at="import:tutorial-counter-job.js"></div>
+
+    <script type="module">
+      import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+
+      const conf = {
+        boot: {
+          observeDom: true,
+          events: true,
+          intervals: true,
+        },
+        engine: {
+          opResolution: {
+            auto: true,
+          },
+        },
+        job: {
+          config: {
+            evalEnabled: true,
+            evalType: "text/at-eval",
+            importEnabled: true,
+            importPath: ["/vendor/m7-js-lib-active-tags/examples/", "./"],
+          },
+        },
+      };
+
+      const lib = install({ conf });
+      const AT = lib.service.get(SERVICE_ID);
+      if (!AT) throw new Error(`missing ActiveTags service '${SERVICE_ID}'.`);
+
+      await AT.start();
+
+      // Optional console helpers while learning.
+      window.lib = lib;
+      window.AT = AT;
+    </script>
+  </body>
+</html>
+```
+
+What this gives you:
+
+* all required primitives installed automatically via standalone install
+* ActiveTags installed to namespace (`lib.app.ActiveTags`) and service (`lib.service.get(SERVICE_ID)`)
+* runtime booted and ready to discover `data-activetag` elements
 
 ---
 
 ## 2) Defining some tags
 
-Tutorial content placeholder.
+Now replace the root tag markup with a small UI inside the ActiveTag root.
+
+```html
+<div data-activetag at-name="counter-demo" at-at="import:tutorial-counter-job.js">
+  <section class="counter-card">
+    <h2>Counter Tutorial</h2>
+    <p>Count: <strong class="counter-value">0</strong></p>
+
+    <div class="controls">
+      <button type="button" data-inc>Increment</button>
+      <button type="button" data-reset>Reset</button>
+    </div>
+  </section>
+</div>
+```
+
+Key points:
+
+* `data-activetag` marks discoverable job roots.
+* `at-name="counter-demo"` gives this job a stable runtime identity.
+* `at-at="import:tutorial-counter-job.js"` loads job config from module import.
 
 ---
 
 ## 3) Adding basic configs
 
-Tutorial content placeholder.
+Create `tutorial-counter-job.js` next to the HTML file.
+
+```js
+function readCounter({ job, lib, buffer } = {}) {
+  const ws = job && job.ws ? job.ws : {};
+  const count = Number(lib.hash.get(ws, "counter.value"));
+  const safe = Number.isFinite(count) ? count : 0;
+
+  if (buffer && typeof buffer.set === "function") {
+    buffer.set({ count: safe }, { source: "readCounter" });
+  }
+
+  return true;
+}
+
+export default {
+  name: "counter-demo",
+  enabled: true,
+  autorun: true,
+
+  pipeline: {
+    run: [
+      readCounter,
+      "@target.find:selector=.counter-value,reset=true",
+      "@target.patch:textContent=${buffer:count}",
+      "@target.reset",
+    ],
+    error: ["@error.dump"],
+  },
+};
+```
+
+Why this is useful:
+
+* You are already using the v1.0 op DSL (`;` row delimiter, `,` arg delimiter, `key=value` args).
+* You are using explicit builtin markers (`@...`) for deterministic builtin lookup.
+* You are using the core conveyor pattern:
+  * data in `buffer`
+  * DOM pointer in `target`
 
 ---
 
-## 4) Running some basic validation by console
+## 4) Running basic validation in console
 
-Tutorial content placeholder.
+After page load, run these checks in DevTools:
+
+```js
+lib.service.list();
+```
+
+You should see primitive services plus `app.activetags`.
+
+```js
+const job = AT.toJob("counter-demo");
+job;
+job.config.schema;
+```
+
+Manual pipeline execution test:
+
+```js
+const ticket = AT.engine.enqueue(job, "default", {
+  inputs: { reason: "manual" },
+  meta: { source: "tutorial-console" },
+});
+await AT.engine.drain({ ticket });
+```
+
+If this works, your install + discovery + pipeline execution loop is healthy.
 
 ---
 
 ## 5) Adding intervals
 
-Tutorial content placeholder.
+Now evolve `tutorial-counter-job.js` so the count increments every second.
+
+```js
+function getCounter({ job, lib } = {}) {
+  const ws = job && job.ws ? job.ws : {};
+  const count = Number(lib.hash.get(ws, "counter.value"));
+  return Number.isFinite(count) ? count : 0;
+}
+
+function setCounter({ job, lib, value } = {}) {
+  const ws = job && job.ws ? job.ws : {};
+  lib.hash.set(ws, "counter.value", Number(value) || 0);
+  return true;
+}
+
+function incrementCounter({ job, lib } = {}) {
+  const next = getCounter({ job, lib }) + 1;
+  return setCounter({ job, lib, value: next });
+}
+
+function renderCounter({ job, lib, buffer } = {}) {
+  const count = getCounter({ job, lib });
+  buffer.set({ count }, { source: "renderCounter" });
+  return true;
+}
+
+export default {
+  name: "counter-demo",
+  enabled: true,
+  autorun: true,
+
+  pipeline: {
+    run: [
+      renderCounter,
+      "@target.find:selector=.counter-value,reset=true",
+      "@target.patch:textContent=${buffer:count}",
+      "@target.reset",
+    ],
+    error: ["@error.dump"],
+  },
+
+  pipelines: {
+    tick: {
+      run: [
+        incrementCounter,
+        renderCounter,
+        "@target.find:selector=.counter-value,reset=true",
+        "@target.patch:textContent=${buffer:count}",
+        "@target.reset",
+      ],
+      error: ["@error.dump"],
+    },
+  },
+
+  interval_shape: {
+    allowOverlap: false,
+    onError: "continue",
+  },
+  intervals: {
+    tick: {
+      repeat: 1000,
+      pipeline: "tick",
+    },
+  },
+};
+```
+
+Note: interval bindings are registered and started by `AT.start()` when `boot.intervals` is enabled.
 
 ---
 
 ## 6) Adding events
 
-Tutorial content placeholder.
+Add click-driven controls to increment and reset.
+
+Update pipelines/events in `tutorial-counter-job.js`:
+
+```js
+function resetCounter({ job, lib } = {}) {
+  return setCounter({ job, lib, value: 0 });
+}
+
+export default {
+  // ...same base keys
+
+  pipeline: {
+    run: [
+      renderCounter,
+      "@target.find:selector=.counter-value,reset=true",
+      "@target.patch:textContent=${buffer:count}",
+      "@target.reset",
+    ],
+    error: ["@error.dump"],
+  },
+
+  pipelines: {
+    increment: {
+      run: [
+        incrementCounter,
+        renderCounter,
+        "@target.find:selector=.counter-value,reset=true",
+        "@target.patch:textContent=${buffer:count}",
+        "@target.reset",
+      ],
+      error: ["@error.dump"],
+    },
+    reset: {
+      run: [
+        resetCounter,
+        renderCounter,
+        "@target.find:selector=.counter-value,reset=true",
+        "@target.patch:textContent=${buffer:count}",
+        "@target.reset",
+      ],
+      error: ["@error.dump"],
+    },
+    tick: {
+      run: [
+        incrementCounter,
+        renderCounter,
+        "@target.find:selector=.counter-value,reset=true",
+        "@target.patch:textContent=${buffer:count}",
+        "@target.reset",
+      ],
+      error: ["@error.dump"],
+    },
+  },
+
+  events: {
+    inc_click: {
+      event: "click",
+      selector: "[data-inc]",
+      pipeline: "increment",
+    },
+    reset_click: {
+      event: "click",
+      selector: "[data-reset]",
+      pipeline: "reset",
+    },
+  },
+
+  intervals: {
+    tick: {
+      repeat: 1000,
+      pipeline: "tick",
+      allowOverlap: false,
+      onError: "continue",
+    },
+  },
+};
+```
+
+At this point you have both trigger classes working together:
+
+* interval triggers for autonomous updates
+* event triggers for user-driven updates
 
 ---
 
 ## 7) Advanced
 
-Tutorial content placeholder.
+### A) Add request + buffer + target chain
+
+A common pattern:
+
+1. `@http.send` loads content/data into `buffer`
+2. `@target.find` points to a target node
+3. `@target.patch` writes output
+
+Example stage row:
+
+```js
+"@http.send:name=default,url=./fragment.html;@target.find:selector=.inject-slot,reset=true;@target.patch:innerHTML=${buffer};@target.reset"
+```
+
+### B) Runtime control APIs
+
+You can toggle bindings at runtime without changing config:
+
+```js
+const job = AT.toJob("counter-demo");
+
+AT.intervals.off(job, "tick");   // pause interval
+AT.intervals.on(job, "tick");    // resume interval
+
+AT.events.off(job, "inc_click"); // disable increment button handler
+AT.events.on(job, "inc_click");  // re-enable
+```
+
+### C) Learn from canonical repository examples
+
+* Inject flow (`http.send` + target patch): [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
+* Multi-job auth/event/interval composition: [../../examples/stockTicker/stockTicker.html](../../examples/stockTicker/stockTicker.html)
+* Headless jobs + interval control: [../../examples/headlessJobs/headlessJobs.html](../../examples/headlessJobs/headlessJobs.html)
 
 ---
 
 ## See also
 
 * [Quick Start](./QUICKSTART.md)
+* [Installation & Dependencies](./INSTALLATION.md)
 * [Basic Tag Setup](./BASIC_TAG_SETUP.md)
-* [Top-Level Job Config](./TOP_LEVEL_CONFIG.md)
 * [Pipelines](./PIPELINES.md)
-* [Intervals](./INTERVALS.md)
+* [Pipeline Handlers](./PIPELINE_HANDLERS.md)
 * [Events](./EVENTS.md)
+* [Intervals](./INTERVALS.md)
+* [Builtins & Operations](./OPERATIONS_BUILTINS.md)
+* [v1.0 DSL Manual](./DSL_V100.md)
 * [Usage TOC](./TOC.md)
 * [README](../../README.md)

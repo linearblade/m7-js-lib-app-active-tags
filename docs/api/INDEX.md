@@ -19,6 +19,7 @@ If you are new to the project, start with:
 Most production pipeline authoring happens here.
 
 * **Builtins Surface** -> [BUILTINS.md](./BUILTINS.md)
+* **Buffer + Target Flow (Important)** -> [BUILTINS.md#start-here-buffer-and-target-flow-important](./BUILTINS.md#start-here-buffer-and-target-flow-important)
 * **Standalone install and usage** -> [../usage/INSTALLATION.md](../usage/INSTALLATION.md)
 * **Quick Start** -> [../usage/QUICKSTART.md](../usage/QUICKSTART.md)
 * **What Makes ActiveTags Different** -> [../WHAT_MAKES_US_DIFFERENT.md](../WHAT_MAKES_US_DIFFERENT.md)
