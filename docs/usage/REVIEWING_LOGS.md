@@ -77,21 +77,28 @@ At startup, ActiveTags creates these buckets when:
 Example:
 
 ```js
-const AT = new ActiveTags(lib, {
-  log: {
-    enabled: true,
-    policy: {
-      console: "info",
-      trace: false
+import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+
+const lib = install({
+  conf: {
+    log: {
+      enabled: true,
+      policy: {
+        console: "info",
+        trace: false
+      },
+      buckets: {
+        ROOT: "activetags",
+        CONFIG: "activetags.config",
+        RUNTIME: "activetags.runtime",
+        PIPELINE: "activetags.pipeline"
+      }
     },
-    buckets: {
-      ROOT: "activetags",
-      CONFIG: "activetags.config",
-      RUNTIME: "activetags.runtime",
-      PIPELINE: "activetags.pipeline"
-    }
   }
 });
+
+const AT = lib.service.get(SERVICE_ID);
+await AT.start();
 ```
 
 ---
@@ -115,4 +122,3 @@ const AT = new ActiveTags(lib, {
 * [Troubleshooting](./TROUBLESHOOTING.md)
 * [Usage TOC](./TOC.md)
 * [README](../../README.md)
-

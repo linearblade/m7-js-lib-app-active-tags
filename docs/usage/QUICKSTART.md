@@ -7,44 +7,41 @@ This guide gets you from zero to a running ActiveTags instance quickly.
 
 ---
 
-## 1) Load required dependencies
+## 1) Import the release bundle
 
-ActiveTags expects a valid `lib` instance plus required services to be available.
-The `lib` reference can come from an import, DI container, or any stored variable.
+Use the standalone release bundle for normal integration:
 
-In this repository's example setup, service modules are loaded before ActiveTags:
+```js
+import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+```
 
-* event delegator
-* interval manager
-* DOM change observer
-* log service
-* form service
-* interpolation helper
-
-See: [../../examples/test1.html](../../examples/test1.html)
+This bundle includes m7 lib + ActiveTags + required primitive installers.
 
 ---
 
-## 2) Import and construct
+## 2) Install with config
 
 ```js
-import ActiveTags from "../../src/ActiveTags.js";
-import lib from "/m7-js-lib/...";
-
-const AT = new ActiveTags(lib, {
-  boot: {
-    observeDom: true,
-    events: true,
-    intervals: true,
-  }
+const lib = install({
+  conf: {
+    boot: {
+      observeDom: true,
+      events: true,
+      intervals: true,
+    },
+  },
 });
+
+const AT = lib.service.get(SERVICE_ID);
+if (!AT) throw new Error(`missing ActiveTags service '${SERVICE_ID}'.`);
 ```
 
-Construction performs:
+Install performs:
 
-* top-level config compilation
-* service resolution
-* subsystem instantiation
+* standalone primitive setup
+* ActiveTags namespace install (`lib.app.ActiveTags`)
+* ActiveTags service install (`lib.service.get(SERVICE_ID)`)
+* ActiveTags instance construction with your `conf`
 
 No discovery or runtime triggers are active yet.
 
@@ -81,9 +78,11 @@ Default selector is configured in top-level schema (`boot.selector`).
 
 Use these files as first references:
 
-* Boot page -> [../../examples/test1.html](../../examples/test1.html)
-* Example config -> [../../examples/test-job.js](../../examples/test-job.js)
-* Example pipelines -> [../../examples/testPipe.js](../../examples/testPipe.js)
+* Inject example -> [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
+* Stock ticker example -> [../../examples/stockTicker/stockTicker.html](../../examples/stockTicker/stockTicker.html)
+* Headless jobs example -> [../../examples/headlessJobs/headlessJobs.html](../../examples/headlessJobs/headlessJobs.html)
+
+These examples default to the versioned dist bundle and support `?runtime=dev` for source debugging.
 
 ---
 

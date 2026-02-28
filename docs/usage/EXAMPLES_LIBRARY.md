@@ -9,12 +9,13 @@ This page maps key repository examples to runtime concepts.
 
 ## Primary boot example
 
-* [../../examples/test1.html](../../examples/test1.html)
+* [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
 
 Demonstrates:
 
-* module loading order
-* runtime construction/start
+* versioned dist bundle boot (`activeTags.standalone.v1.0.min.js`)
+* standalone `install({ conf })` usage
+* service lookup via `SERVICE_ID`
 * active element markup patterns
 * event/interval/runtime toggles
 

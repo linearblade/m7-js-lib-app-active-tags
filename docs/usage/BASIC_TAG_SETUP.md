@@ -190,24 +190,31 @@ This makes ActiveTags workable across mixed construction styles (for example, PH
 From [../../examples/test1.html](../../examples/test1.html), these runtime options are relevant for config-source behavior:
 
 ```js
-const AT = new ActiveTags(lib, {
-  boot: {
-    observeDom: true,
-    events: true,
-    intervals: false,
-  },
-  job: {
-    config: {
-      evalEnabled: true,
-      evalType: "text/at-eval",
-      importEnabled: true,
-      importPath: ["/vendor/m7-js-lib-active-tags/examples/"],
+import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+
+const lib = install({
+  conf: {
+    boot: {
+      observeDom: true,
+      events: true,
+      intervals: false,
     },
-  },
+    job: {
+      config: {
+        evalEnabled: true,
+        evalType: "text/at-eval",
+        importEnabled: true,
+        importPath: ["/vendor/m7-js-lib-active-tags/examples/"],
+      },
+    },
+  }
 });
+
+const AT = lib.service.get(SERVICE_ID);
+await AT.start();
 ```
 
-Use `new ActiveTags(lib, conf)` with a valid `lib` instance. A global `window.lib` is optional and not required by contract.
+Bundle-first startup is recommended for normal use. Manual `new ActiveTags(lib, conf)` wiring is still available for advanced/manual installs.
 
 ---
 

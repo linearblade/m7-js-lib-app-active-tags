@@ -72,16 +72,20 @@ These are design guarantees, not informal conventions.
 ## Quick example
 
 ```js
-import ActiveTags from "./src/ActiveTags.js";
-import lib from "/m7-js-lib/...";
+import { install, SERVICE_ID } from "./dist/activeTags.standalone.v1.0.min.js";
 
-const AT = new ActiveTags(lib, {
-  boot: {
-    observeDom: true,
-    events: true,
-    intervals: true,
+const lib = install({
+  conf: {
+    boot: {
+      observeDom: true,
+      events: true,
+      intervals: true,
+    }
   }
 });
+
+const AT = lib.service.get(SERVICE_ID);
+if (!AT) throw new Error(`missing ActiveTags service '${SERVICE_ID}'.`);
 
 await AT.start();
 ```
@@ -127,7 +131,8 @@ It does not:
 * Introduction -> [docs/usage/INTRODUCTION.md](docs/usage/INTRODUCTION.md)
 * Architecture docs -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
 * API docs -> [docs/api/INDEX.md](docs/api/INDEX.md)
-* Source entry -> [src/ActiveTags.js](src/ActiveTags.js)
+* Release bundle -> [dist/activeTags.standalone.v1.0.min.js](dist/activeTags.standalone.v1.0.min.js)
+* Source entry (manual/internal) -> [src/ActiveTags.js](src/ActiveTags.js)
 * Examples -> [examples/](examples/)
 
 ---

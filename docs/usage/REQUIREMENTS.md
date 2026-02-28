@@ -53,9 +53,19 @@ The ActiveTags minified distribution is intended to include required primitive/r
 
 Including ActiveTags directly should not negatively affect minified installation behavior.
 
+Recommended release path:
+
+* `/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js`
+
 ## Verification checklist
 
-Before constructing ActiveTags, verify:
+Before starting runtime, verify:
+
+* bundle path resolves (`dist/activeTags.standalone.v1.0.min.js`)
+* `install({ conf })` returns lib successfully
+* `lib.service.get("app.activetags")` returns an instance
+
+For manual/source construction, verify:
 
 * a valid `lib` instance is available for `new ActiveTags(lib, ...)`
 * `lib.require.all(...)` resolves core dependencies

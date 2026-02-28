@@ -29,24 +29,53 @@ ActiveTags requires:
 
 Service keys are defined in: [../../src/constants.js](../../src/constants.js)
 
+If you use the versioned standalone bundle, these prerequisites are installed automatically during `install({ conf })`.
+
 ---
 
 ## Module entry choices
 
-### Primary runtime class
+### Recommended: versioned standalone bundle
+
+```js
+import { install, SERVICE_ID, VERSION } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+
+const lib = install({
+  conf: {
+    boot: {
+      events: true,
+      intervals: true,
+      observeDom: true,
+    },
+  },
+});
+
+const AT = lib.service.get(SERVICE_ID);
+if (!AT) throw new Error(`missing ActiveTags service '${SERVICE_ID}'.`);
+
+await AT.start();
+console.log("ActiveTags version:", VERSION);
+```
+
+Use this as the default integration path.
+
+### Advanced/manual source entry: class-level
 
 ```js
 import ActiveTags from "../../src/ActiveTags.js";
 ```
 
-### Standalone barrel entry (preview)
+This path requires you to provide and manage a correctly-wired `lib` + services yourself.
+
+### Advanced/manual source entry: standalone barrel
 
 ```js
 import {
   lib,
   ActiveTags,
   createActiveTags,
-  startActiveTags
+  startActiveTags,
+  VERSION
 } from "../../src/standalone/index.js";
 ```
 
@@ -55,6 +84,7 @@ import {
 * `lib` (best-effort `globalThis.lib`, may be `null`)
 * `ActiveTags`
 * `CONSTANTS`
+* `VERSION`
 * `resolveStandaloneLib(opts?)`
 * `createActiveTags(conf?, opts?)`
 * `startActiveTags(conf?, opts?)`
@@ -77,18 +107,13 @@ import {
   lib,
   initLib,
   ActiveTags,
+  SERVICE_ID,
   VERSION,
-  installDomChangeObserver,
-  installEventDelegator,
-  installLog,
-  installInterval,
-  installAll,
-  createActiveTags,
-  startActiveTags
+  install
 } from "../../src/standalone/prebundle.js";
 ```
 
-Equivalent raw imports (before bundling/minification):
+Equivalent raw imports (before bundling/minification, manual build flow):
 
 ```js
 import { lib, init as initLib } from "/vendor/m7-js-lib/src/index.js";
@@ -102,23 +127,27 @@ import installInterval from "/vendor/m7-js-lib-primitive-interval/src/install.js
 One-call boot path:
 
 ```js
-const { AT } = await startActiveTags({
-  boot: { events: true, intervals: true, observeDom: true }
+const runtimeLib = install({
+  conf: {
+    boot: { events: true, intervals: true, observeDom: true }
+  }
 });
+const AT = runtimeLib.service.get(SERVICE_ID);
+await AT.start();
 ```
 
-If you want direct control, `installAll()` returns the lib instance.
-You can assign it to `window.lib` on DOM ready:
+If you want direct control in standalone mode, call `install({ conf })` and fetch the service by `SERVICE_ID`:
 
 ```js
-const runtimeLib = installAll();
-
-document.addEventListener("DOMContentLoaded", () => {
-  window.lib = runtimeLib;
-}, { once: true });
+const runtimeLib = install({
+  conf: {
+    boot: { events: true, intervals: true, observeDom: true }
+  }
+});
+const AT = runtimeLib.service.get(SERVICE_ID);
 ```
 
-Bundle/minify example (versioned standalone artifact):
+Manual bundle/minify example (versioned standalone artifact):
 
 ```bash
 scripts/build-standalone.sh --with-map
@@ -141,9 +170,9 @@ import "../../src/auto.js";
 
 Reference implementation:
 
-* [../../examples/test1.html](../../examples/test1.html)
+* [../../examples/inject/fromFile/injectFromFile.html](../../examples/inject/fromFile/injectFromFile.html)
 
-This file demonstrates loading supporting m7 modules before creating `ActiveTags`.
+This file demonstrates dist-first standalone boot with a runtime toggle.
 
 ---
 
@@ -157,13 +186,17 @@ This file demonstrates loading supporting m7 modules before creating `ActiveTags
 
 ## Verification checklist
 
-Before calling `new ActiveTags(...)`, verify:
+Before starting runtime, verify:
+
+* bundle path is valid (`dist/activeTags.standalone.v1.0.min.js`)
+* service instance resolves (`lib.service.get(SERVICE_ID)`)
+* page runs in ESM mode (`<script type="module">`)
+
+For manual/source installs, verify:
 
 * a valid `lib` instance is available in scope for `new ActiveTags(lib, ...)`
 * `lib.require.all(...)` can resolve dependencies
 * `lib.require.service(...)` returns all required services
-
-If any dependency is missing, constructor/startup will throw.
 
 ---
 

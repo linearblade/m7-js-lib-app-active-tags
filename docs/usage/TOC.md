@@ -32,7 +32,7 @@ If you are new, read top-to-bottom.
   Practical setup patterns for one `data-activetag` element, including `data-*`/`at-*` config sources and layered references.
 
 * **Installation & Dependencies** -> [INSTALLATION.md](./INSTALLATION.md)
-  Required m7 services, module loading, and runtime prerequisites.
+  Bundle-first install flow (`dist`), plus advanced/manual source install options.
 
 * **Standalone Bundling** -> [BUNDLING.md](./BUNDLING.md)
   Build a versioned single-file minified standalone distribution (`activeTags.standalone.v<version>.min.js`).

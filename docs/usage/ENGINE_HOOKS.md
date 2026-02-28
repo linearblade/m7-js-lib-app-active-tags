@@ -37,18 +37,25 @@ Hooks are configured in top-level ActiveTags config under `engine.hooks`.
 Example:
 
 ```js
-const AT = new ActiveTags(lib, {
-  engine: {
-    hooks: {
-      onStage(trace) {
-        console.log("stage", trace);
-      },
-      onTicketDone(trace) {
-        console.log("done", trace.summary);
+import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+
+const lib = install({
+  conf: {
+    engine: {
+      hooks: {
+        onStage(trace) {
+          console.log("stage", trace);
+        },
+        onTicketDone(trace) {
+          console.log("done", trace.summary);
+        }
       }
     }
   }
 });
+
+const AT = lib.service.get(SERVICE_ID);
+await AT.start();
 ```
 
 Behavior notes from schema compile:
