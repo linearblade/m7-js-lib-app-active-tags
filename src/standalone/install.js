@@ -9,8 +9,13 @@ import installActiveTags from "../install.js";
 
 import installDomChangeObserver from "../../../m7-js-lib-primitive-dom-changeobserver/src/install.js";
 import installEventDelegator from "../../../m7-js-lib-primitive-dom-eventdelegator/src/install.js";
-import installLog from "../../../m7-js-lib-primitive-log/src/install.js";
 import installInterval from "../../../m7-js-lib-primitive-interval/src/install.js";
+import installPopStateManager from "../../../m7-js-lib-app-popstatemanager/src/install.js";
+import { basic as installSinglePageAppBasic } from "../../../m7-js-lib-app-single-page/src/install/index.js";
+import LogManager from "../../../m7-js-lib-primitive-log/src/Manager.js";
+import LogWorker from "../../../m7-js-lib-primitive-log/src/Worker.js";
+import logUtils from "../../../m7-js-lib-primitive-log/src/utils.js";
+import * as logConstants from "../../../m7-js-lib-primitive-log/src/constants.js";
 
 const MOD = "[activeTags.standalone.install]";
 const PRIMITIVE_INSTALLERS = Object.freeze([
@@ -40,8 +45,46 @@ function isObject(value) {
     return !!value && typeof value === "object";
 }
 
+function isPlainObject(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
 function asObject(value) {
     return isObject(value) ? value : {};
+}
+
+function isRootSpec(value) {
+    return !!(
+        isPlainObject(value)
+        && value.root
+        && value.host
+    );
+}
+
+function readFeatureToggle(value) {
+    if (value === true) {
+        return {
+            enabled: true,
+            options: {},
+        };
+    }
+
+    if (isPlainObject(value)) {
+        const enabled = Object.prototype.hasOwnProperty.call(value, "enabled")
+            ? value.enabled === true
+            : true;
+        const options = Object.assign({}, value);
+        delete options.enabled;
+        return {
+            enabled,
+            options,
+        };
+    }
+
+    return {
+        enabled: false,
+        options: {},
+    };
 }
 
 function ensureLibReady(opts = {}) {
@@ -76,6 +119,8 @@ function ensureLibReady(opts = {}) {
  * @param {Object} [opts.interval]
  * @param {Object} [opts.log]
  * @param {Object} [opts.domChangeObserver]
+ * @param {boolean|Object} [opts.popstate=false]
+ * @param {boolean|Object} [opts.spa=false]
  * @returns {Object} lib instance
  */
 function installServices(opts = {}) {
@@ -92,6 +137,11 @@ function installServices(opts = {}) {
             continue;
         }
         item.install(runtimeLib, primitiveOpts);
+    }
+
+    installSpaFeature(runtimeLib, opts);
+    if (!readFeatureToggle(opts.spa).enabled) {
+        installPopstateFeature(runtimeLib, opts);
     }
 
     return runtimeLib;
@@ -115,6 +165,8 @@ function installServices(opts = {}) {
  * @param {Object} [opts.interval]
  * @param {Object} [opts.log]
  * @param {Object} [opts.domChangeObserver]
+ * @param {boolean|Object} [opts.popstate=false]
+ * @param {boolean|Object} [opts.spa=false]
  * @returns {Object} lib instance
  */
 export function install(opts = {}) {
@@ -182,6 +234,173 @@ function getPrimitiveDefaultOpts(lib, item) {
     return {};
 }
 
+function installLog(lib, opts = {}) {
+    if (!lib || typeof lib !== "object") {
+        throw new Error(`${MOD} installLog(lib) requires an m7-lib instance object.`);
+    }
+
+    if (!lib.hash || typeof lib.hash.set !== "function") {
+        throw new Error(`${MOD} installLog(lib) requires lib.hash.set.`);
+    }
+
+    const hasHashGet = !!(lib.hash && typeof lib.hash.get === "function");
+    const hasServiceSet = !!(lib.service && typeof lib.service.set === "function");
+    const hasServiceGet = !!(lib.service && typeof lib.service.get === "function");
+    const hasOwn = Object.prototype.hasOwnProperty;
+    const serviceId = CONSTANTS.SERVICE_LOG;
+
+    const hasHost = hasOwn.call(opts, "host");
+    const hasRoot = hasOwn.call(opts, "root");
+    const envRoot = resolveEnvRoot(lib);
+
+    const resolvedRoot =
+        hasRoot
+            ? opts.root
+            : (envRoot !== undefined ? envRoot : undefined);
+
+    const resolvedHost =
+        hasHost
+            ? opts.host
+            : (resolvedRoot !== undefined ? resolvedRoot : resolveGlobalHost());
+
+    let namespace = null;
+    if (hasHashGet) {
+        try {
+            namespace = lib.hash.get(lib, serviceId);
+        } catch (err) {
+            namespace = null;
+        }
+    }
+
+    if (!namespace || typeof namespace !== "object") {
+        namespace = {};
+    }
+
+    namespace.Manager = LogManager;
+    namespace.Worker = LogWorker;
+    namespace.utils = logUtils;
+    namespace.constants = logConstants;
+    lib.hash.set(lib, serviceId, namespace);
+
+    let instance = null;
+    let installedService = false;
+
+    if (hasServiceSet) {
+        const force = opts.force === true;
+        const providedInstance = opts.instance || null;
+        const existingInstance = hasServiceGet ? lib.service.get(serviceId) : null;
+
+        if (!force && existingInstance) {
+            instance = existingInstance;
+        } else if (providedInstance) {
+            instance = providedInstance;
+        } else {
+            const managerOptions =
+                opts.managerOptions && typeof opts.managerOptions === "object"
+                    ? opts.managerOptions
+                    : {};
+
+            const finalManagerOptions = Object.assign({}, managerOptions);
+
+            if (!hasOwn.call(finalManagerOptions, "lib")) {
+                finalManagerOptions.lib = lib;
+            }
+
+            if (!hasOwn.call(finalManagerOptions, "root") && resolvedRoot !== undefined) {
+                finalManagerOptions.root = resolvedRoot;
+            }
+
+            if (!hasOwn.call(finalManagerOptions, "host") && resolvedHost !== undefined) {
+                finalManagerOptions.host = resolvedHost;
+            }
+
+            instance = new LogManager(finalManagerOptions);
+        }
+
+        lib.service.set(serviceId, instance);
+        namespace.instance = instance;
+        installedService = true;
+        lib.hash.set(lib, serviceId, namespace);
+    } else if (opts.instance) {
+        namespace.instance = opts.instance;
+        lib.hash.set(lib, serviceId, namespace);
+        instance = opts.instance;
+    }
+
+    return {
+        namespace,
+        instance,
+        installedService,
+    };
+}
+
+function installPopstateFeature(lib, opts = {}, extra = {}) {
+    const feature = readFeatureToggle(opts.popstate);
+    const required = extra.required === true;
+    if (!feature.enabled && !required) {
+        return null;
+    }
+
+    const installOpts = buildPopstateOptions(lib, opts, feature.options, extra.overrideOptions);
+    return installPopStateManager(lib, installOpts);
+}
+
+function installSpaFeature(lib, opts = {}) {
+    const feature = readFeatureToggle(opts.spa);
+    if (!feature.enabled) {
+        return null;
+    }
+
+    // SPA always depends on popstate, even when popstate itself is not
+    // explicitly enabled at the top level.
+    installPopstateFeature(lib, opts, {
+        required: true,
+        overrideOptions: {
+            start: false,
+        },
+    });
+
+    const installOpts = buildSpaOptions(lib, opts, feature.options);
+    return installSinglePageAppBasic(lib, installOpts);
+}
+
+function buildPopstateOptions(lib, globalOpts = {}, featureOpts = {}, overrideOpts = {}) {
+    const source = Object.assign({}, asObject(globalOpts), asObject(featureOpts));
+    const host = resolveHost(lib, source);
+    const out = Object.assign(
+        {
+            host,
+            start: false,
+        },
+        asObject(featureOpts),
+        asObject(overrideOpts)
+    );
+
+    out.conf = isPlainObject(out.conf) ? out.conf : {};
+    return out;
+}
+
+function buildSpaOptions(lib, globalOpts = {}, featureOpts = {}) {
+    const source = Object.assign({}, asObject(globalOpts), asObject(featureOpts));
+    const host = resolveHost(lib, source);
+    const root = resolveRoot(lib, host, source);
+    const out = Object.assign({}, asObject(featureOpts));
+
+    if (out.root && !isRootSpec(out.root) && host) {
+        out.root = {
+            root: out.root,
+            host,
+        };
+    } else if (!out.root && root && host) {
+        out.root = {
+            root,
+            host,
+        };
+    }
+
+    return out;
+}
+
 function canAutoStartDelegator(lib) {
     const doc = resolveDocument(lib);
 
@@ -200,6 +419,71 @@ function canAutoStartDomChangeObserver(lib) {
     if (!rootCandidate || typeof rootCandidate !== "object") return false;
 
     return hasMutationObserver(lib);
+}
+
+function resolveHost(lib, opts = {}) {
+    if (isPlainObject(opts.host) && opts.host.location && opts.host.history) {
+        return opts.host;
+    }
+
+    const bootRoot = lib && lib._env ? lib._env.root : null;
+    if (bootRoot && bootRoot.location && bootRoot.history) {
+        return bootRoot;
+    }
+
+    if (typeof window !== "undefined" && window && window.location && window.history) {
+        return window;
+    }
+
+    return null;
+}
+
+function resolveEnvRoot(lib) {
+    if (!lib || typeof lib !== "object") return undefined;
+
+    if (lib._env && Object.prototype.hasOwnProperty.call(lib._env, "root")) {
+        return lib._env.root;
+    }
+
+    if (lib.hash && typeof lib.hash.get === "function") {
+        try {
+            return lib.hash.get(lib, "_env.root");
+        } catch (err) {
+            return undefined;
+        }
+    }
+
+    return undefined;
+}
+
+function resolveGlobalHost() {
+    if (typeof globalThis !== "undefined") return globalThis;
+    if (typeof window !== "undefined") return window;
+    if (typeof global !== "undefined") return global;
+    return undefined;
+}
+
+function resolveRoot(lib, host = null, opts = {}) {
+    if (opts.root && typeof opts.root.addEventListener === "function") {
+        return opts.root;
+    }
+
+    const docFromEnv = lib && lib._env && lib._env.root && lib._env.root.document
+        ? lib._env.root.document
+        : null;
+    if (docFromEnv && typeof docFromEnv.addEventListener === "function") {
+        return docFromEnv;
+    }
+
+    if (host && host.document && typeof host.document.addEventListener === "function") {
+        return host.document;
+    }
+
+    if (typeof document !== "undefined" && document && typeof document.addEventListener === "function") {
+        return document;
+    }
+
+    return null;
 }
 
 function resolveDocument(lib) {
