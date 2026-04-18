@@ -61,6 +61,7 @@ Quick links:
 * [`buffer.get`](../usage/builtins/buffer/get.md) - Reads from buffer (optionally by path) for downstream usage.
 * [`buffer.clear`](../usage/builtins/buffer/clear.md) - Clears buffer payload and related metadata state.
 * [`buffer.dump`](../usage/builtins/buffer/dump.md) - Logs/inspects current buffer payload for debugging.
+* [`buffer.domParse`](../usage/builtins/buffer/domParse.md) - Parses buffer HTML, extracts one selector, and writes the result to buffer or a destination expression.
 * [`buffer.traverse`](../usage/builtins/buffer/traverse.md) - Moves buffer focus to a nested path value.
 * [`buffer.assert`](../usage/builtins/buffer/assert.md) - Validates buffer content against expected conditions.
 

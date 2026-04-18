@@ -3,9 +3,9 @@
  * License: MTL-10 (see LICENSE.md)
  */
 
-// Dev source entry kept here for quick rollback during local iteration:
-// import { install, SERVICE_ID } from "./vendor/m7-js-lib-app-active-tags/src/standalone/prebundle.js";
-import { install, SERVICE_ID } from "../../dist/map/activeTags.standalone.v1.0.min.js";
+import { install, SERVICE_ID } from "./vendor/m7-js-lib-app-active-tags/src/standalone/prebundle.js";
+// Built bundle kept here for quick release-path verification:
+// import { install, SERVICE_ID } from "../../dist/map/activeTags.standalone.v1.0.min.js";
 
 async function seedIndex(AT) {
     if (!AT || typeof AT.toJob !== "function" || !AT.engine) {

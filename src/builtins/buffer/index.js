@@ -265,6 +265,103 @@ export async function bufferDump({ lib, args, inputs, buffer, step } = {}) {
     });
 }
 
+function extractHtmlCandidate(value) {
+    if (typeof value === "string") return value;
+    if (value && typeof value === "object") {
+        if (typeof value.html === "string") return value.html;
+        if (typeof value.body === "string") return value.body;
+    }
+    if (value == null) return "";
+    return String(value);
+}
+
+/**
+ * `buffer.domParse` builtin.
+ *
+ * Parses current buffer HTML, selects one node, and writes extracted content
+ * either back into `buffer` or into an expression destination.
+ *
+ * Args:
+ * - `selector` (required)
+ * - `attr` / `prop` / `key` / `name` (optional, default `innerHTML`)
+ * - `dst` / `to` / `target` (optional expression destination)
+ * - `lax` (optional boolish; default `false`)
+ *
+ * Extraction:
+ * - parses buffer payload as HTML via `DOMParser(..., "text/html")`
+ * - selects one node with `querySelector(selector)`
+ * - reads extracted value with `lib.dom.get(node, attr)`
+ *
+ * Lax mode:
+ * - parse/select/read failure returns `ok` and leaves buffer unchanged
+ *
+ * Strict mode:
+ * - parse/select/read failure returns `error`
+ */
+export async function bufferDomParse({ lib, args, job, ticket, ctx, expr, buffer, step } = {}) {
+    const parsed = lib.args.parse(args, {}, { parms: "selector attr dst lax", pop: true });
+    const selector = lib.hash.getUntilNotEmpty(parsed, "selector sel query");
+    const attr = lib.hash.getUntilNotEmpty(parsed, "attr prop key name", "innerHTML");
+    const dst = lib.hash.getUntilNotEmpty(parsed, "dst to target", null);
+    const lax = lib.bool.yes(lib.hash.get(parsed, "lax"));
+
+    if (lib.utils.isEmpty(selector)) {
+        return helpers.SR_error(new Error("buffer.domParse: missing selector"), { op: "buffer.domParse", step });
+    }
+
+    try {
+        if (typeof DOMParser === "undefined") {
+            throw new Error("buffer.domParse: DOMParser is not available");
+        }
+
+        const raw = buffer.get();
+        const html = extractHtmlCandidate(raw);
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        const node = doc && typeof doc.querySelector === "function" ? doc.querySelector(selector) : null;
+
+        if (!node) {
+            throw new Error(`buffer.domParse: selector did not match '${selector}'`);
+        }
+
+        const value = lib.dom.get(node, attr);
+
+        if (value === undefined) {
+            throw new Error(`buffer.domParse: attr '${attr}' did not resolve on selector '${selector}'`);
+        }
+
+        if (!lib.utils.isEmpty(dst)) {
+            writeExprDestination({ lib, expr, job, ticket, ctx, dst, value });
+        } else {
+            buffer.set(value, { op: "buffer.domParse", selector, attr });
+        }
+
+        return helpers.SR_ok({
+            op: "buffer.domParse",
+            step,
+            selector,
+            attr,
+            dst: lib.utils.isEmpty(dst) ? null : dst,
+            value,
+        });
+    } catch (err) {
+        if (lax) {
+            return helpers.SR_ok({
+                op: "buffer.domParse",
+                step,
+                selector,
+                attr,
+                dst: lib.utils.isEmpty(dst) ? null : dst,
+                lax: true,
+                skipped: true,
+                reason: String(err && err.message ? err.message : err),
+            });
+        }
+
+        return helpers.SR_error(err, { op: "buffer.domParse", step, selector, attr });
+    }
+}
+
 export { bufferTraverse, bufferAssert };
 
 // -----------------------------------------------------------------------------
@@ -275,6 +372,7 @@ export const BUFFER = {
     get: bufferGet,
     clear: bufferClear,
     dump: bufferDump,
+    domParse: bufferDomParse,
     traverse: bufferTraverse,
     assert: bufferAssert,
 };

@@ -160,6 +160,7 @@ Available builtin operations:
 * `buffer.get`
 * `buffer.clear`
 * `buffer.dump`
+* `buffer.domParse`
 * `buffer.traverse`
 * `buffer.assert`
 * `target.patch`

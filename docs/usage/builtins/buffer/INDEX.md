@@ -14,5 +14,6 @@ Module sources:
 * [`buffer.get`](./get.md)
 * [`buffer.clear`](./clear.md)
 * [`buffer.dump`](./dump.md)
+* [`buffer.domParse`](./domParse.md)
 * [`buffer.traverse`](./traverse.md)
 * [`buffer.assert`](./assert.md)

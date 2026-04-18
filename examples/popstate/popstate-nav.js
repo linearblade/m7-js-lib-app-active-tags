@@ -31,12 +31,82 @@ function loadContent(url, selector = "#main") {
     ];
 }
 
+function loadPageRegion(url, sourceSelector = "#main", selector = "#main") {
+    return [
+        {
+            op: "@http.send",
+            args: {
+                name: "default",
+                url,
+            },
+        },
+        {
+            op: "@buffer.domParse",
+            args: {
+                selector: "body",
+                attr: "class",
+                dst: "window:document.body.className",
+                lax: false,
+            },
+        },
+        {
+            op: "@buffer.domParse",
+            args: {
+                selector: ".ticker-copy",
+                attr: "textContent",
+                dst: "window:__AT_POPSTATE_SANDBOX.tickerCopy",
+                lax: false,
+            },
+        },
+        {
+            op: "@target.find",
+            args: {
+                selector: ".ticker-copy",
+                reset: true,
+            },
+        },
+        {
+            op: "@target.patch",
+            args: {
+                textContent: "${window:__AT_POPSTATE_SANDBOX.tickerCopy}",
+            },
+        },
+        {
+            op: "@target.reset",
+        },
+        {
+            op: "@buffer.domParse",
+            args: {
+                selector: sourceSelector,
+                attr: "innerHTML",
+                lax: false,
+            },
+        },
+        {
+            op: "@target.find",
+            args: {
+                selector,
+                reset: true,
+            },
+        },
+        {
+            op: "@target.patch",
+            args: {
+                innerHTML: "${buffer}",
+            },
+        },
+        {
+            op: "@target.reset",
+        },
+    ];
+}
+
 function resolveInitialPageSeed() {
     const fallback = {
         pipeline: "index",
         url: "./",
         title: "index",
-        contentUrl: "./content-index.html",
+        contentUrl: "./index.html",
     };
 
     if (typeof window === "undefined" || !window.location) {
@@ -56,7 +126,7 @@ function resolveInitialPageSeed() {
             pipeline: "on_1",
             url: "./on-1.html",
             title: "on-1",
-            contentUrl: "./content-on-1.html",
+            contentUrl: "./on-1.html",
         };
     }
 
@@ -65,7 +135,7 @@ function resolveInitialPageSeed() {
             pipeline: "on_2",
             url: "./on-2.html",
             title: "on-2",
-            contentUrl: "./content-on-2.html",
+            contentUrl: "./on-2.html",
         };
     }
 
@@ -74,7 +144,7 @@ function resolveInitialPageSeed() {
             pipeline: "on_3",
             url: "./on-3.html",
             title: "on-3",
-            contentUrl: "./content-on-3.html",
+            contentUrl: "./on-3.html",
         };
     }
 
@@ -111,7 +181,7 @@ export default {
     pipelines: {
         index: {
             run: [
-                ...loadContent("./content-index.html"),
+                ...loadPageRegion("./index.html"),
                 {
                     op: "@popstate.push",
                     args: {
@@ -133,13 +203,13 @@ export default {
                         title: INITIAL_PAGE_SEED.title,
                     },
                 },
-                ...loadContent(INITIAL_PAGE_SEED.contentUrl),
+                ...loadPageRegion(INITIAL_PAGE_SEED.contentUrl),
             ],
             error: ["@error.dump"],
         },
         on_1: {
             run: [
-                ...loadContent("./content-on-1.html"),
+                ...loadPageRegion("./on-1.html"),
                 {
                     op: "@popstate.push",
                     args: {
@@ -153,7 +223,7 @@ export default {
         },
         on_2: {
             run: [
-                ...loadContent("./content-on-2.html"),
+                ...loadPageRegion("./on-2.html"),
                 {
                     op: "@popstate.push",
                     args: {
@@ -167,7 +237,7 @@ export default {
         },
         on_3: {
             run: [
-                ...loadContent("./content-on-3.html"),
+                ...loadPageRegion("./on-3.html"),
                 {
                     op: "@popstate.push",
                     args: {
