@@ -96,6 +96,12 @@ Quick links:
 
 * [`http.send`](../usage/builtins/http/send.md) - Executes HTTP request resolution/send and exports response to buffer.
 
+### `popstate`
+
+* [`popstate.push`](../usage/builtins/popstate/push.md) - Writes a new browser history entry immediately.
+* [`popstate.set`](../usage/builtins/popstate/set.md) - Rewrites the current browser history entry immediately.
+* [`popstate.seed`](../usage/builtins/popstate/seed.md) - Seeds history state once per job/seed key for baseline or fragment flows.
+
 ---
 
 ## Operation contract posture

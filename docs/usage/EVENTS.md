@@ -24,7 +24,8 @@ events: {
     event    : "<dom-event-type>",
     selector : "<optional-css-subselector>",
     pipeline : "<pipeline-key>",
-    options  : { capture, passive, once }
+    options  : { capture, passive, once },
+    policy   : { match, stop, prevent }
   }
 }
 ```
@@ -122,6 +123,7 @@ Default event shape includes:
 * `selector: ""` (optional; no sub-selector filter)
 * `pipeline: ""`
 * `options: { capture: false, passive: true, once: false }`
+ * `policy: { match: "closest", stop: false, prevent: false }`
 
 ---
 
@@ -139,6 +141,8 @@ Schema normalizer (`_normalizeEventItem`) applies:
   optional trimmed string filter inside the job element
 * `options`:
   hash-coerced; `capture`, `passive`, `once` normalized boolish-yes
+* `policy`:
+  hash-coerced; `match`, `stop`, `prevent` normalized for EventDelegator use
 
 Controller registration then requires:
 
@@ -146,6 +150,17 @@ Controller registration then requires:
 * non-empty `pipeline`
 
 Entries missing either are skipped.
+
+`policy` is passed through to the delegated event layer and currently supports:
+
+* `match: "closest" | "target"`
+* `prevent: true`
+* `stop: true` (`stopImmediatePropagation()`)
+
+Important caveat:
+
+* If you use `policy.prevent: true`, also set `options.passive: false`.
+  Passive listeners cannot reliably call `preventDefault()`.
 
 ---
 
@@ -207,7 +222,36 @@ This avoids enqueue spam when moving between descendants inside the same semanti
 
 ---
 
-## 7) What gets enqueued on trigger
+## 7) Delegator policy pass-through
+
+Event definitions may include a `policy` block for advanced EventDelegator behavior.
+
+Example:
+
+```js
+{
+  events: {
+    nav: {
+      event: "click",
+      selector: "a[href]",
+      pipeline: "navigate",
+      options: {
+        passive: false,
+      },
+      policy: {
+        prevent: true,
+        match: "closest",
+      },
+    },
+  },
+}
+```
+
+This is useful for link interception, submit suppression, or narrow target matching without writing custom DOM glue outside ActiveTags.
+
+---
+
+## 8) What gets enqueued on trigger
 
 When a binding fires, handler enqueues:
 
@@ -232,7 +276,7 @@ Then drain is scheduled asynchronously.
 
 ---
 
-## 8) Attribute-based setup
+## 9) Attribute-based setup
 
 Because prefixed attributes are inflated by `-`, this works:
 

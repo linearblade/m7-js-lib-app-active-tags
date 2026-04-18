@@ -300,6 +300,12 @@ export const DEFAULT_PIPELINE_SHAPE = {
  *   passive  hint that the handler will not call preventDefault
  *   once     auto-remove after first invocation
  *
+ * policy
+ *   Optional dispatch policy passed through to the EventDelegator layer.
+ *   match    "closest" | "target" target matching mode
+ *   stop     call stopImmediatePropagation() after the handler fires
+ *   prevent  call preventDefault() when a match occurs
+ *
  *
  * DESIGN CONSTRAINTS
  * ------------------
@@ -330,7 +336,10 @@ export const DEFAULT_EVENT_SHAPE = {
         capture: false,
         passive: true,
         once: false
-    }
+    },
+
+    // delegator dispatch policy
+    policy: {}
 };
 
 /**

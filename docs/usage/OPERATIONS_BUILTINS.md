@@ -185,6 +185,9 @@ Available builtin operations:
 * `e.parent`
 * `e.child`
 * `http.send`
+* `popstate.push`
+* `popstate.set`
+* `popstate.seed`
 
 Family source folders/files:
 
@@ -195,6 +198,7 @@ Family source folders/files:
 * Target: [../../src/builtins/target/index.js](../../src/builtins/target/index.js)
 * E: [../../src/builtins/e/index.js](../../src/builtins/e/index.js)
 * HTTP: [../../src/builtins/http/httpSend.js](../../src/builtins/http/httpSend.js)
+* Popstate: [../../src/builtins/popstate/index.js](../../src/builtins/popstate/index.js)
 * Confirm: [../../src/builtins/confirm.js](../../src/builtins/confirm.js)
 * HTTP send guide: [./HTTP_SEND.md](./HTTP_SEND.md)
 * Builtins reference (module/function): [./builtins/INDEX.md](./builtins/INDEX.md)

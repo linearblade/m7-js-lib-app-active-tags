@@ -208,21 +208,45 @@ export default {
             event: "click",
             selector: "#loadIndex",
             pipeline: "index",
+            options: {
+                passive: false,
+            },
+            policy: {
+                prevent: true,
+            },
         },
         on_1_click: {
             event: "click",
             selector: "#loadOn1",
             pipeline: "on_1",
+            options: {
+                passive: false,
+            },
+            policy: {
+                prevent: true,
+            },
         },
         on_2_click: {
             event: "click",
             selector: "#loadOn2",
             pipeline: "on_2",
+            options: {
+                passive: false,
+            },
+            policy: {
+                prevent: true,
+            },
         },
         on_3_click: {
             event: "click",
             selector: "#loadOn3",
             pipeline: "on_3",
+            options: {
+                passive: false,
+            },
+            policy: {
+                prevent: true,
+            },
         },
         fragment_1_click: {
             event: "click",

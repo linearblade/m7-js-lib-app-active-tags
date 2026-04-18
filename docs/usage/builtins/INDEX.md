@@ -19,6 +19,7 @@ Runtime source of truth:
 * [DOM (`dom.*`)](./dom/INDEX.md)
 * [Form (`form.*`)](./form/INDEX.md)
 * [HTTP (`http.*`)](./http/INDEX.md)
+* [Popstate (`popstate.*`)](./popstate/INDEX.md)
 * [Error (`error.*`)](./error/INDEX.md)
 * [Buffer (`buffer.*`)](./buffer/INDEX.md)
 * [Target (`target.*`)](./target/INDEX.md)

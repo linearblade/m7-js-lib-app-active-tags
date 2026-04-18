@@ -800,6 +800,7 @@ export default class Master {
      * - Normalize event-level popstate history directives.
      * - Apply safe defaults for selector targeting.
      * - Normalize addEventListener-style options.
+     * - Normalize optional EventDelegator dispatch policy.
      *
      * Normalization rules:
      * - Input is coerced via `lib.hash.to(ev)`.
@@ -814,6 +815,9 @@ export default class Master {
      *         `mode`, `url`, `title`, `state`, `inputs`
      * - `options` is coerced to a hash and normalized as addEventListener flags:
      *     - `capture`, `passive`, `once` are true only on explicit "yes" intent.
+     * - `policy` is coerced to a hash and normalized for delegator-safe values:
+     *     - `match` is `"closest"` or `"target"` (fallback `"closest"`)
+     *     - `stop` and `prevent` are true only on explicit "yes" intent.
      *
      * Diagnostics:
      * - No hard validation is performed here.
@@ -825,6 +829,7 @@ export default class Master {
      * - `event`, `pipeline`, and `selector` are non-empty strings.
      * - `popstate` is either `false` or a canonical hash.
      * - `options` is always a hash with boolean flags.
+     * - `policy` is always a hash with delegator-safe values.
      *
      * @param {Object} ev
      *     Raw event definition.
@@ -869,6 +874,15 @@ export default class Master {
 	ev.options.capture = lib.bool.yes(ev.options.capture);
 	ev.options.passive = lib.bool.yes(ev.options.passive);
 	ev.options.once    = lib.bool.yes(ev.options.once);
+
+	// policy: EventDelegator dispatch policy bag
+	ev.policy = lib.hash.to(ev.policy);
+	ev.policy.match = lib.str.to(ev.policy.match, true).trim().toLowerCase();
+	if (!["closest", "target"].includes(ev.policy.match)) {
+	    ev.policy.match = "closest";
+	}
+	ev.policy.stop = lib.bool.yes(ev.policy.stop);
+	ev.policy.prevent = lib.bool.yes(ev.policy.prevent);
 
 	return ev;
     }

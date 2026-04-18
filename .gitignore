@@ -5,6 +5,7 @@
 m7bootstrap.md
 m7bootstrap.js
 __tmp/
+examples/popstate/vendor/
 
 # Node artifact files
 node_modules/
