@@ -31,6 +31,63 @@ function loadContent(url, selector = "#main") {
     ];
 }
 
+function resolveInitialPageSeed() {
+    const fallback = {
+        pipeline: "index",
+        url: "./",
+        title: "index",
+        contentUrl: "./content-index.html",
+    };
+
+    if (typeof window === "undefined" || !window.location) {
+        return fallback;
+    }
+
+    const pathname = String(window.location.pathname || "").trim();
+    const parts = pathname.split("/").filter(Boolean);
+    const leaf = parts.length ? parts[parts.length - 1] : "";
+
+    if (!leaf || leaf === "index.html") {
+        return fallback;
+    }
+
+    if (leaf === "on-1.html") {
+        return {
+            pipeline: "on_1",
+            url: "./on-1.html",
+            title: "on-1",
+            contentUrl: "./content-on-1.html",
+        };
+    }
+
+    if (leaf === "on-2.html") {
+        return {
+            pipeline: "on_2",
+            url: "./on-2.html",
+            title: "on-2",
+            contentUrl: "./content-on-2.html",
+        };
+    }
+
+    if (leaf === "on-3.html") {
+        return {
+            pipeline: "on_3",
+            url: "./on-3.html",
+            title: "on-3",
+            contentUrl: "./content-on-3.html",
+        };
+    }
+
+    return {
+        pipeline: "index",
+        url: false,
+        title: false,
+        contentUrl: "./content-index.html",
+    };
+}
+
+const INITIAL_PAGE_SEED = resolveInitialPageSeed();
+
 export default {
     name: "popstate-nav",
     enabled: true,
@@ -71,12 +128,12 @@ export default {
                 {
                     op: "@popstate.seed",
                     args: {
-                        pipeline: "index",
-                        url: "./",
-                        title: true,
+                        pipeline: INITIAL_PAGE_SEED.pipeline,
+                        url: INITIAL_PAGE_SEED.url,
+                        title: INITIAL_PAGE_SEED.title,
                     },
                 },
-                ...loadContent("./content-index.html"),
+                ...loadContent(INITIAL_PAGE_SEED.contentUrl),
             ],
             error: ["@error.dump"],
         },
