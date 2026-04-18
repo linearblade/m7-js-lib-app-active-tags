@@ -577,6 +577,9 @@ export class Tick {
 	const { jobId, job, ticket, res, st, finalize } = env;
 	st.stats.errors += 1;
 	finalize(helpers.TICKET_STATE.ERROR);
+	// Event-config popstate chaser is disabled for now.
+	// Builtin `@popstate.*` ops are the active history path.
+	// this.engine.vm.AT.popstate.postChaseError(env);
 
 	const summary = this.response._makeTerminalSummary({ job, ticket, res, state: helpers.TICKET_STATE.ERROR });
 
@@ -596,6 +599,9 @@ export class Tick {
 
 	st.stats.runs += 1;
 	finalize(helpers.TICKET_STATE.COMPLETE);
+	// Event-config popstate chaser is disabled for now.
+	// Builtin `@popstate.*` ops are the active history path.
+	// this.engine.vm.AT.popstate.postChaseComplete(env);
 
 	const summary = this.response._makeTerminalSummary({ job, ticket, res, state: helpers.TICKET_STATE.COMPLETE});
 
@@ -624,6 +630,9 @@ export class Tick {
 	st.stats.errors += 1;
 	//always hard fail on things that should exist but dont
 	finalize(helpers.TICKET_STATE.ERROR);
+	// Event-config popstate chaser is disabled for now.
+	// Builtin `@popstate.*` ops are the active history path.
+	// this.engine.vm.AT.popstate.postChaseUnknown(env);
 
 
 

@@ -51,7 +51,7 @@ Dependency repository locations (manual/source install paths):
 ### Recommended: versioned standalone bundle
 
 ```js
-import { install, SERVICE_ID, VERSION } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+import { install, SERVICE_ID, VERSION } from "/vendor/m7-js-lib-active-tags/dist/nomap/activeTags.standalone.v1.0.min.js";
 
 const lib = install({
   conf: {
@@ -71,6 +71,68 @@ console.log("ActiveTags version:", VERSION);
 ```
 
 Use this as the default integration path.
+
+### Standalone feature flags
+
+The standalone `install(opts)` wrapper can also install bundled navigation helpers.
+Both are off by default.
+
+* `popstate: false`
+  Enable with `true` or pass an options object to install `app.popstatemanager`.
+* `spa: false`
+  Enable with `true` or pass an options object to install `app.singlepageapp`
+  using the SinglePageApp `basic` setup.
+* `spa` implies `popstate`
+  When `spa` is enabled, standalone install ensures popstate is installed first.
+
+Examples:
+
+```js
+const lib = install({
+  conf: {
+    boot: {
+      events: true,
+      intervals: true,
+      observeDom: true,
+    },
+  },
+});
+```
+
+```js
+const lib = install({
+  conf: { /* ActiveTags config */ },
+  popstate: true,
+});
+```
+
+```js
+const lib = install({
+  conf: { /* ActiveTags config */ },
+  spa: true,
+});
+```
+
+```js
+const lib = install({
+  conf: { /* ActiveTags config */ },
+  popstate: true,
+  spa: {
+    enabled: true,
+    popstateKey: "spa-link",
+    linkSelector: "a.spa-link[href]",
+    sourceSelector: "#main",
+    targetSelector: "#main",
+  },
+});
+```
+
+Notes:
+
+* `spa: true` uses the bundled SinglePageApp `basic` installer with its defaults.
+* `spa: { ... }` passes your options through to that `basic` installer.
+* `popstate: { ... }` passes your options through to the PopStateManager installer.
+* `host` / `root` are inferred from the bundled lib environment or `window` when possible.
 
 ### Advanced/manual source entry: class-level
 
@@ -163,10 +225,10 @@ const AT = runtimeLib.service.get(SERVICE_ID);
 Manual bundle/minify example (versioned standalone artifact):
 
 ```bash
-scripts/build-standalone.sh --with-map
+scripts/build-dist.sh
 ```
 
-This emits `dist/activeTags.standalone.v<version>.min.js` (plus `.LEGAL.txt` and optional `.map`).
+This emits `dist/nomap/activeTags.standalone.v<version>.min.js` and `dist/map/activeTags.standalone.v<version>.min.js` (plus matching `.LEGAL.txt` files and the sourcemap under `dist/map`).
 See [BUNDLING.md](./BUNDLING.md) for full release workflow.
 
 ## Example dependency boot sequence
@@ -192,7 +254,7 @@ This file demonstrates dist-first standalone boot with a runtime toggle.
 
 Before starting runtime, verify:
 
-* bundle path is valid (`dist/activeTags.standalone.v1.0.min.js`)
+* bundle path is valid (`dist/nomap/activeTags.standalone.v1.0.min.js`)
 * service instance resolves (`lib.service.get(SERVICE_ID)`)
 * page runs in ESM mode (`<script type="module">`)
 * for releases/commits, run `sh scripts/release-check.sh` (see [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md))

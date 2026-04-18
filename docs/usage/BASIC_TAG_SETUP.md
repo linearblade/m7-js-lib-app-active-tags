@@ -190,7 +190,7 @@ This makes ActiveTags workable across mixed construction styles (for example, PH
 From [../../examples/tutorial/tutorial.js](../../examples/tutorial/tutorial.js), these runtime options are relevant for config-source behavior:
 
 ```js
-import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/nomap/activeTags.standalone.v1.0.min.js";
 
 const lib = install({
   conf: {

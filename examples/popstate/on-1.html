@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ActiveTags Popstate Sandbox - On 1</title>
+    <link rel="stylesheet" href="./index.css">
+    <script type="module" src="./script.js"></script>
+</head>
+<body class="theme-on-1">
+    <main class="page" data-activetag at-name="popstate-nav" at-at="import:popstate-nav.js">
+        <div class="row nav-row">
+            <button class="nav-link" id="loadIndex" type="button">index</button>
+            <button class="nav-link" id="loadOn1" type="button" aria-current="page">on-1</button>
+            <button class="nav-link" id="loadOn2" type="button">on-2</button>
+            <button class="nav-link" id="loadOn3" type="button">on-3</button>
+        </div>
+
+        <div class="row ticker">
+            <span class="ticker-label">status</span>
+            <p class="ticker-copy">on-1 loaded. This state should feel like the first live panel we navigate into from index.</p>
+        </div>
+
+        <div class="row content-shell" id="main">
+            <div class="content-grid">
+                <section>
+                    <p class="eyebrow">Popstate Sandbox</p>
+                    <h1>On 1 State</h1>
+                    <p class="lede">
+                        This is the first alternate page in the sandbox. Same shell, same structure, but clearly
+                        different content so we can spot transitions immediately once state replay starts to happen.
+                    </p>
+                </section>
+
+                <aside class="blob-card">
+                    <div class="blob-shape" aria-hidden="true"></div>
+                    <p class="blob-copy">
+                        On-1 is the cool blue state. When we start wiring AT transitions, landing here should be
+                        visually obvious even before we read the ticker.
+                    </p>
+                </aside>
+            </div>
+        </div>
+
+        <div class="row subnav-row">
+            <span class="subnav-label">fragments</span>
+            <button class="subnav-link" id="loadFragment1" type="button">fragment-1</button>
+            <button class="subnav-link" id="loadFragment2" type="button">fragment-2</button>
+            <button class="subnav-link" id="loadFragment3" type="button">fragment-3</button>
+        </div>
+
+        <div class="row fragment-shell" id="fragment-main">
+            <div class="fragment-card">
+                <p class="fragment-meta">Fragment Sandbox</p>
+                <h2 class="fragment-title">Secondary Test Region</h2>
+                <p class="fragment-copy">
+                    The fragment toolbar lives below the popstate shell on every page. Its swaps stay local to this
+                    lower panel so we can see whether pure fragment behavior leaves the browser history alone.
+                </p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

@@ -71,7 +71,7 @@ These are design guarantees, not informal conventions.
 ## Quick example
 
 ```js
-import { install, SERVICE_ID } from "./dist/activeTags.standalone.v1.0.min.js";
+import { install, SERVICE_ID } from "./dist/nomap/activeTags.standalone.v1.0.min.js";
 
 const lib = install({
   conf: {
@@ -131,7 +131,7 @@ It does not:
 * Architecture docs -> [docs/architecture/INDEX.md](docs/architecture/INDEX.md)
 * API docs -> [docs/api/INDEX.md](docs/api/INDEX.md)
 * Buffer + Target flow (API quick path) -> [docs/api/BUILTINS.md#start-here-buffer-and-target-flow-important](docs/api/BUILTINS.md#start-here-buffer-and-target-flow-important)
-* Release bundle -> [dist/activeTags.standalone.v1.0.min.js](dist/activeTags.standalone.v1.0.min.js)
+* Release bundle -> [dist/nomap/activeTags.standalone.v1.0.min.js](dist/nomap/activeTags.standalone.v1.0.min.js)
 * Source entry (manual/internal) -> [src/install.js](src/install.js)
 * Standalone source entry -> [src/standalone/prebundle.js](src/standalone/prebundle.js)
 * Examples -> [examples/](examples/)

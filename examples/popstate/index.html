@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ActiveTags Popstate Sandbox</title>
+    <link rel="stylesheet" href="./index.css">
+    <script type="module" src="./script.js"></script>
+</head>
+<body class="theme-index">
+    <main class="page" data-activetag at-name="popstate-nav" at-at="import:popstate-nav.js">
+        <div class="row nav-row">
+            <button class="nav-link" id="loadIndex" type="button" aria-current="page">index</button>
+            <button class="nav-link" id="loadOn1" type="button">on-1</button>
+            <button class="nav-link" id="loadOn2" type="button">on-2</button>
+            <button class="nav-link" id="loadOn3" type="button">on-3</button>
+        </div>
+
+        <div class="row ticker">
+            <span class="ticker-label">status</span>
+            <p class="ticker-copy">index loaded. This is the base sandbox shell. Click the links above once we start wiring states.</p>
+        </div>
+
+        <div class="row content-shell" id="main">
+            <div class="content-grid">
+                <section>
+                    <p class="eyebrow">Popstate Sandbox</p>
+                    <h1>Index State</h1>
+                    <p class="lede">
+                        This is the index view for the ActiveTags popstate sandbox. The top bar will become our tiny
+                        state strip, the ticker will tell us what happened, and this panel is where the changing
+                        content will land.
+                    </p>
+                </section>
+
+                <aside class="blob-card">
+                    <div class="blob-shape" aria-hidden="true"></div>
+                    <p class="blob-copy">
+                        Big friendly placeholder box. Later this becomes the visual proof that our AT state can move
+                        without needing a separate page yet.
+                    </p>
+                </aside>
+            </div>
+        </div>
+
+        <div class="row subnav-row">
+            <span class="subnav-label">fragments</span>
+            <button class="subnav-link" id="loadFragment1" type="button">fragment-1</button>
+            <button class="subnav-link" id="loadFragment2" type="button">fragment-2</button>
+            <button class="subnav-link" id="loadFragment3" type="button">fragment-3</button>
+        </div>
+
+        <div class="row fragment-shell" id="fragment-main">
+            <div class="fragment-card">
+                <p class="fragment-meta">Fragment Sandbox</p>
+                <h2 class="fragment-title">Secondary Test Region</h2>
+                <p class="fragment-copy">
+                    These lower links are plain fragment swaps. They should update this panel only and avoid pushing
+                    anything into browser history, which gives us a clean contrast with the top nav.
+                </p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

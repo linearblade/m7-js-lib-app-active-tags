@@ -15,6 +15,8 @@
 | `opts` | `string\|Object` | No | Legacy string reason or options object. |
 | `opts.reason` | `string` | No | Diagnostic reason attached to enqueue inputs. Defaults to `"none given"` when empty. |
 | `opts.returnMeta` | `boolean` | No | When true, `enqueueAll` returns enqueue metadata entries in addition to count. |
+| `opts.internal` | `boolean` | No | When true, include internal synthetic jobs in the autorun sweep. |
+| `opts.rerun` | `boolean` | No | When true, include jobs whose `flags.hasRun === true`. |
 
 ### Returns
 
@@ -39,7 +41,8 @@ When `opts.returnMeta` is true, return shape is:
 * Iterates over `AT.jobs.list()`.
 * For eligible jobs (`enabled !== false` and non-empty `autorun` list), calls `AT.engine.enqueue(job, key, opts)`.
 * Normalizes `"__DEFAULT__"` autorun entries to `"default"`.
-* Writes enqueue return values to console (`console.log`).
+* Skips internal jobs by default unless `opts.internal === true`.
+* Skips jobs that have already run by default unless `opts.rerun === true`.
 
 ### Failure modes
 
@@ -56,7 +59,8 @@ const count = AT.enqueueAll("boot");
 ```js
 const out = AT.enqueueAll({
   reason: "boot",
-  returnMeta: true
+  returnMeta: true,
+  rerun: true
 });
 // out -> { count, entries }
 ```

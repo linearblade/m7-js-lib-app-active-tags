@@ -320,6 +320,15 @@ export class EngineManager {
 	}
 
 	const ticket = helpers.makeRunTicket({job, pipelineKey, inputs, priority, meta });
+	// Event-config popstate chaser is disabled for now.
+	// Builtin `@popstate.*` ops are the active history path.
+	// this.engine.vm.AT.popstate.preChaseEnqueue({
+	//     job,
+	//     ticket,
+	//     pipelineKey,
+	//     inputs,
+	//     meta,
+	// });
 	//console.log(ticket);
 	this.engine.state.indexTicket(jobId, ticket);
 	this.engine.state.aliasSet(jobId, pipelineKey, ticket.id);

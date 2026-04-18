@@ -77,7 +77,7 @@ At startup, ActiveTags creates these buckets when:
 Example:
 
 ```js
-import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/nomap/activeTags.standalone.v1.0.min.js";
 
 const lib = install({
   conf: {

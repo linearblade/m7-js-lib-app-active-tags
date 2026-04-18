@@ -41,7 +41,7 @@ Create an HTML file (for example `tutorial.html`) with one module script.
     <div data-activetag at-name="tutorial-counter" at-at="import:tutorial-job.js"></div>
 
     <script type="module">
-      import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+      import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/nomap/activeTags.standalone.v1.0.min.js";
 
       const conf = {
         boot: {

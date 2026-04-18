@@ -4,7 +4,7 @@ This example directory is spec'd for the **ActiveTags standalone 1.0** runtime.
 
 Default runtime target:
 
-- `/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js`
+- `/vendor/m7-js-lib-active-tags/dist/nomap/activeTags.standalone.v1.0.min.js`
 
 Runtime override options used by these examples:
 

@@ -43,12 +43,20 @@ export const trait_engine = {
      * @param {string|Object} [opts]
      * Optional enqueue-all options.
      *
-     * Legacy form:
-     * - string reason
+     * Coercion semantics:
+     * - Non-hash input is coerced via `lib.hash.to(opts, "reason")`
+     * - Example: `enqueueAll("boot")` becomes `{ reason: "boot" }`
      *
      * Object form:
      * - opts.reason (string): diagnostic reason label (defaults to `"none given"`)
      * - opts.returnMeta (boolean): when true, returns enqueue metadata entries
+     * - opts.internal (boolean-ish): when true, includes internal synthetic jobs
+     * - opts.rerun (boolean-ish): when true, includes jobs whose
+     *   `flags.hasRun === true`
+     *
+     * Notes:
+     * - `returnMeta`, `internal`, and `rerun` are only configurable through object input.
+     * - By default, jobs with `flags.hasRun === true` are skipped.
      *
      * @returns {number|{count: number, entries: Array}}
      * - Default: number of enqueue attempts issued.
@@ -59,8 +67,9 @@ export const trait_engine = {
     enqueueAll(opts) {
 	const lib = this.lib;
 	const jobs = this.jobs.list();
-	opts = lib.hash.to(opts, "reason returnMeta");
-	
+	opts = lib.hash.to(opts, "reason");
+	opts.internal = lib.bool.yes(opts.internal);
+	opts.rerun = lib.bool.yes(opts.rerun);
 	const reason = lib.str.to(opts.reason, true).trim() ?
 	      lib.str.to(opts.reason, true).trim() :
               "none given";
@@ -69,16 +78,21 @@ export const trait_engine = {
 
 	let count = 0;
 	for (const job of jobs) {
+            const isInternal = lib.bool.yes(lib.hash.get(job, "flags.internal"));
+            if (isInternal && !opts.internal) continue;
+            const hasRun = lib.bool.yes(lib.hash.get(job, "flags.hasRun"));
+            if (hasRun && !opts.rerun) continue;
             // enabled gate
             const enabled = lib.hash.get(job, "config.schema.enabled");
             if (enabled === false) continue;
-	    
+	    //console.log('JOB: ' + job.name );
             // autorun list
             let autorun = lib.hash.get(job, "config.schema.autorun");
 	    //console.log(enabled,autorun, job.name,job.id);
             if (!lib.array.len(autorun)) continue;
-	    
+	    //console.log(autorun);
             for (let key of autorun) {
+		//console.log(' -- '+key);
 		if (!key) continue;
 		
 		// "__DEFAULT__" -> "default"

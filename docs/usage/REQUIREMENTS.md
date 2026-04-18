@@ -71,13 +71,13 @@ the dependency repositories above separately.
 
 Recommended release path:
 
-* `/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js`
+* `/vendor/m7-js-lib-active-tags/dist/nomap/activeTags.standalone.v1.0.min.js`
 
 ## Verification checklist
 
 Before starting runtime, verify:
 
-* bundle path resolves (`dist/activeTags.standalone.v1.0.min.js`)
+* bundle path resolves (`dist/nomap/activeTags.standalone.v1.0.min.js`)
 * `install({ conf })` returns lib successfully
 * `lib.service.get(SERVICE_ID)` returns an instance (from the standalone import)
 

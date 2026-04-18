@@ -161,6 +161,13 @@ Enqueues autorun pipelines for eligible registered jobs.
 
 This method enqueues work; it does not execute stages directly.
 
+Object options currently include:
+
+* `reason`
+* `returnMeta`
+* `internal`
+* `rerun`
+
 ---
 
 ## Exposed runtime composition

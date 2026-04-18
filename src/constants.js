@@ -56,12 +56,14 @@ export const SERVICE_DELEGATOR = "primitive.dom.eventdelegator";
 export const SERVICE_LOG       = "primitive.log";
 export const SERVICE_INTERVAL  = "primitive.interval";
 export const SERVICE_OBSERVER  = "primitive.dom.changeobserver";
+export const SERVICE_POPSTATE  = "app.popstatemanager";
 
 export const CORE_SERVICES = [
     SERVICE_DELEGATOR,
     SERVICE_LOG,
     SERVICE_INTERVAL,
     SERVICE_OBSERVER,
+    SERVICE_POPSTATE,
 ];
 
 
@@ -148,6 +150,7 @@ export default {
     SERVICE_INTERVAL,
     SERVICE_OBSERVER,
     SERVICE_LOG,
+    SERVICE_POPSTATE,
     CORE_SERVICES,
 
     JOB_CONFIG_STATUS,

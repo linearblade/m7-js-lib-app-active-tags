@@ -12,6 +12,7 @@ import  error        from './error/index.js';
 import  buffer       from './buffer/index.js';
 import  target       from './target/index.js';
 import  e            from './e/index.js';
+import  popstate     from './popstate/index.js';
 
 /**
  * Builtins root export surface used by ActiveTags engine config compilation.
@@ -25,6 +26,7 @@ import  e            from './e/index.js';
  * - `buffer.*`
  * - `target.*`
  * - `e.*`
+ * - `popstate.*`
  *
  * This file is the canonical builtin registry source for:
  * - `AT.conf.engine.builtins` defaults
@@ -38,6 +40,7 @@ export { buffer };
 export { target };
 export { e };
 export { error } ;
+export { popstate };
 
 /**
  * Default builtin registry tree.
@@ -52,5 +55,6 @@ export default {
     error,
     buffer,
     target,
-    e
+    e,
+    popstate
 };

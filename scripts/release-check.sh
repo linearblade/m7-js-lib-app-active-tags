@@ -32,19 +32,40 @@ else
     ok "VERSION=${VERSION_VALUE}"
 fi
 
-DIST_JS="dist/activeTags.standalone.v${VERSION_VALUE}.min.js"
-DIST_LEGAL="${DIST_JS}.LEGAL.txt"
+DIST_NOMAP_JS="dist/nomap/activeTags.standalone.v${VERSION_VALUE}.min.js"
+DIST_NOMAP_LEGAL="${DIST_NOMAP_JS}.LEGAL.txt"
+DIST_MAP_JS="dist/map/activeTags.standalone.v${VERSION_VALUE}.min.js"
+DIST_MAP_LEGAL="${DIST_MAP_JS}.LEGAL.txt"
+DIST_MAP_SOURCEMAP="${DIST_MAP_JS}.map"
 
-if [ -f "$DIST_JS" ]; then
-    ok "dist artifact present: $DIST_JS"
+if [ -f "$DIST_NOMAP_JS" ]; then
+    ok "nomap dist artifact present: $DIST_NOMAP_JS"
 else
-    fail "missing dist artifact: $DIST_JS"
+    fail "missing nomap dist artifact: $DIST_NOMAP_JS"
 fi
 
-if [ -f "$DIST_LEGAL" ]; then
-    ok "legal artifact present: $DIST_LEGAL"
+if [ -f "$DIST_NOMAP_LEGAL" ]; then
+    ok "nomap legal artifact present: $DIST_NOMAP_LEGAL"
 else
-    fail "missing legal artifact: $DIST_LEGAL"
+    fail "missing nomap legal artifact: $DIST_NOMAP_LEGAL"
+fi
+
+if [ -f "$DIST_MAP_JS" ]; then
+    ok "map dist artifact present: $DIST_MAP_JS"
+else
+    fail "missing map dist artifact: $DIST_MAP_JS"
+fi
+
+if [ -f "$DIST_MAP_LEGAL" ]; then
+    ok "map legal artifact present: $DIST_MAP_LEGAL"
+else
+    fail "missing map legal artifact: $DIST_MAP_LEGAL"
+fi
+
+if [ -f "$DIST_MAP_SOURCEMAP" ]; then
+    ok "map artifact present: $DIST_MAP_SOURCEMAP"
+else
+    fail "missing map artifact: $DIST_MAP_SOURCEMAP"
 fi
 
 run_gate "examples/docs local reference validator" sh scripts/validate-links.sh
@@ -62,9 +83,10 @@ grep_scan() {
 tmp_versioned=$(mktemp)
 tmp_mismatch=$(mktemp)
 tmp_old=$(mktemp)
+tmp_old_flat=$(mktemp)
 tmp_legacy=$(mktemp)
 tmp_hardcoded=$(mktemp)
-trap 'rm -f "$tmp_versioned" "$tmp_mismatch" "$tmp_old" "$tmp_legacy" "$tmp_hardcoded"' EXIT HUP INT TERM
+trap 'rm -f "$tmp_versioned" "$tmp_mismatch" "$tmp_old" "$tmp_old_flat" "$tmp_legacy" "$tmp_hardcoded"' EXIT HUP INT TERM
 
 if grep_scan -E "activeTags\\.standalone\\.v[0-9][0-9.]*\\.min\\.js" README.md docs examples > "$tmp_versioned"; then
     grep -v "\\.v${VERSION_VALUE}\\.min\\.js" "$tmp_versioned" > "$tmp_mismatch" || true
@@ -83,6 +105,13 @@ if grep_scan "activeTags\\.standalone\\.min\\.js" README.md docs examples > "$tm
     fail "unversioned dist path references found."
 else
     ok "no unversioned dist path references found"
+fi
+
+if grep_scan -E "dist/activeTags\\.standalone\\.v[0-9][0-9.]*\\.min\\.js" README.md docs examples > "$tmp_old_flat"; then
+    cat "$tmp_old_flat" >&2
+    fail "flat dist path references found (use dist/nomap or dist/map)."
+else
+    ok "no flat dist path references found"
 fi
 
 if grep_scan -E "site\\.activeTags|fromFileStandAlone" README.md docs src examples > "$tmp_legacy"; then

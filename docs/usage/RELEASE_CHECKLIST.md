@@ -16,7 +16,7 @@ sh scripts/release-check.sh
 
 This script verifies:
 
-* versioned dist artifacts exist for current [../../VERSION](../../VERSION)
+* `dist/nomap` and `dist/map` artifacts exist for current [../../VERSION](../../VERSION)
 * example/doc local links and imports resolve
 * docs/example bundle references match current version (`activeTags.standalone.v<version>.min.js`)
 * legacy naming drift is not reintroduced
@@ -30,7 +30,7 @@ This script verifies:
 1. Set/update [../../VERSION](../../VERSION).
 2. Build standalone dist:
    ```bash
-   scripts/build-standalone.sh --with-map
+   scripts/build-dist.sh
    ```
 3. Run release gate:
    ```bash

@@ -40,7 +40,7 @@ If you are new to the project, the recommended reading order is:
 ## Quick example
 
 ```js
-import { install, SERVICE_ID } from "./dist/activeTags.standalone.v1.0.min.js";
+import { install, SERVICE_ID } from "./dist/nomap/activeTags.standalone.v1.0.min.js";
 
 const lib = install({
   conf: {

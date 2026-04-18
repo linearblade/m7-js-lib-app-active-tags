@@ -5,7 +5,7 @@
 
 const RUNTIME_PATHS = Object.freeze({
     dev: "/vendor/m7-js-lib-active-tags/src/standalone/prebundle.js",
-    dist: "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js",
+    dist: "/vendor/m7-js-lib-active-tags/dist/nomap/activeTags.standalone.v1.0.min.js",
 });
 
 // Runtime selector:

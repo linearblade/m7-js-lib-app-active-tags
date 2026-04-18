@@ -78,8 +78,10 @@ Declares which pipelines should autorun at startup enqueue.
 Runtime note:
 
 * Autorun list is consumed by `AT.enqueueAll()`.
-* `AT.start()` does not call `enqueueAll()` automatically in the current runtime, so startup autorun behavior is typically:
-  `await AT.start(); AT.enqueueAll("startup");`
+* `AT.start()` now enqueues autoruns automatically with startup reason before the initial engine drain.
+* Manual `AT.enqueueAll(...)` is still available when callers want to trigger an additional explicit autorun sweep later.
+* `AT.enqueueAll()` skips jobs that already have `flags.hasRun === true` by default, which is useful when hot-loading new jobs into an already-active page.
+* `AT.enqueueAll({ rerun: true })` includes already-run jobs in the sweep.
 
 ### `env`
 

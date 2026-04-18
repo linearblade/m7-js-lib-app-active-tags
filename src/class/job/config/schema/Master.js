@@ -797,6 +797,7 @@ export default class Master {
      * Responsibilities:
      * - Coerce the event definition into hash form.
      * - Normalize basic intent fields (`enabled`, `event`, `pipeline`).
+     * - Normalize event-level popstate history directives.
      * - Apply safe defaults for selector targeting.
      * - Normalize addEventListener-style options.
      *
@@ -807,6 +808,10 @@ export default class Master {
      * - `pipeline` is coerced to a string identifier.
      * - `selector` is kept as a string; empty values default to `"__SELF__"`.
      *   (Sentinel value interpreted by the ActiveTags runtime, not a CSS selector.)
+     * - `popstate` is normalized into either:
+     *     - `false`, or
+     *     - a canonical hash with:
+     *         `mode`, `url`, `title`, `state`, `inputs`
      * - `options` is coerced to a hash and normalized as addEventListener flags:
      *     - `capture`, `passive`, `once` are true only on explicit "yes" intent.
      *
@@ -818,6 +823,7 @@ export default class Master {
      * - Returned value is always a hash.
      * - `enabled` is boolean.
      * - `event`, `pipeline`, and `selector` are non-empty strings.
+     * - `popstate` is either `false` or a canonical hash.
      * - `options` is always a hash with boolean flags.
      *
      * @param {Object} ev
@@ -854,6 +860,10 @@ export default class Master {
 	ev.selector = lib.str.to(ev.selector, true).trim();
 	if (!ev.selector) ev.selector = "__SELF__"; // sentinel; NOT CSS (AT runtime interprets)
 
+	// popstate: event-level history directive
+	// Disabled for now; builtin `@popstate.*` ops are the primary path.
+	// ev.popstate = this._normalizeEventPopstate(ev.popstate, ctx);
+
 	// options: addEventListener-ish bag
 	ev.options = lib.hash.to(ev.options);
 	ev.options.capture = lib.bool.yes(ev.options.capture);
@@ -861,6 +871,118 @@ export default class Master {
 	ev.options.once    = lib.bool.yes(ev.options.once);
 
 	return ev;
+    }
+
+    /**
+     * Normalize an event-level popstate directive.
+     *
+     * Internal:
+     * - Event `popstate` config controls whether an event should write
+     *   history state after a successful run, and in which mode.
+     * - This phase canonicalizes shorthand and object forms into a stable
+     *   schema shape suitable for runtime consumers.
+     *
+     * Supported input forms:
+     * - `false`, `null`, `undefined`, empty string
+     * - `"push"` or `"set"`
+     * - `{ mode, url, title, state, inputs }`
+     *
+     * Normalization rules:
+     * - false-ish values normalize to `false`
+     * - string shorthand normalizes to canonical object form
+     * - object form defaults missing/invalid `mode` to the schema default
+     * - `url` and `title` normalize to `false | true | string`
+     * - `state` and `inputs` normalize to hashes
+     *
+     * Diagnostics:
+     * - Invalid values degrade to safe defaults without warnings.
+     *
+     * Invariants after normalization:
+     * - return value is either `false` or a hash with:
+     *   `mode`, `url`, `title`, `state`, `inputs`
+     *
+     * @param {*} value
+     *     Raw event popstate value.
+     *
+     * @param {Object} ctx
+     *     Normalization context supplied by `_normalizeBlock`.
+     *     Includes:
+     *     - `ctx.report` : Report instance (not currently used here)
+     *     - `ctx.name`   : event name
+     *     - `ctx.key`    : schema key path (e.g. "events")
+     *
+     * @returns {false|Object}
+     *     Canonical popstate directive.
+     *
+     * @private
+     */
+    _normalizeEventPopstate(value, ctx) {
+	const lib = this.lib;
+	void ctx;
+
+	if (value === false || value === null || value === undefined) {
+	    return false;
+	}
+
+	const shorthand = lib.str.to(value, true).trim().toLowerCase();
+	if (shorthand && !lib.hash.is(value)) {
+	    if (!CONSTANTS.EVENT.POPSTATE_MODES.includes(shorthand)) {
+		return false;
+	    }
+
+	    return {
+		mode: shorthand,
+		url: false,
+		title: false,
+		state: {},
+		inputs: {},
+	    };
+	}
+
+	if (!lib.hash.is(value)) {
+	    return false;
+	}
+
+	const popstate = lib.hash.to(value);
+	const modeRaw = lib.str.to(popstate.mode, true).trim().toLowerCase();
+	const mode = CONSTANTS.EVENT.POPSTATE_MODES.includes(modeRaw)
+	    ? modeRaw
+	    : CONSTANTS.EVENT.POPSTATE_MODE_DEFAULT;
+
+	return {
+	    mode,
+	    url: this._normalizeHistoryScalar(popstate.url),
+	    title: this._normalizeHistoryScalar(popstate.title),
+	    state: lib.hash.to(popstate.state),
+	    inputs: lib.hash.to(popstate.inputs),
+	};
+    }
+
+    /**
+     * Normalize a history scalar into `false | true | string`.
+     *
+     * Used for `popstate.url` / `popstate.title` normalization.
+     *
+     * Rules:
+     * - booleans are preserved as-is
+     * - numbers are stringified
+     * - strings are trimmed
+     * - empty/whitespace-only strings become false
+     * - all other types become false
+     *
+     * @param {*} value
+     * @returns {false|true|string}
+     * @private
+     */
+    _normalizeHistoryScalar(value) {
+	const lib = this.lib;
+	const type = lib.utils.baseType(value);
+
+	if (type === "boolean") return value;
+	if (!["string", "number"].includes(type)) return false;
+
+	value = lib.str.to(value, true).trim();
+	return value ? value : false;
     }
     
     // ---------- phase 2: validate ----------

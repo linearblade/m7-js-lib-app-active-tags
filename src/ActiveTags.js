@@ -27,6 +27,7 @@ import IntervalController from './class/interval/Controller.js';
 import ObserverController from './class/observer/Controller.js';
 import EventController    from './class/event/Controller.js';
 import DiscoverController from './class/discover/Controller.js';
+import PopStateController from './class/popstate/Controller.js';
 import RuntimeController  from './class/runtime/Controller.js';
 
 import atSchema           from './at_config/Schema.js';
@@ -66,6 +67,7 @@ class ActiveTags {
 	this.svc.interval        = svc[CONSTANTS.SERVICE_INTERVAL] || null;
 	this.svc.log             = svc[CONSTANTS.SERVICE_LOG] || null;
 	this.svc.domObserver     = svc[CONSTANTS.SERVICE_OBSERVER] || null;
+	this.svc.popstate        = svc[CONSTANTS.SERVICE_POPSTATE] || null;
 
 
 	if (this.svc.log && this.conf.log.enabled) {
@@ -139,6 +141,11 @@ class ActiveTags {
 	    AT: this,
 	    lib: this.lib,
 	});
+
+	this.popstate = new PopStateController({
+	    AT: this,
+	    lib: this.lib,
+	});
 	
     }
 
@@ -147,7 +154,8 @@ class ActiveTags {
      * Activate runtime controllers using current boot configuration.
      *
      * Runs discovery, optional observer start, event/interval registration,
-     * conditional event/interval activation, then drains the engine queue.
+     * conditional event/interval activation, enqueues autoruns, then drains
+     * the engine queue.
      *
      * @throws {Error} When runtime document/body is unavailable.
      * @see docs/contracts/ACTIVE_TAGS_CLASS.contract.md
@@ -167,6 +175,7 @@ class ActiveTags {
 
 	this.intervals.registerAll();
 	this.events.registerAll();
+	this.popstate.start();
 
 	// on by default; falsy disables
 	if (!lib.bool.no(this.conf.boot.intervals)) {
@@ -176,8 +185,10 @@ class ActiveTags {
 
 	if (!lib.bool.no(this.conf.boot.events))
             await this.events.conditionalOn();
-	//just fire the thing right away. we need to drain the autoruns anyhow
+
+	this.enqueueAll("startup");
 	await this.engine.drain();
+	// this.popstate.seedBaseline();
     }
 }
 

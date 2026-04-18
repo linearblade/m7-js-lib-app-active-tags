@@ -16,6 +16,10 @@ export const REQUEST = {
     METHODS         : ['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'], 
     METHOD_DEFAULT  : "GET"
 };
+export const EVENT = {
+    POPSTATE_MODES: ["push", "set"],
+    POPSTATE_MODE_DEFAULT: "push",
+};
 // Arrays are replaced (NOT concatenated), and array+scalar overwrites (NOT push).
 export const MERGE_OPTS_V1 = {
     disp: {
@@ -270,6 +274,26 @@ export const DEFAULT_PIPELINE_SHAPE = {
  * pipeline
  *   Pipeline key to enqueue when the event fires.
  *
+ * popstate
+ *   Optional history behavior directive for the event.
+ *   Supported forms:
+ *     false              disable history handling
+ *     "push" | "set"     shorthand mode selectors
+ *     { ... }            full configuration object
+ *
+ *   Canonical full-form fields:
+ *     mode   "push" | "set"
+ *     url    false | true | string
+ *            false = keep current URL
+ *            true  = derive from request when available
+ *            string = manual override
+ *     title  false | true | string
+ *            false = leave title unchanged
+ *            true  = derive from request when available
+ *            string = manual override
+ *     state  optional lightweight stored payload
+ *     inputs optional replay enqueue inputs
+ *
  * options
  *   Event listener options passed to the delegator layer.
  *   capture  use capture phase if true
@@ -297,6 +321,9 @@ export const DEFAULT_EVENT_SHAPE = {
 
     // pipeline to enqueue when the event fires
     pipeline: "",
+
+    // optional history behavior selector for this event
+    popstate: false,
 
     // addEventListener options
     options: {
@@ -409,7 +436,7 @@ export const BLOCK_NORMALIZERS = {
 };
 
 export default {
-    REQUEST, INTERVAL,
+    REQUEST, INTERVAL, EVENT,
     MERGE_OPTS_V1,
     DEFAULT_REQUEST_SHAPE,
     DEFAULT_PIPELINE_SHAPE,

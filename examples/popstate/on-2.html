@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ActiveTags Popstate Sandbox - On 2</title>
+    <link rel="stylesheet" href="./index.css">
+    <script type="module" src="./script.js"></script>
+</head>
+<body class="theme-on-2">
+    <main class="page" data-activetag at-name="popstate-nav" at-at="import:popstate-nav.js">
+        <div class="row nav-row">
+            <button class="nav-link" id="loadIndex" type="button">index</button>
+            <button class="nav-link" id="loadOn1" type="button">on-1</button>
+            <button class="nav-link" id="loadOn2" type="button" aria-current="page">on-2</button>
+            <button class="nav-link" id="loadOn3" type="button">on-3</button>
+        </div>
+
+        <div class="row ticker">
+            <span class="ticker-label">status</span>
+            <p class="ticker-copy">on-2 loaded. This is the warmer middle state, meant to feel different from both index and on-1.</p>
+        </div>
+
+        <div class="row content-shell" id="main">
+            <div class="content-grid">
+                <section>
+                    <p class="eyebrow">Popstate Sandbox</p>
+                    <h1>On 2 State</h1>
+                    <p class="lede">
+                        Here the sandbox shifts into a green-and-gold variant. The goal is not routing complexity yet,
+                        just a dead simple visual proof that one state is not being mistaken for another.
+                    </p>
+                </section>
+
+                <aside class="blob-card">
+                    <div class="blob-shape" aria-hidden="true"></div>
+                    <p class="blob-copy">
+                        On-2 should read like a separate page even though the structure stays identical. Later that
+                        makes state-driven content swaps much easier to reason about.
+                    </p>
+                </aside>
+            </div>
+        </div>
+
+        <div class="row subnav-row">
+            <span class="subnav-label">fragments</span>
+            <button class="subnav-link" id="loadFragment1" type="button">fragment-1</button>
+            <button class="subnav-link" id="loadFragment2" type="button">fragment-2</button>
+            <button class="subnav-link" id="loadFragment3" type="button">fragment-3</button>
+        </div>
+
+        <div class="row fragment-shell" id="fragment-main">
+            <div class="fragment-card">
+                <p class="fragment-meta">Fragment Sandbox</p>
+                <h2 class="fragment-title">Secondary Test Region</h2>
+                <p class="fragment-copy">
+                    This lower region is deliberately separate from the history-aware top panel. The idea is to make
+                    fragment-only swaps obvious when we start comparing back/forward behavior.
+                </p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

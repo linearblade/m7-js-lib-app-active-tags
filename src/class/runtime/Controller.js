@@ -98,6 +98,10 @@ export class Controller {
 	    headless: false,
 	});
 
+	if (result && result.job && result.job.flags && typeof result.job.flags === "object") {
+	    result.job.flags.internal = true;
+	}
+
 	return { job: result.job, identifier, created: !!result.created };
     }
 

@@ -12,7 +12,7 @@ This guide gets you from zero to a running ActiveTags instance quickly.
 Use the standalone release bundle for normal integration:
 
 ```js
-import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/activeTags.standalone.v1.0.min.js";
+import { install, SERVICE_ID } from "/vendor/m7-js-lib-active-tags/dist/nomap/activeTags.standalone.v1.0.min.js";
 ```
 
 This bundle includes m7 lib + ActiveTags + required primitive installers.

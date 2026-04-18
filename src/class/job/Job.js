@@ -232,7 +232,8 @@ export default class Job {
 	this.flags = lib.hash.merge({
             attached : !isHeadless,   // bound to DOM + scheduler unless headless
             hasRun   : false,  // has executed at least once
-            dirty    : false   // marked for reconfigure/rebuild
+            dirty    : false,  // marked for reconfigure/rebuild
+            internal : false   // synthetic/runtime-managed job marker
 	    
 	}, lib.hash.to(opts.flags));
 

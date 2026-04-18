@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENTRY_FILE="${ROOT_DIR}/src/standalone/prebundle.js"
 VERSION_FILE="${ROOT_DIR}/VERSION"
-DIST_DIR="${ROOT_DIR}/dist"
+DIST_DIR="${ROOT_DIR}/dist/nomap"
 BANNER=$'/**\n * @license\n * Copyright (c) 2026 m7.org\n * SPDX-License-Identifier: LicenseRef-MTL-10\n */'
 
 WITH_MAP=0
@@ -13,10 +13,11 @@ VERSION=""
 usage() {
     cat <<'EOF'
 Usage:
-  scripts/build-standalone.sh [--version <version>] [--with-map]
+  scripts/build-standalone.sh [--version <version>] [--out-dir <dir>] [--with-map]
 
 Options:
   --version <version>  Override VERSION file value.
+  --out-dir <dir>      Output directory for the bundle.
   --with-map           Also emit source map output.
   -h, --help           Show this help text.
 EOF
@@ -30,6 +31,14 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             VERSION="$2"
+            shift 2
+            ;;
+        --out-dir)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --out-dir requires a value" >&2
+                exit 1
+            fi
+            DIST_DIR="$2"
             shift 2
             ;;
         --with-map)
@@ -64,10 +73,17 @@ fi
 mkdir -p "${DIST_DIR}"
 
 OUT_BASE="${DIST_DIR}/activeTags.standalone.v${VERSION}.min.js"
+
+ESBUILD_BIN="npx"
+ESBUILD_ARGS=(--yes esbuild@0.27.3)
+if command -v esbuild >/dev/null 2>&1; then
+    ESBUILD_BIN="esbuild"
+    ESBUILD_ARGS=()
+fi
+
 BUILD_CMD=(
-    npx
-    --yes
-    esbuild@0.27.3
+    "${ESBUILD_BIN}"
+    "${ESBUILD_ARGS[@]}"
     "${ENTRY_FILE}"
     --bundle
     --format=esm
