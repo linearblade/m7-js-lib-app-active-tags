@@ -24,8 +24,11 @@ events: {
     event    : "<dom-event-type>",
     selector : "<optional-css-subselector>",
     pipeline : "<pipeline-key>",
-    options  : { capture, passive, once },
-    policy   : { match, stop, prevent }
+    listener : {
+      options : { capture, passive, once },
+      policy  : { ...opaque-low-level-pass-through }
+    },
+    matched  : { match, stop, prevent }
   }
 }
 ```
@@ -89,7 +92,12 @@ Per-item merge order:
 ```js
 {
   event_shape: {
-    options: { passive: true },
+    listener: {
+      options: { passive: true }
+    },
+    matched: {
+      match: "closest"
+    },
     selector: ".button"
   },
   events: {
@@ -122,8 +130,9 @@ Default event shape includes:
 * `event: ""`
 * `selector: ""` (optional; no sub-selector filter)
 * `pipeline: ""`
-* `options: { capture: false, passive: true, once: false }`
- * `policy: { match: "closest", stop: false, prevent: false }`
+* `listener.options: { capture: false, passive: true, once: false }`
+* `listener.policy: {}`
+* `matched: { match: "closest", stop: false, prevent: false }`
 
 ---
 
@@ -139,10 +148,12 @@ Schema normalizer (`_normalizeEventItem`) applies:
   trimmed string
 * `selector`:
   optional trimmed string filter inside the job element
-* `options`:
+* `listener.options`:
   hash-coerced; `capture`, `passive`, `once` normalized boolish-yes
-* `policy`:
-  hash-coerced; `match`, `stop`, `prevent` normalized for EventDelegator use
+* `listener.policy`:
+  hash-coerced opaque low-level pass-through bag; ActiveTags does not interpret `match`, `stop`, or `prevent` here
+* `matched`:
+  hash-coerced; `match`, `stop`, `prevent` normalized for ActiveTags matched-only semantics
 
 Controller registration then requires:
 
@@ -151,7 +162,7 @@ Controller registration then requires:
 
 Entries missing either are skipped.
 
-`policy` is passed through to the delegated event layer and currently supports:
+`matched` currently controls ActiveTags event-match behavior:
 
 * `match: "closest" | "target"`
 * `prevent: true`
@@ -159,7 +170,7 @@ Entries missing either are skipped.
 
 Important caveat:
 
-* If you use `policy.prevent: true`, also set `options.passive: false`.
+* If you use `matched.prevent: true`, also set `listener.options.passive: false`.
   Passive listeners cannot reliably call `preventDefault()`.
 
 ---
@@ -192,7 +203,7 @@ Per-event `selector` is optional:
 * if omitted:
   event is attached at the job element level (whole ActiveTag root context)
 * if provided:
-  it filters matches inside the job element via `target.closest(selector)`
+  it filters matches inside the job element using `matched.match`
   and only matched descendants trigger enqueue
 
 Example:
@@ -203,6 +214,12 @@ Example:
   only `.button` matches inside that job element trigger the event
 
 `selector` is a per-event trigger filter (sub-target matcher), not the global delegator root.
+`matched.match` controls how relevance is resolved:
+
+* `"closest"`:
+  `event.target.closest(selector)` semantics
+* `"target"`:
+  `event.target.matches(selector)` semantics
 
 ---
 
@@ -222,9 +239,9 @@ This avoids enqueue spam when moving between descendants inside the same semanti
 
 ---
 
-## 7) Delegator policy pass-through
+## 7) Listener Layer
 
-Event definitions may include a `policy` block for advanced EventDelegator behavior.
+Event definitions may include a `listener` block for listener-layer configuration.
 
 Example:
 
@@ -235,23 +252,58 @@ Example:
       event: "click",
       selector: "a[href]",
       pipeline: "navigate",
-      options: {
-        passive: false,
-      },
-      policy: {
-        prevent: true,
+      listener: {
+        options: {
+          passive: false,
+        },
+      }
+    },
+  },
+}
+```
+
+`listener.options` is passed through to the delegated event layer.
+`listener.policy` is an opaque low-level pass-through bag and does not control ActiveTags matched selector behavior.
+
+---
+
+## 8) Matched Block
+
+Event definitions may also include a `matched` block for ActiveTags-owned
+selector-resolution and matched-only event policy.
+
+Example:
+
+```js
+{
+  events: {
+    nav: {
+      event: "click",
+      selector: "a[href]",
+      pipeline: "navigate",
+      matched: {
         match: "closest",
+        prevent: true,
+        stop: false,
       },
     },
   },
 }
 ```
 
-This is useful for link interception, submit suppression, or narrow target matching without writing custom DOM glue outside ActiveTags.
+`matched` applies only after ActiveTags confirms selector relevance for the
+current event. This is where selector resolution and matched-only
+`preventDefault()` / `stopImmediatePropagation()` now live.
+
+Important:
+
+* `matched.prevent` runs after a real AT match only.
+* `matched.stop` runs after a real AT match only.
+* Internal hover/focus transitions filtered by ActiveTags special handlers do not trigger matched policy.
 
 ---
 
-## 8) What gets enqueued on trigger
+## 9) What gets enqueued on trigger
 
 When a binding fires, handler enqueues:
 
@@ -272,11 +324,17 @@ engine.enqueue(job, pipelineKey, {
 });
 ```
 
+Notes:
+
+* `inputs.event` is the raw browser event object captured at enqueue time.
+* `inputs.trigger` is the normalized ActiveTags trigger element (job root or matched sub-target).
+* If your handler only needs the relevant element, prefer `inputs.trigger` over reading from the raw event.
+
 Then drain is scheduled asynchronously.
 
 ---
 
-## 9) Attribute-based setup
+## 10) Attribute-based setup
 
 Because prefixed attributes are inflated by `-`, this works:
 
@@ -287,9 +345,11 @@ Because prefixed attributes are inflated by `-`, this works:
   data-events-save-event="click"
   data-events-save-selector="[data-save]"
   data-events-save-pipeline="save"
-  data-events-save-options-capture="false"
-  data-events-save-options-passive="true"
-  data-events-save-options-once="false">
+  data-events-save-listener-options-capture="false"
+  data-events-save-listener-options-passive="true"
+  data-events-save-listener-options-once="false"
+  data-events-save-matched-match="closest"
+  data-events-save-matched-prevent="true">
 </div>
 ```
 
@@ -298,17 +358,20 @@ This maps to:
 * `events.save.event`
 * `events.save.selector`
 * `events.save.pipeline`
-* `events.save.options.capture`
-* `events.save.options.passive`
-* `events.save.options.once`
+* `events.save.listener.options.capture`
+* `events.save.listener.options.passive`
+* `events.save.listener.options.once`
+* `events.save.matched.match`
+* `events.save.matched.prevent`
 
 ---
 
-## 9) Common pitfalls
+## 11) Common pitfalls
 
 * Missing pipeline key: event can register/install, but enqueue target pipeline may fail later at VM resolve time.
 * `focus` / `blur` expectation: runtime delegates normalized types (`focusin` / `focusout`).
 * `on()` vs `enable()`: enabling does not install handlers; call `on()` to activate.
+* `listener.policy` expectation: ActiveTags matched selector behavior now lives under `matched`, not `listener.policy`.
 
 ---
 

@@ -66,6 +66,10 @@
  *
  * Some events require semantic filtering to avoid internal transitions
  * triggering pipelines.
+ *
+ * ActiveTags-owned selector resolution and matched-only event behavior
+ * are applied inside the runtime handler after selector relevance is
+ * confirmed for the current event.
  * setupEventHandler() routes special semantic cases through
  * SPECIAL_EVENT_HANDLERS so _onOne remains generic.
  *
@@ -84,8 +88,10 @@
  * The controller must not mutate Job configuration.
  * The controller must not implement scheduling or retry logic.
  *///use named import, default isnt iterable and doesnt play nice.
-import { SPECIAL_EVENT_HANDLERS } from './specialHandlers.js';
+import { resolveMatchedTarget, SPECIAL_EVENT_HANDLERS } from './specialHandlers.js';
 import { normalizeEventType } from './typeNormalizers.js';
+
+const AT_MATCHED_STOP_FLAG = "__activetagsMatchedStop";
 
 export class Controller {
     /**
@@ -1171,8 +1177,13 @@ export class Controller {
         const pipeline = lib.str.to(lib.hash.get(rec, "pipeline"), true).trim();
         if (!eventType || !pipeline) return 0;
 
-        const options = lib.hash.to(lib.hash.get(rec, "options"));
-        const policy = lib.hash.to(lib.hash.get(rec, "policy")) || { match: "closest" };
+        const listener = lib.hash.to(lib.hash.get(rec, "listener"));
+        const options = lib.hash.to(lib.hash.get(listener, "options"));
+        const rawPolicy = lib.hash.to(lib.hash.get(listener, "policy"));
+        const policy = Object.assign({}, rawPolicy);
+        delete policy.match;
+        delete policy.stop;
+        delete policy.prevent;
 
         // TEMP (portable): anchor delegation to ActiveTags elements.
         // Later: job-scoped selectors/subselectors.
@@ -1247,13 +1258,23 @@ export class Controller {
      *   May include selector for sub-delegation filtering.
      *
      *
-     * SUB-DELEGATION
+     * MATCHED SEMANTICS
      * --------------
      * If rec.selector is provided, it is treated as a trigger filter.
+     * ActiveTags resolves selector relevance using `rec.matched.match`.
+     *
+     * If `rec.matched.prevent` is enabled, preventDefault() is called only
+     * after selector relevance is confirmed and after special-event filters
+     * allow the event to proceed.
+     *
+     * If `rec.matched.stop` is enabled, stopImmediatePropagation() is called
+     * only after selector relevance is confirmed and after special-event
+     * filters allow the event to proceed.
      *
      * In that case:
      *   The handler requires the event target to be within the Job root element.
-     *   The handler requires the event target to have a closest match to rec.selector.
+     *   The handler requires the event target to resolve against rec.selector
+     *   using the configured matched.match mode.
      *   The semantic trigger becomes the matched sub-element rather than the Job root.
      *
      *
@@ -1317,33 +1338,54 @@ export class Controller {
 
 
 	// optional sub-selector (trigger filter)
-	const subSelector = lib.str.to(lib.hash.get(rec, "selector"), true).trim();
+	let subSelector = lib.str.to(lib.hash.get(rec, "selector"), true).trim();
+	if (subSelector === "__SELF__") subSelector = "";
+
+	// ActiveTags matched-only runtime policy
+	const matched = lib.hash.to(lib.hash.get(rec, "matched"));
+	let matchMode = lib.str.to(lib.hash.get(matched, "match"), true).trim().toLowerCase();
+	if (!["closest", "target"].includes(matchMode)) matchMode = "closest";
+	const matchedPrevent = lib.bool.yes(lib.hash.get(matched, "prevent"));
+	const matchedStop = lib.bool.yes(lib.hash.get(matched, "stop"));
 
 	// capture controller for helpers without touching handler `this`
 	const self = this;
 
 	return function handler(e) {
+            if (e && e[AT_MATCHED_STOP_FLAG]) return;
+
             const el = this; // matched ActiveTag element (delegator contract)
             let trigger = el; // default trigger is the ActiveTag root
 
             // ensure correct job ownership
             if (job.e && el !== job.e) return;
 
-            // sub-delegation gate (applies to ALL events)
+            // matched selector gate
             if (subSelector) {
-		const t = e && e.target;
-		if (!t || !el.contains(t)) return;
-
-		const hit = t.closest ? t.closest(subSelector) : null;
-		if (!hit || !el.contains(hit)) return;
+		const hit = resolveMatchedTarget({
+		    el,
+		    node: e && e.target,
+		    subSelector,
+		    matchMode,
+		});
+		if (!hit) return;
 
 		// semantic trigger is the matched sub-element
 		trigger = hit;
             }
 
             // ---- special-case routing (keeps main handler clean) ----
-            if (self._handleSpecialEvent({ el, e, eventType, subSelector })) {
+            if (self._handleSpecialEvent({ el, e, eventType, subSelector, matchMode })) {
 		return; // special case consumed it
+            }
+
+            // ---- matched-only event policy ----
+            if (matchedPrevent && e && typeof e.preventDefault === "function") {
+		e.preventDefault();
+            }
+            if (matchedStop && e && typeof e.stopImmediatePropagation === "function") {
+		e.stopImmediatePropagation();
+		e[AT_MATCHED_STOP_FLAG] = true;
             }
 
             // ---- normal behavior ----

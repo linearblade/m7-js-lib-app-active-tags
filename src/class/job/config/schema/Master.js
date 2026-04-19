@@ -799,8 +799,9 @@ export default class Master {
      * - Normalize basic intent fields (`enabled`, `event`, `pipeline`).
      * - Normalize event-level popstate history directives.
      * - Apply safe defaults for selector targeting.
-     * - Normalize addEventListener-style options.
-     * - Normalize optional EventDelegator dispatch policy.
+     * - Normalize nested listener options.
+     * - Coerce nested listener policy pass-through config.
+     * - Normalize nested ActiveTags matched-only policy.
      *
      * Normalization rules:
      * - Input is coerced via `lib.hash.to(ev)`.
@@ -813,9 +814,12 @@ export default class Master {
      *     - `false`, or
      *     - a canonical hash with:
      *         `mode`, `url`, `title`, `state`, `inputs`
-     * - `options` is coerced to a hash and normalized as addEventListener flags:
-     *     - `capture`, `passive`, `once` are true only on explicit "yes" intent.
-     * - `policy` is coerced to a hash and normalized for delegator-safe values:
+     * - `listener` is coerced to a hash with:
+     *     - `listener.options` normalized as addEventListener flags:
+     *         - `capture`, `passive`, `once` are true only on explicit "yes" intent.
+     *     - `listener.policy` coerced to a hash and preserved as an opaque
+     *       low-level pass-through bag for the delegator layer.
+     * - `matched` is coerced to a hash and normalized for ActiveTags selector/match semantics:
      *     - `match` is `"closest"` or `"target"` (fallback `"closest"`)
      *     - `stop` and `prevent` are true only on explicit "yes" intent.
      *
@@ -828,8 +832,8 @@ export default class Master {
      * - `enabled` is boolean.
      * - `event`, `pipeline`, and `selector` are non-empty strings.
      * - `popstate` is either `false` or a canonical hash.
-     * - `options` is always a hash with boolean flags.
-     * - `policy` is always a hash with delegator-safe values.
+     * - `listener` is always a hash with canonical `options` and hash `policy` bags.
+     * - `matched` is always a hash with canonical `match`, `stop`, and `prevent`.
      *
      * @param {Object} ev
      *     Raw event definition.
@@ -869,20 +873,26 @@ export default class Master {
 	// Disabled for now; builtin `@popstate.*` ops are the primary path.
 	// ev.popstate = this._normalizeEventPopstate(ev.popstate, ctx);
 
-	// options: addEventListener-ish bag
-	ev.options = lib.hash.to(ev.options);
-	ev.options.capture = lib.bool.yes(ev.options.capture);
-	ev.options.passive = lib.bool.yes(ev.options.passive);
-	ev.options.once    = lib.bool.yes(ev.options.once);
+	// listener: runtime/delegator config
+	ev.listener = lib.hash.to(ev.listener);
 
-	// policy: EventDelegator dispatch policy bag
-	ev.policy = lib.hash.to(ev.policy);
-	ev.policy.match = lib.str.to(ev.policy.match, true).trim().toLowerCase();
-	if (!["closest", "target"].includes(ev.policy.match)) {
-	    ev.policy.match = "closest";
+	// listener.options: addEventListener-ish bag
+	ev.listener.options = lib.hash.to(ev.listener.options);
+	ev.listener.options.capture = lib.bool.yes(ev.listener.options.capture);
+	ev.listener.options.passive = lib.bool.yes(ev.listener.options.passive);
+	ev.listener.options.once    = lib.bool.yes(ev.listener.options.once);
+
+	// listener.policy: opaque low-level delegator pass-through bag
+	ev.listener.policy = lib.hash.to(ev.listener.policy);
+
+	// matched: ActiveTags matched-only policy bag
+	ev.matched = lib.hash.to(ev.matched);
+	ev.matched.match = lib.str.to(ev.matched.match, true).trim().toLowerCase();
+	if (!["closest", "target"].includes(ev.matched.match)) {
+	    ev.matched.match = "closest";
 	}
-	ev.policy.stop = lib.bool.yes(ev.policy.stop);
-	ev.policy.prevent = lib.bool.yes(ev.policy.prevent);
+	ev.matched.stop = lib.bool.yes(ev.matched.stop);
+	ev.matched.prevent = lib.bool.yes(ev.matched.prevent);
 
 	return ev;
     }

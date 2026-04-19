@@ -63,6 +63,8 @@ Notes:
 * `ctx` is run-scoped and mutable (for example `ctx.error`).
 * `AT.ctx` is global runtime/app context and is separate from per-run `ctx`.
 * `target` is a convenience alias to `ticket.target`.
+* For event-driven runs, the raw browser event remains available as `inputs.event`.
+* If you only need the relevant element, prefer `inputs.trigger` (and/or top-level `trigger`) instead of reading from the raw event.
 * For attached jobs, `e === job.e`.
 * For headless jobs with no bound element, VM falls back to `AT.conf.env.document.body` for `e` and stage-local `job.e`.
 

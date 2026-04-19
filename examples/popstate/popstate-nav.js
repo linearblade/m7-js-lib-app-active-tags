@@ -335,10 +335,12 @@ export default {
             event: "click",
             selector: "#loadIndex",
             pipeline: "index",
-            options: {
-                passive: false,
+            listener: {
+                options: {
+                    passive: false,
+                },
             },
-            policy: {
+            matched: {
                 prevent: true,
             },
         },
@@ -346,10 +348,12 @@ export default {
             event: "click",
             selector: "#loadOn1",
             pipeline: "on_1",
-            options: {
-                passive: false,
+            listener: {
+                options: {
+                    passive: false,
+                },
             },
-            policy: {
+            matched: {
                 prevent: true,
             },
         },
@@ -357,10 +361,12 @@ export default {
             event: "click",
             selector: "#loadOn2",
             pipeline: "on_2",
-            options: {
-                passive: false,
+            listener: {
+                options: {
+                    passive: false,
+                },
             },
-            policy: {
+            matched: {
                 prevent: true,
             },
         },
@@ -368,10 +374,12 @@ export default {
             event: "click",
             selector: "#loadOn3",
             pipeline: "on_3",
-            options: {
-                passive: false,
+            listener: {
+                options: {
+                    passive: false,
+                },
             },
-            policy: {
+            matched: {
                 prevent: true,
             },
         },

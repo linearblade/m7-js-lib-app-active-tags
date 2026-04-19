@@ -294,22 +294,32 @@ export const DEFAULT_PIPELINE_SHAPE = {
  *     state  optional lightweight stored payload
  *     inputs optional replay enqueue inputs
  *
- * options
- *   Event listener options passed to the delegator layer.
- *   capture  use capture phase if true
- *   passive  hint that the handler will not call preventDefault
- *   once     auto-remove after first invocation
+ * listener
+ *   Runtime listener configuration bag.
  *
- * policy
- *   Optional dispatch policy passed through to the EventDelegator layer.
- *   match    "closest" | "target" target matching mode
- *   stop     call stopImmediatePropagation() after the handler fires
- *   prevent  call preventDefault() when a match occurs
+ *   options
+ *     Event listener options passed to the delegator layer.
+ *     capture  use capture phase if true
+ *     passive  hint that the handler will not call preventDefault
+ *     once     auto-remove after first invocation
+ *
+ *   policy
+ *     Optional opaque pass-through bag for low-level delegator fields.
+ *     ActiveTags does not use `listener.policy.match`, `stop`, or `prevent`.
+ *
+ * matched
+ *   ActiveTags matched-only policy bag.
+ *
+ *   match
+ *     "closest" | "target" selector-resolution mode for the event selector.
+ *   stop
+ *     call stopImmediatePropagation() only after selector relevance is confirmed.
+ *   prevent
+ *     call preventDefault() only after selector relevance is confirmed.
  *
  *
  * DESIGN CONSTRAINTS
  * ------------------
- * This shape must remain delegator-agnostic.
  * This shape must not include runtime state.
  * This shape must be safe to deep-merge during normalization.
  */
@@ -331,15 +341,22 @@ export const DEFAULT_EVENT_SHAPE = {
     // optional history behavior selector for this event
     popstate: false,
 
-    // addEventListener options
-    options: {
-        capture: false,
-        passive: true,
-        once: false
+    // listener/delegator runtime config
+    listener: {
+        options: {
+            capture: false,
+            passive: true,
+            once: false
+        },
+        policy: {}
     },
 
-    // delegator dispatch policy
-    policy: {}
+    // ActiveTags matched-only event policy
+    matched: {
+        match: "closest",
+        stop: false,
+        prevent: false
+    }
 };
 
 /**

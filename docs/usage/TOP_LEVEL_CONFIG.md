@@ -184,7 +184,11 @@ Compiled sections of interest:
       event: "click",
       selector: "__SELF__",
       pipeline: "default",
-      options: { capture: false, passive: true, once: false }
+      listener: {
+        options: { capture: false, passive: true, once: false },
+        policy: {}
+      },
+      matched: { match: "closest", stop: false, prevent: false }
     }
   },
   intervals: {

@@ -29,6 +29,7 @@
  *   e            DOM event object
  *   eventType    normalized delegator-safe event type
  *   subSelector  optional sub-delegation selector
+ *   matchMode    selector resolution mode for sub-delegation
  *
  * Handlers are evaluated sequentially.
  * The first handler that returns true is considered to have consumed
@@ -76,6 +77,30 @@
  */
 
 /**
+ * Resolve a matched sub-target inside an ActiveTag root.
+ *
+ * @param {Object} ctx
+ * @param {Element} ctx.el
+ * @param {Node} ctx.node
+ * @param {string} ctx.subSelector
+ * @param {string} [ctx.matchMode="closest"]
+ * @returns {Element|null}
+ */
+export function resolveMatchedTarget({ el, node, subSelector, matchMode = "closest" } = {}) {
+    if (!el || !node || !subSelector) return null;
+
+    let hit = null;
+
+    if (matchMode === "target") {
+        hit = typeof node.matches === "function" && node.matches(subSelector) ? node : null;
+    } else {
+        hit = typeof node.closest === "function" ? node.closest(subSelector) : null;
+    }
+
+    return hit && el.contains(hit) ? hit : null;
+}
+
+/**
  * Hover Semantic Handler
  * ----------------------
  *
@@ -114,6 +139,9 @@
  *
  * @param {string|null} ctx.subSelector
  *   Optional sub-delegation selector used to narrow hover boundaries.
+ *
+ * @param {string} [ctx.matchMode="closest"]
+ *   Selector resolution mode used when subSelector is present.
  *
  *
  * SEMANTIC RULES
@@ -154,7 +182,7 @@
  * Must not mutate controller or Job state.
  */
 
-export function handleHover({ el, e, eventType, subSelector }) {
+export function handleHover({ el, e, eventType, subSelector, matchMode = "closest" }) {
     if (eventType !== "pointerover" && eventType !== "pointerout") return false;
     if (!e || !el) return false;
 
@@ -168,14 +196,11 @@ export function handleHover({ el, e, eventType, subSelector }) {
 
     const t = e.target;
 
-    const hit  = t  && t.closest ? t.closest(subSelector) : null;
-    const rhit = rt && rt.closest ? rt.closest(subSelector) : null;
-
-    const hitOk  = hit  && el.contains(hit);
-    const rhitOk = rhit && el.contains(rhit);
+    const hit  = resolveMatchedTarget({ el, node: t,  subSelector, matchMode });
+    const rhit = resolveMatchedTarget({ el, node: rt, subSelector, matchMode });
 
     // ignore only if we stayed within the same sub-target
-    return hitOk && rhitOk && hit === rhit;
+    return !!hit && !!rhit && hit === rhit;
 }
 
 
@@ -223,6 +248,9 @@ export function handleHover({ el, e, eventType, subSelector }) {
  * @param {string|null} ctx.subSelector
  *   Optional sub-delegation selector used to narrow focus boundaries.
  *
+ * @param {string} [ctx.matchMode="closest"]
+ *   Selector resolution mode used when subSelector is present.
+ *
  *
  * SEMANTIC RULES
  * --------------
@@ -261,7 +289,7 @@ export function handleHover({ el, e, eventType, subSelector }) {
  * Must not enqueue pipelines.
  * Must not mutate controller or Job state.
  */
-export function handleFocus({ el, e, eventType, subSelector }) {
+export function handleFocus({ el, e, eventType, subSelector, matchMode = "closest" }) {
     if (eventType !== "focusin" && eventType !== "focusout") return false;
     if (!e || !el) return false;
 
@@ -274,13 +302,10 @@ export function handleFocus({ el, e, eventType, subSelector }) {
 
     const t = e.target;
 
-    const hit  = t  && t.closest ? t.closest(subSelector) : null;
-    const rhit = rt && rt.closest ? rt.closest(subSelector) : null;
+    const hit  = resolveMatchedTarget({ el, node: t,  subSelector, matchMode });
+    const rhit = resolveMatchedTarget({ el, node: rt, subSelector, matchMode });
 
-    const hitOk  = hit  && el.contains(hit);
-    const rhitOk = rhit && el.contains(rhit);
-
-    return hitOk && rhitOk && hit === rhit;
+    return !!hit && !!rhit && hit === rhit;
 }
 
 
@@ -290,6 +315,7 @@ export const SPECIAL_EVENT_HANDLERS = [
 ];
 
 export default {
-    handleHover, handleFocus
+    resolveMatchedTarget,
+    handleHover,
+    handleFocus
 }
-
