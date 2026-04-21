@@ -20,8 +20,20 @@ Common public methods:
 * `enqueue(jobLike, key, opts)`
 * `tick({ ctx, ticket, requireJob })`
 * `drain({ max, ticket, requireJob, ctx })`
+* `pulse({ max, ticket, requireJob, ctx })`
 * `cancel(...)`
 * `lock(...)` / `unlock(...)`
+
+---
+
+## Wait management
+
+For wait-aware execution, `pulse()` is the normal public entry point.
+
+The Engine also exposes a wait coordinator at `AT.engine.wake` with primary methods:
+
+* `refresh({ max, ticket, requireJob, ctx })`
+* `cancel()`
 
 ---
 
@@ -34,6 +46,8 @@ Normalized VM stage statuses:
 * `error`
 * `complete`
 
+`wait` parks the active ticket until it is unlocked or its wait timer expires.
+
 ---
 
 ## Ticket lifecycle
@@ -41,6 +55,8 @@ Normalized VM stage statuses:
 Canonical ticket states are defined in engine helpers.
 
 Ticket data includes pipeline key, cursor, buffer, target, and runtime metadata.
+
+Timed waits are resumed through the engine wake coordinator.
 
 
 ---

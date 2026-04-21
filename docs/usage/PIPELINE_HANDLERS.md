@@ -82,13 +82,29 @@ Handlers may return:
   * `error`
   * `complete`
 
+Explicit wait example:
+
+```js
+return {
+  status: "wait",
+  await: {
+    type: "delay",
+    until: Date.now() + 1000,
+    token: "delay-1"
+  }
+};
+```
+
 Legacy `wait` shorthand remains supported:
 
 ```js
-return { wait: true, await: promiseLike };
+return { wait: true, await: waitHandle };
 ```
 
+When you manually execute a wait-capable ticket, prefer `AT.engine.pulse(...)` over bare `AT.engine.drain(...)`.
+
 For deterministic behavior, explicit StageResult objects are preferred for advanced flows.
+For full wait/resume patterns, see [Waits & Interrupts](./WAITS_AND_INTERRUPTS.md).
 
 ---
 
@@ -132,6 +148,7 @@ This avoids relying on `window.AT`.
 ## See also
 
 * [Pipelines](./PIPELINES.md)
+* [Waits & Interrupts](./WAITS_AND_INTERRUPTS.md)
 * [Builtins & Operations](./OPERATIONS_BUILTINS.md)
 * [v1.0 DSL Manual](./DSL_V100.md)
 * [Runtime Lifecycle](./RUNTIME_LIFECYCLE.md)

@@ -25,6 +25,7 @@ Number of tick iterations that performed work.
 
 Repeatedly invokes `tick(...)` until no work remains or `max` is reached.
 When `ticket` is provided, targeted mode is used and `requireJob` is ignored.
+Unlike `pulse()`, `drain()` does not refresh the engine wait coordinator.
 
 ### Failure modes
 
@@ -46,6 +47,7 @@ await AT.engine.drain({
 ### Related methods
 
 * [`tick({ ctx?, ticket?, requireJob? } = {})`](./tick.md)
+* [`pulse({ max?, ticket?, requireJob?, ctx? } = {})`](./pulse.md)
 
 ---
 

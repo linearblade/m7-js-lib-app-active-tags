@@ -44,6 +44,7 @@ if (!trace.didWork) {
 ### Related methods
 
 * [`drain({ max?, ticket?, requireJob?, ctx? } = {})`](./drain.md)
+* [`pulse({ max?, ticket?, requireJob?, ctx? } = {})`](./pulse.md)
 * [`enqueue(jobLike, key = "default", opts?)`](./enqueue.md)
 
 ---

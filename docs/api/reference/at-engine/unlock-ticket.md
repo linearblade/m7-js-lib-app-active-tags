@@ -22,7 +22,8 @@
 ### Side effects
 
 * Clears `ticket.lock`.
-* May mark job runnable again if it still has pending work.
+* Does not execute or reschedule the ticket by itself.
+* When resuming a waiting ticket, follow with `AT.engine.pulse({ ticket })` or `AT.engine.wake.refresh()`.
 
 ### Failure modes
 
@@ -32,11 +33,14 @@ Token mismatch returns `0` and keeps lock unchanged.
 
 ```js
 AT.engine.unlockTicket(ticket.id, "manual-1");
+await AT.engine.pulse({ ticket });
 ```
 
 ### Related methods
 
 * [`lockTicket(ticketId, lock?)`](./lock-ticket.md)
+* [`pulse({ max?, ticket?, requireJob?, ctx? } = {})`](./pulse.md)
+* [`AT.engine.wake`](./wake.md)
 
 ---
 

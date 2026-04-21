@@ -12,6 +12,7 @@ This page is the surface index for `AT.engine` methods.
 
 * [`tick({ ctx?, ticket?, requireJob? } = {})`](./at-engine/tick.md)
 * [`drain({ max?, ticket?, requireJob?, ctx? } = {})`](./at-engine/drain.md)
+* [`pulse({ max?, ticket?, requireJob?, ctx? } = {})`](./at-engine/pulse.md)
 * [`getTicketByJob(jobLike, key?)`](./at-engine/get-ticket-by-job.md)
 * [`enqueue(jobLike, key = "default", opts?)`](./at-engine/enqueue.md)
 * [`lockTicket(ticketId, lock?)`](./at-engine/lock-ticket.md)
@@ -20,6 +21,10 @@ This page is the surface index for `AT.engine` methods.
 * [`unlock(jobLike, key = "default", token?)`](./at-engine/unlock.md)
 * [`cancel(jobLike, key = "default")`](./at-engine/cancel.md)
 * [`cancelTicket(ticketId)`](./at-engine/cancel-ticket.md)
+
+## Wait Management
+
+* [`AT.engine.wake`](./at-engine/wake.md)
 
 ---
 

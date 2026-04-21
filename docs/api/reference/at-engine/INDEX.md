@@ -16,6 +16,7 @@ Primary source:
 
 * [`tick({ ctx?, ticket?, requireJob? } = {})`](./tick.md)
 * [`drain({ max?, ticket?, requireJob?, ctx? } = {})`](./drain.md)
+* [`pulse({ max?, ticket?, requireJob?, ctx? } = {})`](./pulse.md)
 * [`getTicketByJob(jobLike, key?)`](./get-ticket-by-job.md)
 * [`enqueue(jobLike, key = "default", opts?)`](./enqueue.md)
 * [`lockTicket(ticketId, lock?)`](./lock-ticket.md)
@@ -24,6 +25,10 @@ Primary source:
 * [`unlock(jobLike, key = "default", token?)`](./unlock.md)
 * [`cancel(jobLike, key = "default")`](./cancel.md)
 * [`cancelTicket(ticketId)`](./cancel-ticket.md)
+
+## Wait Management Surface
+
+* [`AT.engine.wake`](./wake.md)
 
 ---
 

@@ -62,6 +62,9 @@ If you are new, read top-to-bottom.
 * **Pipeline Handlers (User Code)** -> [PIPELINE_HANDLERS.md](./PIPELINE_HANDLERS.md)
   Function-step call shape, return contract, and runtime context usage (`ctx`, `AT`, `target`, `e`).
 
+* **Waits & Interrupts** -> [WAITS_AND_INTERRUPTS.md](./WAITS_AND_INTERRUPTS.md)
+  Returning `wait`, timed resumes, manual unlock flows, and when to use `pulse()` vs `drain()`.
+
 * **Engine Event Hooks** -> [ENGINE_HOOKS.md](./ENGINE_HOOKS.md)
   Hook names, emit timing, and payload contracts (`onEnqueue` vs Tick trace hooks).
 
@@ -84,7 +87,7 @@ If you are new, read top-to-bottom.
   Expression target grammar plus semicolon-delimited op rows with positional and key/value args.
 
 * **Runtime Lifecycle** -> [RUNTIME_LIFECYCLE.md](./RUNTIME_LIFECYCLE.md)
-  From `new ActiveTags(...)` through `start()`, enqueue, tick, and drain.
+  From `new ActiveTags(...)` through `start()`, enqueue, tick, pulse, and wait coordination.
 
 * **Builtins & Operations** -> [OPERATIONS_BUILTINS.md](./OPERATIONS_BUILTINS.md)
   Builtin operation families, buffer/target flow, and usage posture.

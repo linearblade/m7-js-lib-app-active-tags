@@ -16,19 +16,19 @@
 
 ### Returns
 
-Resolves with the return value from `AT.enqueueAll(opts)` after `AT.engine.drain()`
+Resolves with the return value from `AT.enqueueAll(opts)` after `AT.engine.pulse()`
 completes.
 
 ### Side effects
 
 * Calls `AT.enqueueAll(opts)`.
-* Calls `AT.engine.drain()`.
+* Calls `AT.engine.pulse()`.
 * Uses the same autorun eligibility rules as `enqueueAll()`.
 
 ### Failure modes
 
 * Propagates exceptions from `AT.enqueueAll(...)`.
-* Propagates exceptions from `AT.engine.drain(...)`.
+* Propagates exceptions from `AT.engine.pulse(...)`.
 
 ### Example
 
@@ -39,7 +39,7 @@ await AT.autorun("startup");
 ### Related methods
 
 * [`enqueueAll(opts?)`](./enqueue-all.md)
-* [`AT.engine.drain()`](../at-engine/drain.md)
+* [`AT.engine.pulse()`](../at-engine/pulse.md)
 
 ---
 

@@ -77,7 +77,7 @@ Create an HTML file (for example `tutorial.html`) with one module script.
           inputs: { reason: "tutorial.startup" },
           meta: { source: "tutorial-example" },
         });
-        if (ticket) await AT.engine.drain({ ticket });
+        if (ticket) await AT.engine.pulse({ ticket });
       }
 
       // Optional console helpers while learning.
@@ -227,7 +227,7 @@ const ticket = AT.engine.enqueue(job, "default", {
   inputs: { reason: "manual" },
   meta: { source: "tutorial-console" },
 });
-await AT.engine.drain({ ticket });
+await AT.engine.pulse({ ticket });
 ```
 
 If this works, your install + discovery + pipeline execution loop is healthy.

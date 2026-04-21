@@ -23,6 +23,7 @@
 ### Side effects
 
 Resolves alias ticket id and delegates to `unlockTicket(...)`.
+Unlocking does not execute the resumed ticket by itself.
 
 ### Failure modes
 
@@ -32,11 +33,14 @@ Returns `0` when no active alias ticket exists or token check fails.
 
 ```js
 AT.engine.unlock(job, "default");
+AT.engine.wake.refresh();
 ```
 
 ### Related methods
 
 * [`lock(jobLike, key = "default", lock?)`](./lock.md)
+* [`pulse({ max?, ticket?, requireJob?, ctx? } = {})`](./pulse.md)
+* [`AT.engine.wake`](./wake.md)
 
 ---
 

@@ -88,14 +88,15 @@ ActiveTags class lifecycle.
 3. Start observer when `boot.observeDom` is enabled.
 4. Register intervals and events for current jobs.
 5. Conditionally enable intervals/events by boot flags.
-6. Drain engine queue.
+6. Run startup autorun through the engine wait-aware pulse path.
 
 Side effects:
 
 * may register jobs from DOM discovery
 * may attach observer/event listeners
 * may activate interval scheduling
-* may execute queued work during final drain
+* may execute queued work during final pulse
+* may leave the engine wake coordinator armed when timed waits are active
 
 Error behavior:
 
@@ -135,6 +136,7 @@ After successful construction:
 * config snapshot exists at `this.conf`
 * required dependencies/services have been asserted
 * all runtime controllers are instantiated
+* engine wait coordinator exists at `AT.engine.wake`
 * instance can safely proceed to `start()`
 
 After successful `start()`:

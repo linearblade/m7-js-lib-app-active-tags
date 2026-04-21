@@ -29,7 +29,7 @@ Reference: [../../src/ActiveTags.js](../../src/ActiveTags.js)
 3. starts observer if configured
 4. registers intervals/events from jobs
 5. enables intervals/events per boot gates
-6. runs startup autorun and drains the engine
+6. runs startup autorun and pulses the engine
 
 ---
 
@@ -50,6 +50,8 @@ Engine runtime model:
 * enqueue creates ticket
 * `tick()` advances one stage
 * `drain()` loops ticks until idle/max
+* `pulse()` runs `drain()` and refreshes wait scheduling
+* `wait` parks a ticket until a timer expires or some external code unlocks it
 * VM normalizes stage results (`ok|wait|error|complete`)
 
 Core files:
@@ -94,6 +96,7 @@ Reference: [../../src/class/runtime/Controller.js](../../src/class/runtime/Contr
 ## Related
 
 * Builtins & operations -> [OPERATIONS_BUILTINS.md](./OPERATIONS_BUILTINS.md)
+* Wait setup and manual resume -> [WAITS_AND_INTERRUPTS.md](./WAITS_AND_INTERRUPTS.md)
 * Engine architecture -> [../architecture/subsystems/ENGINE_AND_VM.md](../architecture/subsystems/ENGINE_AND_VM.md)
 
 ---

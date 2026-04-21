@@ -38,6 +38,7 @@ When `opts.returnMeta` is true, return shape is:
 * Pushes new ticket into per-job queue when new.
 * May mark job runnable in scheduler.
 * May fire `onEnqueue` hook.
+* Does not execute the ticket by itself; pair with `pulse()` or `drain()` to run work.
 
 ### Failure modes
 
@@ -64,6 +65,7 @@ const result = AT.engine.enqueue(job, "default", {
 ### Related methods
 
 * [`getTicketByJob(jobLike, key?)`](./get-ticket-by-job.md)
+* [`pulse({ max?, ticket?, requireJob?, ctx? } = {})`](./pulse.md)
 * [`drain({ max?, ticket?, requireJob?, ctx? } = {})`](./drain.md)
 
 ---

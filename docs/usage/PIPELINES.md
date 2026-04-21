@@ -287,6 +287,7 @@ This produces config paths like:
 * [Configuration Model](./CONFIGURATION.md)
 * [Events](./EVENTS.md)
 * [Intervals](./INTERVALS.md)
+* [Waits & Interrupts](./WAITS_AND_INTERRUPTS.md)
 * [Requests](./REQUESTS.md)
 * [v1.0 DSL Manual](./DSL_V100.md)
 * [Builtins & Operations](./OPERATIONS_BUILTINS.md)

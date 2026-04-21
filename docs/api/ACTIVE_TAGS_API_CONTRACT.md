@@ -154,7 +154,7 @@ Throws if required DOM environment is not valid.
 ### `autorun(opts?) -> Promise<number | { count, entries }>`
 
 Convenience wrapper that enqueues autorun pipelines for eligible registered jobs,
-then drains the engine.
+then pulses the engine.
 
 This method preserves `enqueueAll()` eligibility semantics and does not execute
 stages outside the engine.
@@ -199,13 +199,45 @@ These are intended runtime integration surfaces.
 
 The Engine facade provides stable runtime control methods including:
 
+* `getTicketByJob(jobLike, key?)`
 * `enqueue(jobLike, key?, opts?)`
 * `tick({ ctx?, ticket?, requireJob? })`
 * `drain({ max?, ticket?, requireJob?, ctx? })`
-* `cancel(...)`
-* `lock(...)` / `unlock(...)`
+* `pulse({ max?, ticket?, requireJob?, ctx? })`
+* `cancel(...)` / `cancelTicket(...)`
+* `lock(...)` / `lockTicket(...)`
+* `unlock(...)` / `unlockTicket(...)`
+
+Wait management is exposed under `AT.engine.wake`.
+
+Primary wait-management methods are:
+
+* `refresh({ max?, ticket?, requireJob?, ctx? })`
+* `cancel()`
 
 Exact scheduling internals are not part of this contract.
+
+### WAIT / interrupt contract
+
+Runtime stage handlers may yield a wait result using either of these public shapes:
+
+* `{ status: "wait", await?: waitHandle, detail?: any }`
+* `{ wait: true, await?: waitHandle }`
+
+Recognized `waitHandle` fields:
+
+* `until` — epoch milliseconds for timed resume
+* `token` — optional unlock guard used by `unlock(...)` / `unlockTicket(...)`
+
+Other `waitHandle` fields are treated as opaque metadata.
+
+Wait behavior guarantees:
+
+* the current ticket transitions into `wait` state
+* `AT.engine.pulse()` runs a normal drain pass, then refreshes wait scheduling
+* when `waitHandle.until` is present, the engine may resume the ticket automatically after that time
+* untimed waits remain parked until they are explicitly unlocked
+* unlocking does not itself execute the ticket; callers should follow with `AT.engine.pulse(...)` or `AT.engine.wake.refresh()`
 
 ---
 
