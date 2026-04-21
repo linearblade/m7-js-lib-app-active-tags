@@ -118,12 +118,12 @@ export const trait_engine = {
     },
 
     /**
-     * Enqueue autorun pipelines, then drain the engine.
+     * Enqueue autorun pipelines, then pulse the engine.
      *
      * CONTRACT
      * --------
      * `autorun()` is a convenience wrapper around `enqueueAll()` followed by
-     * `engine.drain()`.
+     * `engine.pulse()`.
      *
      * It uses the same option coercion and eligibility rules as `enqueueAll()`.
      * It does not mutate job configuration or bypass engine scheduling rules.
@@ -133,7 +133,7 @@ export const trait_engine = {
      * Optional enqueue-all options forwarded to `enqueueAll()`.
      *
      * @returns {Promise<number|{count: number, entries: Array}>}
-     * Resolves with the `enqueueAll()` result after engine drain completes.
+     * Resolves with the `enqueueAll()` result after the engine pulse completes.
      */
     async autorun(opts) {
 	const out = this.enqueueAll(opts);

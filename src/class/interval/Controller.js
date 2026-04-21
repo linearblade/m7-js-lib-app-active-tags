@@ -987,7 +987,7 @@ export class Controller {
 		});
 
 		// scoped drain (only this ticket)
-		engine.drain({ ticket });
+		engine.pulse({ ticket });
             },
 	});
 

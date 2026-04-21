@@ -265,6 +265,7 @@ export class Controller {
 	Promise.resolve().then(async () => {
 	    await this.engine.drain({ ticket, ctx: {} });
 	    await this.engine.drain({ requireJob: job, ctx: {}, max: 25 });
+	    this.engine.wake.refresh();
 	});
 
 	return ticket;

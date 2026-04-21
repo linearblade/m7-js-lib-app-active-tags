@@ -1408,6 +1408,7 @@ export class Controller {
             Promise.resolve().then(async () => {
 		await AT.engine.drain({ ticket, ctx: {} });
 		await AT.engine.drain({ requireJob: job, ctx: {}, max: 25 });
+		AT.engine.wake.refresh();
             });
 		};
 	    }
