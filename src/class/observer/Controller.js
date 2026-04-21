@@ -25,26 +25,27 @@
  *
  * CURRENT SEMANTICS:
  * - Observer callbacks are treated as **fire-and-forget signals**
- * - Job registration is invoked synchronously from the callback
- * - No ordering, batching, or backpressure is enforced at this layer
+ * - Matching nodes are queued for async job registration + autorun work
+ * - Mutation batches are serialized through a local promise chain
+ * - No debouncing or backpressure is enforced at this layer
  *
  * DESIGN CONSTRAINTS:
  * - Observer callbacks are synchronous by browser contract
  * - Returning or awaiting Promises from callbacks has no effect upstream
  *
  * FUTURE CONSIDERATIONS:
- * - If job registration becomes expensive or requires sequencing,
- *   introduce an internal async queue or drain loop here.
+ * - If mutation traffic becomes heavy, add coalescing/debouncing on top of the
+ *   existing internal queue.
  * - Backpressure, coalescing, or debouncing of mutation batches
  *   should be implemented **inside this controller**, not by
  *   altering observer callback semantics.
  * - Any async control should preserve the observer as a pure signal source.
  *
  * NON-RESPONSIBILITIES:
- * - Does NOT execute jobs or pipelines
- * - Does NOT manage engine lifecycle
+ * - Does NOT execute pipelines directly
+ * - Does NOT own engine lifecycle beyond requesting autorun work
  * - Does NOT mutate the DOM
- * - Does NOT guarantee ordering of mutation processing
+ * - Does NOT guarantee coalesced mutation processing
  *
  * @todo Revisit instance freezing strategy if mutable state grows.
  * @todo Clarify start/stop ownership semantics when observer service is shared.
@@ -113,6 +114,11 @@ export default class Controller {
 
 	// last applied selector specs (optional introspection)
 	this._selectorSpecs = null;
+
+	// serialize observer-driven register/autorun work across mutation bursts
+	this.state = {
+            mutationChain: Promise.resolve(),
+	};
 	
 	//Object.freeze(this);
     }
@@ -357,6 +363,39 @@ export default class Controller {
         return out;
     }
 
+    /**
+     * Queue observer-driven discovery + autorun work.
+     *
+     * This keeps post-start mutation batches ordered and prevents duplicate
+     * autorun sweeps from racing before newly created jobs have marked
+     * `flags.hasRun`.
+     *
+     * @param {Element[]} nodes
+     * @param {string} [reason="observer"]
+     * @returns {Promise<void>}
+     */
+    _queueRegisterAutorun(nodes, reason = "observer") {
+        const lib = this.lib;
+        nodes = lib.array.to(nodes);
+        if (!lib.array.len(nodes)) return Promise.resolve();
+
+        const run = async () => {
+            await this.AT.discover.registerJobs(nodes);
+            await this.AT.autorun(reason);
+        };
+
+        this.state.mutationChain = this.state.mutationChain
+            .catch((err) => {
+                console.error("[ActiveTags observer] previous mutation work failed", err);
+            })
+            .then(run)
+            .catch((err) => {
+                console.error("[ActiveTags observer] mutation register/autorun failed", err);
+            });
+
+        return this.state.mutationChain;
+    }
+
 
     /**
      * Handle a DomChangeObserver event batch.
@@ -368,6 +407,7 @@ export default class Controller {
      * - Added or changed nodes:
      *     - Extract matching elements (roots + descendants)
      *     - Ensure corresponding jobs are registered
+     *     - Run autorun sweep after registration completes
      * - Removed or change-away nodes:
      *     - Unregister jobs bound to the affected elements
      *
@@ -380,7 +420,7 @@ export default class Controller {
      *
      * EXECUTION MODEL:
      * - This method is invoked synchronously by the observer service.
-     * - Calls to `AT.discover.registerJobs()` are fire-and-forget.
+     * - Discovery + autorun work is queued asynchronously through `_queueRegisterAutorun()`.
      * - No ordering, backpressure, or batching guarantees are enforced here.
      *
      * FAILURE TOLERANCE:
@@ -388,8 +428,8 @@ export default class Controller {
      * - Missing or empty selector configuration causes early return.
      *
      * NON-RESPONSIBILITIES:
-     * - Does NOT execute jobs or pipelines.
-     * - Does NOT await asynchronous job registration.
+     * - Does NOT execute pipelines directly.
+     * - Does NOT await asynchronous discovery/autorun work.
      * - Does NOT mutate observer configuration.
      * - Does NOT guarantee consistency across rapid mutation bursts.
      *
@@ -423,15 +463,27 @@ export default class Controller {
 
         const selector = selectors.join(",");
 
-        // add + changed => ensure jobs exist
+        // add + changed => ensure jobs exist, then autorun newly eligible jobs
+        const toRegister = [];
+        const seen = new Set();
+        const push = (node) => {
+            if (!node || seen.has(node)) return;
+            seen.add(node);
+            toRegister.push(node);
+        };
+
         if (lib.array.len(added)) {
             const out = this._collectMatchingNodes(added, selector);
-	    if ( lib.array.len(out) ) this.AT.discover.registerJobs(out);
+	    for (let i = 0; i < out.length; i++) push(out[i]);
         }
 
         if (lib.array.len(changed)) {
             const out = this._collectMatchingNodes(changed, selector);
-	    if ( lib.array.len(out) ) this.AT.discover.registerJobs(out);
+	    for (let i = 0; i < out.length; i++) push(out[i]);
+        }
+
+        if (lib.array.len(toRegister)) {
+            void this._queueRegisterAutorun(toRegister, "observer");
         }
 
         // removed + changeAway => unregister jobs

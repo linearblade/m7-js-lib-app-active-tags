@@ -15,6 +15,7 @@ Primary source:
 ## Method Pages
 
 * [`start()`](./start.md)
+* [`autorun(opts?)`](./autorun.md)
 * [`enqueueAll(opts?)`](./enqueue-all.md)
 * [`toJob(ref)`](./to-job.md)
 

@@ -23,7 +23,7 @@ Runtime flow:
 
 1. `AT.start()` runs an initial `discover.scan()` pass for existing matching elements.
 2. If `boot.observeDom` is enabled, the observer starts and handles later DOM mutations.
-3. Added/changed matching nodes are registered; removed/change-away nodes are unregistered.
+3. Added/changed matching nodes are registered, then autorun is swept; removed/change-away nodes are unregistered.
 
 Practical note: page-load tags are discovered by the boot scan path, while the observer path is mainly for post-start DOM changes.
 

@@ -369,4 +369,5 @@ export class Scheduler {
 	// cheap clear: let it drain naturally; remove presence so it can be re-enqueued
 	if (jobId) this._present.delete(jobId);
     }
+
 }

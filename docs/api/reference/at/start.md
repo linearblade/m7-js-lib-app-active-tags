@@ -16,7 +16,7 @@
 
 ### Returns
 
-Resolves when boot-time activation is complete: initial discover scan, optional observer start, interval/event registration, and optional interval/event activation.
+Resolves when boot-time activation is complete: initial discover scan, optional observer start, interval/event registration, optional interval/event activation, and startup autorun drain.
 
 ### Side effects
 
@@ -25,6 +25,7 @@ Resolves when boot-time activation is complete: initial discover scan, optional 
 * May call `AT.observer.start()` when `conf.boot.observeDom` is enabled.
 * Calls `AT.intervals.registerAll()` and `AT.events.registerAll()`.
 * May call `AT.intervals.on()` and `AT.events.on()` based on boot flags.
+* Calls `AT.autorun("startup")`.
 
 ### Failure modes
 
@@ -40,6 +41,7 @@ await AT.start();
 
 ### Related methods
 
+* [`AT.autorun(opts?)`](./autorun.md)
 * [`AT.discover.scan()`](../at-discover/scan.md)
 * [`AT.observer.start()`](../at-observer/start.md)
 * [`AT.events.registerAll()`](../at-events/register-all.md)

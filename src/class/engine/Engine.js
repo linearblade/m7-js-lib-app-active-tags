@@ -76,7 +76,7 @@
 
 import EngineState   from './EngineState.js';
 import EngineManager from './EngineManager.js';
-
+import Wake          from './Wake.js';
 import { Scheduler } from './Scheduler.js';
 import { VM }        from './vm/VM.js';
 import { Tick }      from './Tick.js';
@@ -163,6 +163,11 @@ export class Engine {
      * Pipeline execution virtual machine.
      * Receives optional `AT` runtime anchor via constructor injection.
      *
+     * @property {Wake} wake
+     * Wait-ticket wake coordinator.
+     * Tracks future wake times and re-arms the engine when waiting tickets
+     * become eligible to run again.
+     *
      * @property {EngineManager} manager
      * Policy + coordination layer (enqueue, cancel, locks, etc.).
      *
@@ -188,7 +193,7 @@ export class Engine {
 	this.state = new EngineState({ lib });
 	this.scheduler = scheduler || new Scheduler({ lib,engine:this });
 	this.vm = vm || new VM({ lib, builtins,expr,AT });
-
+	this.wake = new Wake({lib,engine:this});
 	// hooks (optional)
 	this.hooks = {
 	    onEnqueue: hooks.onEnqueue || null,
@@ -224,9 +229,35 @@ export class Engine {
             if (!res?.didWork) break;
             did++;
 	}
+	/*
+	const waitCooldown = this.manager.nextWaiting();
+	if (waitCooldown != null) {
+	    //debating whether or not to limit the budget for the drain wake by max-did;
+	    this.scheduleDrainWake({ at: waitCooldown, max, ticket, requireJob, ctx });
+	}*/
+	return did
+    }
 
+    /**
+     * Higher-level execution pulse.
+     *
+     * Runs a normal drain pass, then refreshes the wake manager so timed WAIT
+     * tickets can schedule the next engine wake without mixing wake policy into
+     * `drain()` itself.
+     *
+     * @param {Object} [args]
+     * Same arguments accepted by `drain()`.
+     *
+     * @returns {Promise<number>}
+     * Number of tick iterations that performed work during the drain pass.
+     */
+
+    async pulse({ max = 1000, ticket = undefined, requireJob = undefined, ctx = {} } = {}) {
+	const did = await this.drain({ max, ticket, requireJob, ctx });
+	this.wake.refresh({ max, ticket, requireJob, ctx });
 	return did;
     }
+    
     // ---------------------------------------------------------------------------
     // Job resolution (shared helper used by manager/tick)
     // ---------------------------------------------------------------------------

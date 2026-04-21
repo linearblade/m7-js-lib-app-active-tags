@@ -186,8 +186,7 @@ class ActiveTags {
 	if (!lib.bool.no(this.conf.boot.events))
             await this.events.conditionalOn();
 
-	this.enqueueAll("startup");
-	await this.engine.drain();
+	await this.autorun("startup");
 	// this.popstate.seedBaseline();
     }
 }

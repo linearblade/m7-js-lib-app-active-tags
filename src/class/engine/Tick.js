@@ -566,7 +566,6 @@ export class Tick {
 	const { jobId, job, ticket, res } = env;
 	ticket.state = helpers.TICKET_STATE.WAIT;
 	ticket.lock = res.lock || res.await || { type: "wait", token: `aw_${Date.now()}` };
-
 	return this.response._makeTickTrace({
             jobId, job, ticket, res,
             flags: { didWork: true, waiting: true }

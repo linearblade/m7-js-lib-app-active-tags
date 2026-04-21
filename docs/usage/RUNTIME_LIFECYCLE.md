@@ -29,6 +29,7 @@ Reference: [../../src/ActiveTags.js](../../src/ActiveTags.js)
 3. starts observer if configured
 4. registers intervals/events from jobs
 5. enables intervals/events per boot gates
+6. runs startup autorun and drains the engine
 
 ---
 

@@ -151,6 +151,14 @@ Throws if required DOM environment is not valid.
 
 ## Mixed-in helper API
 
+### `autorun(opts?) -> Promise<number | { count, entries }>`
+
+Convenience wrapper that enqueues autorun pipelines for eligible registered jobs,
+then drains the engine.
+
+This method preserves `enqueueAll()` eligibility semantics and does not execute
+stages outside the engine.
+
 ### `toJob(ref) -> Job|undefined`
 
 Resolves a job reference through JobRegistry.
