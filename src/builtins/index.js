@@ -10,6 +10,7 @@ import { httpSend }  from './http/index.js';
 import  confirm      from './confirm.js';
 import  error        from './error/index.js';
 import  buffer       from './buffer/index.js';
+import  job          from './job/index.js';
 import  target       from './target/index.js';
 import  e            from './e/index.js';
 import  popstate     from './popstate/index.js';
@@ -37,6 +38,7 @@ export { form};
 export { http };
 export { httpSend };
 export { buffer };
+export { job };
 export { target };
 export { e };
 export { error } ;
@@ -54,6 +56,7 @@ export default {
     http,
     error,
     buffer,
+    job,
     target,
     e,
     popstate
