@@ -19,7 +19,7 @@ export default function buildDispatch(resolver, ctx, loc) {
 
     const job    = resolver._asJob ? resolver._asJob(ctx.job) : ctx.job;
     const ticket = ctx.ticket || null;
-
+    const ticketCTX = lib.hash.get(ctx,"ctx");
     // env (resolver already seeded these from m7-lib _env.root)
     const thisWindow   = lib.hash.get(ctx, "env.window")   || resolver.window;
     const thisDocument = lib.hash.get(ctx, "env.document") || resolver.document;
@@ -64,6 +64,13 @@ export default function buildDispatch(resolver, ctx, loc) {
             return { src: ws, prop: loc };
         },
 
+        ctx: () => {
+            if (!ticketCTX) return undefined;
+            const v = ticketCTX;
+            return hasLoc ? { src: v, prop: loc } : v;
+        },
+
+	
         // ---------------------------------------------------------------------
         // Buffer (v1)
         // ---------------------------------------------------------------------

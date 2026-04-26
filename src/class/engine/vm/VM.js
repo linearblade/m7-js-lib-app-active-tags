@@ -283,7 +283,7 @@ export class VM {
 	    // 2) Normal stage execution
 	    // ------------------------------------------------------------
 	    try {
-		const args = this.expr.materialize({ticket,job: stageJob},v.args);
+		const args = this.expr.materialize({ticket,job: stageJob,ctx},v.args);
 		res = await v.fn({
 		    job: stageJob,
 		    lib,

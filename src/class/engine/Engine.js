@@ -215,26 +215,39 @@ export class Engine {
     // Public execution façade
     // ---------------------------------------------------------------------------
 
-    tick({ ctx = {}, ticket = null, requireJob = undefined } = {}) {
-	return this._tick.tick({ ctx, ticket, requireJob });
+    tick({
+	ctx = {},
+	ticket = null,
+	requireJob = undefined,
+	cascade = true,
+	cascadeCtx = false,
+    } = {}) {
+	return this._tick.tick({ ctx, ticket, requireJob, cascade, cascadeCtx });
     }
 
 
-    async drain({ max = 1000, ticket = undefined, requireJob = undefined, ctx = {}} = {}) {
+    async drain({
+	max = 1000,
+	ticket = undefined,
+	requireJob = undefined,
+	ctx = {},
+	cascade = true,
+	cascadeCtx = false,
+    } = {}) {
 	let did = 0;
 	const requireFilter = ticket ? undefined : requireJob;
 
 	while (did < max) {
-            const res = await this._tick.tick({ ctx, ticket, requireJob: requireFilter });
+            const res = await this._tick.tick({
+		ctx,
+		ticket,
+		requireJob: requireFilter,
+		cascade,
+		cascadeCtx,
+	    });
             if (!res?.didWork) break;
             did++;
 	}
-	/*
-	const waitCooldown = this.manager.nextWaiting();
-	if (waitCooldown != null) {
-	    //debating whether or not to limit the budget for the drain wake by max-did;
-	    this.scheduleDrainWake({ at: waitCooldown, max, ticket, requireJob, ctx });
-	}*/
 	return did
     }
 
@@ -252,9 +265,16 @@ export class Engine {
      * Number of tick iterations that performed work during the drain pass.
      */
 
-    async pulse({ max = 1000, ticket = undefined, requireJob = undefined, ctx = {} } = {}) {
-	const did = await this.drain({ max, ticket, requireJob, ctx });
-	this.wake.refresh({ max, ticket, requireJob, ctx });
+    async pulse({
+	max = 1000,
+	ticket = undefined,
+	requireJob = undefined,
+	ctx = {},
+	cascade = true,
+	cascadeCtx = false,
+    } = {}) {
+	const did = await this.drain({ max, ticket, requireJob, ctx, cascade, cascadeCtx });
+	this.wake.refresh({ max, ticket, requireJob, ctx, cascade, cascadeCtx });
 	return did;
     }
     

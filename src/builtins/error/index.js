@@ -3,7 +3,8 @@
  * License: MTL-10 (see LICENSE.md)
  */
 
-import  errorDump  from './errorDump.js';
+import  errorDump     from './errorDump.js';
+import  errorCapture  from './errorCapture.js';
 
 /**
  * Error builtin namespace exports.
@@ -29,7 +30,8 @@ export  function errorFail(){
  */
 export const ERROR = {
     dump : errorDump,
-    fail :  errorFail
+    fail :  errorFail,
+    capture : errorCapture
 };
 
 export default ERROR;

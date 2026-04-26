@@ -135,8 +135,14 @@ export class Tick {
  * @returns {Promise<Object>}
  *   Normalized tick trace describing the outcome of this step.
  */
-    async tick({ ctx = {}, ticket = null, requireJob = undefined } = {}) {
-        const v = this._validateTick({ ctx, ticket, requireJob });
+    async tick({
+	ctx = {},
+	ticket = null,
+	requireJob = undefined,
+	cascade = true,
+	cascadeCtx = false,
+    } = {}) {
+        const v = this._validateTick({ ctx, ticket, requireJob, cascade, cascadeCtx });
         if (v.done) return v.res;
 
         const finalize = this._makeFinalize(v);
@@ -260,10 +266,16 @@ export class Tick {
      * @returns {Object}
      *   Validation descriptor for the current tick.
      */
-    _validateTick({ ctx = {}, ticket = null, requireJob = undefined } = {}) {
+    _validateTick({
+	ctx = {},
+	ticket = null,
+	requireJob = undefined,
+	cascade = true,
+	cascadeCtx = false,
+    } = {}) {
 	return ticket ?
-	    this._validateTickNamed({ ctx, ticket }):
-	    this._validateTickNext({ ctx, requireJob });
+	    this._validateTickNamed({ ctx, ticket, cascade, cascadeCtx }):
+	    this._validateTickNext({ ctx, requireJob, cascade, cascadeCtx });
     }
 
     /**
@@ -425,8 +437,8 @@ export class Tick {
 	};
     }
 
-    _makeRunnable({ jobId, job, st, ticket, ctx } = {}) {
-	return { done: false, jobId, job, st, ticket, ctx };
+    _makeRunnable({ jobId, job, st, ticket, ctx, cascade = true, cascadeCtx = false } = {}) {
+	return { done: false, jobId, job, st, ticket, ctx, cascade, cascadeCtx };
     }
 
     /**
@@ -448,7 +460,7 @@ export class Tick {
 	};
     }
     
-    _validateTickNamed({ ctx = {}, ticket = null } = {}) {
+    _validateTickNamed({ ctx = {}, ticket = null, cascade = true, cascadeCtx = false } = {}) {
 	
 	// -----------------------------------------------------------------
 	// Targeted mode: tick a specific ticket id (or ticket object)
@@ -512,10 +524,10 @@ export class Tick {
 	if (tBlocked) return tBlocked;
 
         st.active.state = helpers.TICKET_STATE.RUNNING;
-	return this._makeRunnable({ jobId, job, st, ticket: st.active, ctx });
+	return this._makeRunnable({ jobId, job, st, ticket: st.active, ctx, cascade, cascadeCtx });
     }
     
-    _validateTickNext({ ctx = {}, requireJob = undefined } = {}) {
+    _validateTickNext({ ctx = {}, requireJob = undefined, cascade = true, cascadeCtx = false } = {}) {
         const jobId = this.engine.scheduler.nextRunnable({ requireJob });
         if (!jobId)
             return { done: true, res: this.response._makeTickTrace({ flags: { didWork: false, reason: "noRunnable" } }) };
@@ -544,7 +556,7 @@ export class Tick {
 	if (tBlocked) return tBlocked;
         ticket.state = helpers.TICKET_STATE.RUNNING;
 	// no need to tick trace b/c done = false means we continue. done = true means. 'were done'
-	return this._makeRunnable({ jobId, job, st, ticket, ctx });
+	return this._makeRunnable({ jobId, job, st, ticket, ctx, cascade, cascadeCtx });
     }
 
 
