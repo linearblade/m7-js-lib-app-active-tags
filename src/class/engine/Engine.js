@@ -221,8 +221,22 @@ export class Engine {
 	requireJob = undefined,
 	cascade = true,
 	cascadeCtx = false,
+	seedJobId = undefined,
     } = {}) {
-	return this._tick.tick({ ctx, ticket, requireJob, cascade, cascadeCtx });
+	const liveTicket = ticket ? this.state.getTicket(ticket) : null;
+	const derivedSeedJobId =
+	      seedJobId !== undefined ? seedJobId :
+	      liveTicket?.jobId ||
+	      ((ticket && typeof ticket === "object") ? (ticket.jobId || null) : null);
+
+	return this._tick.tick({
+	    ctx,
+	    ticket,
+	    requireJob,
+	    cascade,
+	    cascadeCtx,
+	    seedJobId: derivedSeedJobId,
+	});
     }
 
 
@@ -233,9 +247,15 @@ export class Engine {
 	ctx = {},
 	cascade = true,
 	cascadeCtx = false,
+	seedJobId = undefined,
     } = {}) {
 	let did = 0;
 	const requireFilter = ticket ? undefined : requireJob;
+	const liveTicket = ticket ? this.state.getTicket(ticket) : null;
+	const derivedSeedJobId =
+	      seedJobId !== undefined ? seedJobId :
+	      liveTicket?.jobId ||
+	      ((ticket && typeof ticket === "object") ? (ticket.jobId || null) : null);
 
 	while (did < max) {
             const res = await this._tick.tick({
@@ -244,6 +264,7 @@ export class Engine {
 		requireJob: requireFilter,
 		cascade,
 		cascadeCtx,
+		seedJobId: derivedSeedJobId,
 	    });
             if (!res?.didWork) break;
             did++;
@@ -272,9 +293,32 @@ export class Engine {
 	ctx = {},
 	cascade = true,
 	cascadeCtx = false,
+	seedJobId = undefined,
     } = {}) {
-	const did = await this.drain({ max, ticket, requireJob, ctx, cascade, cascadeCtx });
-	this.wake.refresh({ max, ticket, requireJob, ctx, cascade, cascadeCtx });
+	const liveTicket = ticket ? this.state.getTicket(ticket) : null;
+	const derivedSeedJobId =
+	      seedJobId !== undefined ? seedJobId :
+	      liveTicket?.jobId ||
+	      ((ticket && typeof ticket === "object") ? (ticket.jobId || null) : null);
+
+	const did = await this.drain({
+	    max,
+	    ticket,
+	    requireJob,
+	    ctx,
+	    cascade,
+	    cascadeCtx,
+	    seedJobId: derivedSeedJobId,
+	});
+	this.wake.refresh({
+	    max,
+	    ticket,
+	    requireJob,
+	    ctx,
+	    cascade,
+	    cascadeCtx,
+	    seedJobId: derivedSeedJobId,
+	});
 	return did;
     }
     

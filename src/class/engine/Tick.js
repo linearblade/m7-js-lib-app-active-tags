@@ -141,8 +141,9 @@ export class Tick {
 	requireJob = undefined,
 	cascade = true,
 	cascadeCtx = false,
+	seedJobId = undefined,
     } = {}) {
-        const v = this._validateTick({ ctx, ticket, requireJob, cascade, cascadeCtx });
+        const v = this._validateTick({ ctx, ticket, requireJob, cascade, cascadeCtx, seedJobId });
         if (v.done) return v.res;
 
         const finalize = this._makeFinalize(v);
@@ -198,7 +199,7 @@ export class Tick {
     }
 
     _makeFinalize(env) {
-	const { jobId, st, ticket } = env;
+	const { jobId, st, ticket, cascade = true } = env;
 
 	return (finalState) => {
             ticket.state = finalState;
@@ -215,6 +216,10 @@ export class Tick {
             if (ticket.pipelineKey && (finalState === helpers.TICKET_STATE.COMPLETE || finalState === helpers.TICKET_STATE.ERROR)) {
 		this.engine.state.aliasDeleteIfPointsTo(jobId, ticket.pipelineKey, ticket.id);
             }
+
+	    if (cascade && st.queue.length) {
+		this.engine.scheduler.markRunnable(jobId);
+	    }
 	    
 	};
     }
@@ -272,9 +277,10 @@ export class Tick {
 	requireJob = undefined,
 	cascade = true,
 	cascadeCtx = false,
+	seedJobId = undefined,
     } = {}) {
 	return ticket ?
-	    this._validateTickNamed({ ctx, ticket, cascade, cascadeCtx }):
+	    this._validateTickNamed({ ctx, ticket, cascade, cascadeCtx, seedJobId }):
 	    this._validateTickNext({ ctx, requireJob, cascade, cascadeCtx });
     }
 
@@ -460,7 +466,7 @@ export class Tick {
 	};
     }
     
-    _validateTickNamed({ ctx = {}, ticket = null, cascade = true, cascadeCtx = false } = {}) {
+    _validateTickNamed({ ctx = {}, ticket = null, cascade = true, cascadeCtx = false, seedJobId = undefined } = {}) {
 	
 	// -----------------------------------------------------------------
 	// Targeted mode: tick a specific ticket id (or ticket object)
@@ -480,7 +486,19 @@ export class Tick {
         }
 
         const rec = this.engine.state.getTicketRec(ticketId);
+	const cascadeJobId =
+	      seedJobId !== undefined ? seedJobId :
+	      ((ticket && typeof ticket === "object") ? (ticket.jobId || null) : null);
         if (!rec || !rec.jobId || !rec.ticket) {
+	    if (cascade && cascadeJobId) {
+		const cascaded = this._validateTickCascadedJob({
+		    ctx,
+		    jobId: cascadeJobId,
+		    cascade,
+		    cascadeCtx,
+		});
+		if (cascaded) return cascaded;
+	    }
 	    return { done: true, res: this.response._makeTickTrace({
                 ticket: rec?.ticket || this.engine.state.getTicket(ticketId) || null ,
                 flags: { didWork: false, reason: "missingTicket" }
@@ -525,6 +543,37 @@ export class Tick {
 
         st.active.state = helpers.TICKET_STATE.RUNNING;
 	return this._makeRunnable({ jobId, job, st, ticket: st.active, ctx, cascade, cascadeCtx });
+    }
+
+    _validateTickCascadedJob({ ctx = {}, jobId = null, cascade = true, cascadeCtx = false } = {}) {
+	if (!jobId) return null;
+
+	const job = this._resolveJobSafe(jobId);
+	if (!job || !job.id) {
+	    return this._makeMissingJob({ jobId, missingJobFlag: true });
+	}
+
+	const st = this.engine.state.jobState(jobId);
+	const blocked = this._isJobBlocked({ jobId, job, ticket: st.active });
+	if (blocked) return blocked;
+
+	const ensured = st.active ? { ticket: st.active } : this._ensureActiveTicket({ st, jobId, job });
+	if (ensured?.done) return ensured;
+
+	const nextTicket = ensured.ticket;
+	const tBlocked = this._isTicketBlocked({ jobId, job, ticket: nextTicket });
+	if (tBlocked) return tBlocked;
+
+	nextTicket.state = helpers.TICKET_STATE.RUNNING;
+	return this._makeRunnable({
+	    jobId,
+	    job,
+	    st,
+	    ticket: nextTicket,
+	    ctx: cascadeCtx ? ctx : {},
+	    cascade,
+	    cascadeCtx,
+	});
     }
     
     _validateTickNext({ ctx = {}, requireJob = undefined, cascade = true, cascadeCtx = false } = {}) {

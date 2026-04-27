@@ -13,7 +13,15 @@ export class Wake {
 	this._wakeDelay = null;
     }
 
-    refresh({ max, ticket, requireJob, ctx, cascade = true, cascadeCtx = false } = {}) {
+    refresh({
+	max,
+	ticket,
+	requireJob,
+	ctx,
+	cascade = true,
+	cascadeCtx = false,
+	seedJobId = undefined,
+    } = {}) {
 	const delay = this.nextWaitDelay();
 	if (delay == null) {
 	    this.cancel();
@@ -30,7 +38,7 @@ export class Wake {
 
 	this._wakeDelay = delay;
 	this._wakeTimer = setTimeout(() => {
-	    this._run({ max, ticket, requireJob, ctx, cascade, cascadeCtx });
+	    this._run({ max, ticket, requireJob, ctx, cascade, cascadeCtx, seedJobId });
 	}, Math.max(0, delay));
     }
 
@@ -42,17 +50,25 @@ export class Wake {
 	}
     }
 
-    async _run({ max, ticket, requireJob, ctx, cascade = true, cascadeCtx = false } = {}) {
+    async _run({
+	max,
+	ticket,
+	requireJob,
+	ctx,
+	cascade = true,
+	cascadeCtx = false,
+	seedJobId = undefined,
+    } = {}) {
 	this._wakeTimer = null;
 	this._wakeDelay = null;
 
 	try {
 	    this.requeueReadyWaiting();
-	    await this.engine.drain({ max, ticket, requireJob, ctx, cascade, cascadeCtx });
+	    await this.engine.drain({ max, ticket, requireJob, ctx, cascade, cascadeCtx, seedJobId });
 	} catch (err) {
 	    console.error("wake run failed", err);
 	} finally {
-	    this.refresh({ max, ticket, requireJob, ctx, cascade, cascadeCtx });
+	    this.refresh({ max, ticket, requireJob, ctx, cascade, cascadeCtx, seedJobId });
 	}
     }
 
