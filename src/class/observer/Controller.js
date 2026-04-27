@@ -115,7 +115,7 @@ export default class Controller {
 	// last applied selector specs (optional introspection)
 	this._selectorSpecs = null;
 
-	// serialize observer-driven register/autorun work across mutation bursts
+	// serialize observer-driven attach/autorun work across mutation bursts
 	this.state = {
             mutationChain: Promise.resolve(),
 	};
@@ -364,7 +364,7 @@ export default class Controller {
     }
 
     /**
-     * Queue observer-driven discovery + autorun work.
+     * Queue observer-driven attachment + autorun work.
      *
      * This keeps post-start mutation batches ordered and prevents duplicate
      * autorun sweeps from racing before newly created jobs have marked
@@ -374,12 +374,17 @@ export default class Controller {
      * @param {string} [reason="observer"]
      * @returns {Promise<void>}
      */
-    _queueRegisterAutorun(nodes, reason = "observer") {
+    _queueAttachObservedNodes(nodes, reason = "observer") {
         const lib = this.lib;
         nodes = lib.array.to(nodes);
         if (!lib.array.len(nodes)) return Promise.resolve();
 
         const run = async () => {
+            if (this.AT.runtime && typeof this.AT.runtime.attachObservedNodes === "function") {
+                await this.AT.runtime.attachObservedNodes(nodes, { reason });
+                return;
+            }
+
             await this.AT.discover.registerJobs(nodes);
             await this.AT.autorun(reason);
         };
@@ -390,7 +395,7 @@ export default class Controller {
             })
             .then(run)
             .catch((err) => {
-                console.error("[ActiveTags observer] mutation register/autorun failed", err);
+                console.error("[ActiveTags observer] mutation attach failed", err);
             });
 
         return this.state.mutationChain;
@@ -483,22 +488,34 @@ export default class Controller {
         }
 
         if (lib.array.len(toRegister)) {
-            void this._queueRegisterAutorun(toRegister, "observer");
+            void this._queueAttachObservedNodes(toRegister, "observer");
         }
 
-        // removed + changeAway => unregister jobs
+        // removed + changeAway => dispose jobs
+        const toDispose = [];
+        const disposeSeen = new Set();
+        const pushDispose = (node) => {
+            if (!node || disposeSeen.has(node)) return;
+            disposeSeen.add(node);
+            toDispose.push(node);
+        };
+
         if (lib.array.len(removed)) {
             for (let i = 0; i < removed.length; i++) {
                 const el = removed[i] && removed[i].el ? removed[i].el : null;
-                if (el) this.jobs.unregister(el);
+                pushDispose(el);
             }
         }
 
         if (lib.array.len(changeAway)) {
             for (let i = 0; i < changeAway.length; i++) {
                 const el = changeAway[i] && changeAway[i].el ? changeAway[i].el : null;
-                if (el) this.jobs.unregister(el);
+                pushDispose(el);
             }
+        }
+
+        if (lib.array.len(toDispose) && this.AT.runtime && typeof this.AT.runtime.disposeJobs === "function") {
+            this.AT.runtime.disposeJobs(toDispose, { reason: "observer.detached" });
         }
 
         return {

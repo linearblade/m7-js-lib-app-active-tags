@@ -48,6 +48,10 @@ const lib = install({
       observeDom: true,
       events: true,
       intervals: true,
+    },
+    observe: {
+      runtimeAttach: true,
+      runtimeDispose: true,
     }
   }
 });
@@ -57,6 +61,8 @@ if (!AT) throw new Error(`missing ActiveTags service '${SERVICE_ID}'.`);
 
 await AT.start();
 ```
+
+With `boot.observeDom: true`, later matching DOM additions/removals are also processed by the observer. By default, `observe.runtimeAttach` syncs newly discovered jobs into the events/intervals runtime, and `observe.runtimeDispose` clears runtime event/interval state before removed jobs are unregistered.
 
 ---
 

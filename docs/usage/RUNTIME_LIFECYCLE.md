@@ -33,7 +33,23 @@ Reference: [../../src/ActiveTags.js](../../src/ActiveTags.js)
 
 ---
 
-## 3) Trigger phase
+## 3) Post-start DOM changes
+
+When `boot.observeDom` is enabled, later matching DOM mutations also flow through runtime lifecycle helpers:
+
+* added/changed matching nodes are discovered
+* `AT.runtime.attachObservedNodes(...)` can register and conditionally enable events/intervals for newly discovered jobs
+* removed/change-away nodes can be cleaned through `AT.runtime.disposeJob(...)` / `AT.runtime.disposeJobs(...)` before unregister
+
+Observer-controlled sync is gated by:
+
+* `observe.runtimeAttach` for the add path
+* `observe.runtimeDispose` for the remove path
+* `boot.events` / `boot.intervals` for conditional enablement
+
+---
+
+## 4) Trigger phase
 
 Runtime triggers enqueue tickets; they do not execute pipelines directly:
 
@@ -43,7 +59,7 @@ Runtime triggers enqueue tickets; they do not execute pipelines directly:
 
 ---
 
-## 4) Execution phase
+## 5) Execution phase
 
 Engine runtime model:
 
@@ -63,7 +79,7 @@ Core files:
 
 ---
 
-## 5) Dataflow phase
+## 6) Dataflow phase
 
 Within a ticket:
 
@@ -74,13 +90,16 @@ This explicit conveyor model is a core design strength for deterministic workflo
 
 ---
 
-## 6) Programmatic jobs (`AT.runtime`)
+## 7) Programmatic jobs (`AT.runtime`)
 
 For advanced/runtime-only flows, jobs may be created directly through:
 
 * `AT.runtime.createInternalJob(name, def?, opts?, e?)`
 * `AT.runtime.createJob({ name, def?, opts?, e?, headless? })`
 * `AT.runtime.createHeadlessJob(name, def?, opts?)`
+* `AT.runtime.attachObservedNodes(nodes, opts?)`
+* `AT.runtime.disposeJob(jobLike, opts?)`
+* `AT.runtime.disposeJobs(list, opts?)`
 
 Headless policy on `createJob`:
 

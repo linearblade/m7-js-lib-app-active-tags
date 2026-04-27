@@ -23,6 +23,34 @@ This layer controls runtime policy, including:
 * engine operation surface and lookup policy
 * job config policy defaults
 
+### Runtime observer sync policy
+
+`boot.observeDom` controls whether the DOM observer starts at all.
+
+When it is enabled, the `observe` block now also controls whether post-start DOM changes are mirrored into runtime event/interval state:
+
+```js
+observe: {
+  selector: "[data-activetag]",
+  attribute_filter: ["data-activetag", "data-foo"],
+  debounceMs: 25,
+  observeAttributes: true,
+  runtimeAttach: true,
+  runtimeDispose: true
+}
+```
+
+Semantics:
+
+* `observe.runtimeAttach`
+  Enables observer-driven runtime sync for newly discovered matching nodes.
+  New jobs are discovered either way, but when this flag is `true`, ActiveTags also registers their event/interval definitions and conditionally turns them on using the normal `boot.events` / `boot.intervals` gates.
+* `observe.runtimeDispose`
+  Enables observer-driven runtime cleanup for disappearing jobs.
+  When this flag is `true`, ActiveTags removes runtime event and interval state before unregistering the job.
+
+Both flags default to `true` unless explicitly disabled.
+
 ### Runtime `engine` block (`AT.conf.engine`)
 
 Primary implementation sources:

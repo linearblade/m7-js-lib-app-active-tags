@@ -81,6 +81,8 @@ Check:
 
 * `boot.observeDom` gate
 * `observe.selector` and `observe.attribute_filter` alignment
+* `observe.runtimeAttach` and `observe.runtimeDispose` policy flags
+* `boot.events` / `boot.intervals` if newly discovered jobs are discovered but not turned on
 * underlying observer service contract
 
 Reference:

@@ -236,6 +236,152 @@ export class Controller {
 	    headless: true,
 	});
     }
+
+    /**
+     * Attach newly observed DOM nodes to runtime controllers.
+     *
+     * The observer may report nodes repeatedly across mutation batches, so this
+     * method first filters to truly fresh elements that are not already present
+     * in the Job registry.
+     *
+     * Attach order is:
+     * 1. Register new Jobs from the provided DOM nodes
+     * 2. Register event and interval definitions for each new enabled Job
+     * 3. Conditionally turn on events and intervals according to boot policy
+     * 4. Autorun newly eligible Jobs
+     *
+     * @param {Array|ArrayLike} nodes
+     * @param {Object} [opts]
+     * @param {string} [opts.reason="observer"]
+     * @returns {Promise<{jobs: Array, count: number}>}
+     */
+    async attachObservedNodes(nodes = [], { reason = "observer" } = {}) {
+	const lib = this.lib;
+	const fresh = [];
+	const seen = new Set();
+	const observeConf = lib.hash.to(this.AT.conf.observe);
+	const shouldSyncRuntime = !lib.bool.no(observeConf.runtimeAttach);
+
+	for (const node of lib.array.to(nodes)) {
+	    if (!node || seen.has(node)) continue;
+	    seen.add(node);
+
+	    if (this.jobs && typeof this.jobs.hasElement === "function" && this.jobs.hasElement(node)) {
+		continue;
+	    }
+
+	    fresh.push(node);
+	}
+
+	if (!lib.array.len(fresh)) {
+	    return { jobs: [], count: 0 };
+	}
+
+	const jobs = await this.discover.registerJobs(fresh);
+	let count = 0;
+
+	if (!shouldSyncRuntime) {
+	    await this.AT.autorun(reason);
+	    return { jobs, count: 0 };
+	}
+
+	for (const job of jobs) {
+	    if (!job || !job.id) continue;
+
+	    const enabled = lib.hash.get(job, "config.schema.enable.enabled");
+	    if (lib.bool.no(enabled)) continue;
+
+	    if (this.events && typeof this.events.register === "function") {
+		this.events.register(job);
+	    }
+
+	    if (this.intervals && typeof this.intervals.register === "function") {
+		this.intervals.register(job);
+	    }
+
+	    if (
+		!lib.bool.no(this.AT.conf.boot.events) &&
+		this.events &&
+		typeof this.events.conditionalOn === "function"
+	    ) {
+		await this.events.conditionalOn(job);
+	    }
+
+	    if (
+		!lib.bool.no(this.AT.conf.boot.intervals) &&
+		this.intervals &&
+		typeof this.intervals.conditionalOn === "function"
+	    ) {
+		await this.intervals.conditionalOn(job);
+	    }
+
+	    count++;
+	}
+
+	await this.AT.autorun(reason);
+	return { jobs, count };
+    }
+
+    /**
+     * Dispose a runtime Job and its attached controller state.
+     *
+     * Teardown order is:
+     * 1. Remove delegated event handlers + event registry state
+     * 2. Remove active intervals + interval registry state
+     * 3. Unregister the Job from the central job registry
+     *
+     * @param {Object|string|Element} jobLike
+     * @param {Object} [opts]
+     * @param {string} [opts.reason="runtime.dispose"]
+     * @returns {boolean}
+     */
+    disposeJob(jobLike, { reason = "runtime.dispose" } = {}) {
+	const lib = this.lib;
+	const job = this.AT.toJob(jobLike);
+	if (!job || !job.id) return false;
+	const observeConf = lib.hash.to(this.AT.conf.observe);
+
+	if (lib.bool.no(observeConf.runtimeDispose)) {
+	    this.jobs.unregister(job, { reason });
+	    return true;
+	}
+
+	if (this.events && typeof this.events.remove === "function") {
+	    this.events.remove(job);
+	}
+
+	if (this.intervals && typeof this.intervals.remove === "function") {
+	    this.intervals.remove(job);
+	}
+
+	this.jobs.unregister(job, { reason });
+	return true;
+    }
+
+    /**
+     * Dispose multiple runtime Jobs while deduplicating by job id.
+     *
+     * @param {Array|ArrayLike} list
+     * @param {Object} [opts]
+     * @param {string} [opts.reason="runtime.dispose"]
+     * @returns {number}
+     */
+    disposeJobs(list = [], { reason = "runtime.dispose" } = {}) {
+	const seen = new Set();
+	let count = 0;
+
+	for (const item of this.lib.array.to(list)) {
+	    const job = this.AT.toJob(item);
+	    if (!job || !job.id || seen.has(job.id)) continue;
+	    seen.add(job.id);
+
+	    if (this.disposeJob(job, { reason })) {
+		count++;
+	    }
+	}
+
+	return count;
+    }
 }
 
 export default Controller;

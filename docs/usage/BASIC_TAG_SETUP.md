@@ -23,9 +23,12 @@ Runtime flow:
 
 1. `AT.start()` runs an initial `discover.scan()` pass for existing matching elements.
 2. If `boot.observeDom` is enabled, the observer starts and handles later DOM mutations.
-3. Added/changed matching nodes are registered, then autorun is swept; removed/change-away nodes are unregistered.
+3. Added/changed matching nodes are registered and autorun is swept.
+4. When `observe.runtimeAttach` is enabled (default), newly discovered jobs are also synced into the event and interval controllers, then conditionally turned on using the normal boot gates.
+5. Removed/change-away nodes enter the observer detach path.
+6. When `observe.runtimeDispose` is enabled (default), runtime event and interval state is cleared before unregister so detached jobs do not leave old bindings behind. When it is disabled, the observer falls back to unregister-only behavior.
 
-Practical note: page-load tags are discovered by the boot scan path, while the observer path is mainly for post-start DOM changes.
+Practical note: page-load tags are discovered by the boot scan path, while the observer path is mainly for post-start DOM changes. If `observe.runtimeAttach` is disabled, the observer falls back to the legacy discovery-only behavior on the add side.
 
 ---
 

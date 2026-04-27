@@ -24,6 +24,8 @@ No return value.
 * Builds selector specs and stores them in `_selectorSpecs`.
 * Calls `observer.setSelectors(selectorSpecs)` and `observer.start()`.
 * Wires callbacks to `_onDomChanges(batch)`.
+* Added/changed matching nodes may flow through `AT.runtime.attachObservedNodes(...)`.
+* Removed/change-away nodes may flow through `AT.runtime.disposeJob(...)` / `AT.runtime.disposeJobs(...)`.
 
 ### Failure modes
 
@@ -43,6 +45,7 @@ AT.observer.start();
 * [`stop()`](./stop.md)
 * [`setSelectors(selectorSpecs)`](./set-selectors.md)
 * [`AT.discover.registerJobs(...)`](../at-discover/register-jobs.md)
+* [`AT.runtime`](../AT_RUNTIME.md)
 
 ---
 

@@ -29,6 +29,10 @@ const lib = install({
       events: true,
       intervals: true,
     },
+    observe: {
+      runtimeAttach: true,
+      runtimeDispose: true,
+    },
   },
 });
 
@@ -59,6 +63,7 @@ await AT.start();
 * optional observer start
 * event/interval registration
 * event/interval activation per boot flags
+* later observer-driven runtime attach/dispose for matching DOM changes, when enabled
 
 ---
 

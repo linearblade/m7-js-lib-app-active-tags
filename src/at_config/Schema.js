@@ -960,6 +960,8 @@ _configBoot(active, user) {
      * - Normalize `attribute_filter` to `string[]` (guaranteed non-empty after compile)
      * - Normalize `debounceMs` to integer >= 0 (default 25)
      * - Normalize `observeAttributes` to boolean (lib semantics)
+     * - Normalize `runtimeAttach` / `runtimeDispose` to
+     *   "default true unless explicitly disabled"
      * - Apply LAST_LINE safety-net for `attribute_filter`
      *
      * NON-RESPONSIBILITIES:
@@ -975,7 +977,9 @@ _configBoot(active, user) {
      *     selector: string[],         // may be empty; runtime may fall back to boot.selector
      *     attribute_filter: string[], // guaranteed non-empty
      *     debounceMs: number,         // integer >= 0
-     *     observeAttributes: boolean  // normalized boolean
+     *     observeAttributes: boolean, // normalized boolean
+     *     runtimeAttach: boolean,     // default true
+     *     runtimeDispose: boolean     // default true
      *   }
      *
      * @param {Object} active
@@ -1023,6 +1027,10 @@ _configBoot(active, user) {
 
 	// observeAttributes
 	obs.observeAttributes = lib.bool.yes(obs.observeAttributes);
+
+	// runtime sync flags default true unless explicitly disabled
+	obs.runtimeAttach = !lib.bool.no(obs.runtimeAttach);
+	obs.runtimeDispose = !lib.bool.no(obs.runtimeDispose);
 
     }
     

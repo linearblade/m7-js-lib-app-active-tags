@@ -227,6 +227,14 @@ export const DEFAULT_CONFIG = freezeDeep(
 	    // If true, attribute mutations are observed.
 	    // If false, only childList/subtree mutations are processed.
 	    observeAttributes: true,
+
+	    // If true, newly observed matching nodes get runtime event/interval sync.
+	    // If false, observer falls back to discovery + autorun only.
+	    runtimeAttach: true,
+
+	    // If true, disappearing observed jobs clear runtime event/interval state
+	    // before unregister. If false, observer falls back to unregister only.
+	    runtimeDispose: true,
 	},
 
 	// ---------------------------------------------------------------------------

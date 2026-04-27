@@ -18,14 +18,17 @@
 
 Resolves when boot-time activation is complete: initial discover scan, optional observer start, interval/event registration, optional interval/event activation, and startup autorun drain.
 
+When the observer is enabled, later DOM changes are handled after `start()` by the observer/runtime path, using `conf.observe.runtimeAttach` and `conf.observe.runtimeDispose`.
+
 ### Side effects
 
 * Reads `lib._env.root.document` and validates `document.body`.
 * Calls `AT.discover.scan()`.
 * May call `AT.observer.start()` when `conf.boot.observeDom` is enabled.
 * Calls `AT.intervals.registerAll()` and `AT.events.registerAll()`.
-* May call `AT.intervals.on()` and `AT.events.on()` based on boot flags.
+* May call `AT.intervals.conditionalOn()` and `AT.events.conditionalOn()` based on boot flags.
 * Calls `AT.autorun("startup")`.
+* Establishes the post-start observer path that can attach/dispose runtime event and interval state for later matching DOM mutations.
 
 ### Failure modes
 
