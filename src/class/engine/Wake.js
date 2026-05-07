@@ -25,19 +25,23 @@ export class Wake {
 	const delay = this.nextWaitDelay();
 	if (delay == null) {
 	    this.cancel();
+	    //console.warn('[at] cancelling wake');
 	    return;
 	}
 
 	if (this._wakeTimer && this._wakeDelay <= delay) {
+	    //console.warn('[at] still waiting for wakeup', this._wakeDelay, delay);
 	    return;
 	}
 
 	if (this._wakeTimer) {
+	    //console.warn('[at] clear wake timer');
 	    clearTimeout(this._wakeTimer);
 	}
 
 	this._wakeDelay = delay;
 	this._wakeTimer = setTimeout(() => {
+	    //console.warn('[at]set time to try again',delay);
 	    this._run({ max, ticket, requireJob, ctx, cascade, cascadeCtx, seedJobId });
 	}, Math.max(0, delay));
     }
@@ -107,7 +111,7 @@ export class Wake {
             if (ticket.state !== helpers.TICKET_STATE.WAIT) continue;
 
             if (!this.engine._tick._isTicketBlocked({ ticket }))
-                return now;
+                return 0;
 
 
             const next = ticket?.lock?.until;

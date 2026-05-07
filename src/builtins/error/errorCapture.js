@@ -2,7 +2,7 @@ export default async function errorCapture({ job, lib, args, trigger, ticket, in
 
   try {
       const opts = lib.args.parse(args, {}, {
-          parms: "capture dst which",
+          parms: "capture dst which ignore",
           pop: true,
       }) || {};
 
@@ -32,7 +32,11 @@ export default async function errorCapture({ job, lib, args, trigger, ticket, in
       }else if (opts.capture === 'error'){
 	  err = err?.error;
       }
-      
+      if(!err && lib.bool.yes(opts.ignore) ) {
+	  //console.error('ignoring empty error')
+	  return { status: "ok", detail: { op: "error.capture", dumped: false, step,comment: 'empty error, ignored' } };
+      }
+      //console.warn('errror / ignore is ', err, lib.bool.yes(opts.ignore) );
       writeExprDestination({ lib, expr, job, ticket, ctx, dst:opts.dst, value:err });
 
     return { status: "ok", detail: { op: "error.capture", dumped: true, step } };
