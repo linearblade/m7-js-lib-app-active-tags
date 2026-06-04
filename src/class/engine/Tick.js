@@ -203,6 +203,7 @@ export class Tick {
 
 	return (finalState) => {
             ticket.state = finalState;
+	    delete ticket.waitCtx;
 
             // drop active
             st.active = null;
@@ -444,7 +445,9 @@ export class Tick {
     }
 
     _makeRunnable({ jobId, job, st, ticket, ctx, cascade = true, cascadeCtx = false } = {}) {
-	return { done: false, jobId, job, st, ticket, ctx, cascade, cascadeCtx };
+	const waitCtx = (ticket && ticket.waitCtx && typeof ticket.waitCtx === "object") ? ticket.waitCtx : null;
+	const nextCtx = waitCtx ? Object.assign({}, waitCtx, ctx || {}) : (ctx || {});
+	return { done: false, jobId, job, st, ticket, ctx: nextCtx, cascade, cascadeCtx };
     }
 
     /**
@@ -624,9 +627,10 @@ export class Tick {
     }
 
     _responseWait(env) {
-	const { jobId, job, ticket, res } = env;
+	const { jobId, job, ticket, res, ctx } = env;
 	ticket.state = helpers.TICKET_STATE.WAIT;
 	ticket.lock = res.lock || res.await || { type: "wait", token: `aw_${Date.now()}` };
+	ticket.waitCtx = (ctx && typeof ctx === "object") ? Object.assign({}, ctx) : {};
 	return this.response._makeTickTrace({
             jobId, job, ticket, res,
             flags: { didWork: true, waiting: true }

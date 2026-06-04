@@ -108,6 +108,80 @@ export async function jobWait({ lib, args, ctx, ticket, AT, step } = {}) {
     }
 }
 
+/**
+ * `job.run` builtin.
+ *
+ * Explicitly enqueue and start one or more registered jobs.
+ *
+ * Args:
+ * - `job`               : required job id/name/ref
+ * - `pipeline`          : optional pipeline key (defaults to `ready`)
+ * - `reason`            : optional input reason
+ * - `require_drain_max` : optional follow-up drain max (defaults to 25)
+ */
+export async function jobRun({ lib, args, ctx, AT, step } = {}) {
+    const op = "job.run";
+
+    try {
+        const parsed = lib.args.parse(args, {}, {
+            parms: "job pipeline reason require_drain_max",
+            pop: true,
+        }) || {};
+
+        const jobList = lib.array.to(parsed.job).filter((item) => item != null && item !== "");
+        if (!jobList.length) {
+            throw new Error("[job.run] job is required.");
+        }
+
+        if (!AT || typeof AT.toJob !== "function" || !AT.engine) {
+            throw new Error("[job.run] Active Tags engine is unavailable.");
+        }
+
+        const deps = jobList.map((jobRef) => ({
+            ref: jobRef,
+            dep: AT.toJob(jobRef) || null,
+        }));
+
+        const missing = deps.filter(({ dep }) => !dep);
+        if (missing.length) {
+            throw new Error(`[job.run] missing job(s): ${missing.map(({ ref }) => String(ref)).join(", ")}.`);
+        }
+
+        const pipeline = lib.str.to(parsed.pipeline, true).trim() || "ready";
+        const reason = lib.str.to(parsed.reason, true).trim() || "runtime";
+        const requireDrainMax = Math.max(1, lib.number.toInt(parsed.require_drain_max) || 25);
+        const ran = [];
+
+        for (const { dep, ref } of deps) {
+            lib.hash.set(dep, "flags.hasRun", false);
+            const meta = { source: op };
+            const inputs = { reason };
+            const ticket = AT.engine.enqueue(dep, pipeline, { inputs, meta });
+
+            if (!ticket) {
+                throw new Error(`[job.run] failed to enqueue '${dep.id || dep.name || String(ref)}'.`);
+            }
+
+            await AT.engine.drain({ ticket, ctx });
+            await AT.engine.drain({ requireJob: dep, ctx, max: requireDrainMax });
+            AT.engine.wake.refresh({ ctx });
+
+            ran.push(dep.id || dep.name || String(ref));
+        }
+
+        return helpers.SR_ok({
+            op,
+            step,
+            job: ran.length === 1 ? ran[0] : ran,
+            pipeline,
+            reason,
+        });
+    } catch (err) {
+        return helpers.SR_error(err, { op, step });
+    }
+}
+
 export default {
+    run: jobRun,
     wait: jobWait,
 };
