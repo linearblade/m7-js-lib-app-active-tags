@@ -118,13 +118,14 @@ export async function jobWait({ lib, args, ctx, ticket, AT, step } = {}) {
  * - `pipeline`          : optional pipeline key (defaults to `ready`)
  * - `reason`            : optional input reason
  * - `require_drain_max` : optional follow-up drain max (defaults to 25)
+ * - `run_once`          : when truthy, skip jobs whose `flags.hasRun === true`
  */
 export async function jobRun({ lib, args, ctx, AT, step } = {}) {
     const op = "job.run";
 
     try {
         const parsed = lib.args.parse(args, {}, {
-            parms: "job pipeline reason require_drain_max",
+            parms: "job pipeline reason require_drain_max run_once runOnce",
             pop: true,
         }) || {};
 
@@ -150,31 +151,42 @@ export async function jobRun({ lib, args, ctx, AT, step } = {}) {
         const pipeline = lib.str.to(parsed.pipeline, true).trim() || "ready";
         const reason = lib.str.to(parsed.reason, true).trim() || "runtime";
         const requireDrainMax = Math.max(1, lib.number.toInt(parsed.require_drain_max) || 25);
+        const runOnce = lib.bool.yes(parsed.run_once) || lib.bool.yes(parsed.runOnce);
         const ran = [];
+        const skipped = [];
 
         for (const { dep, ref } of deps) {
+            const depName = dep.id || dep.name || String(ref);
+            if (runOnce && lib.bool.yes(lib.hash.get(dep, "flags.hasRun"))) {
+                skipped.push(depName);
+                continue;
+            }
+
             lib.hash.set(dep, "flags.hasRun", false);
             const meta = { source: op };
             const inputs = { reason };
             const ticket = AT.engine.enqueue(dep, pipeline, { inputs, meta });
 
             if (!ticket) {
-                throw new Error(`[job.run] failed to enqueue '${dep.id || dep.name || String(ref)}'.`);
+                throw new Error(`[job.run] failed to enqueue '${depName}'.`);
             }
 
             await AT.engine.drain({ ticket, ctx });
             await AT.engine.drain({ requireJob: dep, ctx, max: requireDrainMax });
             AT.engine.wake.refresh({ ctx });
 
-            ran.push(dep.id || dep.name || String(ref));
+            ran.push(depName);
         }
 
         return helpers.SR_ok({
             op,
             step,
-            job: ran.length === 1 ? ran[0] : ran,
+            job: deps.length === 1 ? (deps[0].dep.id || deps[0].dep.name || String(deps[0].ref)) : deps.map(({ dep, ref }) => dep.id || dep.name || String(ref)),
             pipeline,
             reason,
+            run_once: runOnce,
+            ran,
+            skipped,
         });
     } catch (err) {
         return helpers.SR_error(err, { op, step });
