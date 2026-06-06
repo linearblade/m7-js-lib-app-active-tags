@@ -1242,7 +1242,8 @@ export class Controller {
      *
      * @param {Job} args.job
      *   The owning Job for this binding.
-     *   The handler enforces that the matched element belongs to this Job.
+     *   The handler normalizes nested ActiveTag matches back to the owning Job root
+     *   before enforcing ownership.
      *
      * @param {string} args.eventName
      *   The event binding name as stored in the controller registry.
@@ -1272,7 +1273,8 @@ export class Controller {
      * filters allow the event to proceed.
      *
      * In that case:
-     *   The handler requires the event target to be within the Job root element.
+     *   The handler requires the matched ActiveTag root to be the Job root or a
+     *   descendant of the Job root.
      *   The handler requires the event target to resolve against rec.selector
      *   using the configured matched.match mode.
      *   The semantic trigger becomes the matched sub-element rather than the Job root.
@@ -1351,17 +1353,20 @@ export class Controller {
 	// capture controller for helpers without touching handler `this`
 	const self = this;
 
-	return function handler(e) {
+	    return function handler(e) {
             if (e && e[AT_MATCHED_STOP_FLAG]) return;
 
-            const el = this; // matched ActiveTag element (delegator contract)
-            let trigger = el; // default trigger is the ActiveTag root
+	            const matchedEl = this; // closest matched ActiveTag root (delegator contract)
+	            const el = job.e
+		? ((job.e === matchedEl || job.e.contains(matchedEl)) ? job.e : null)
+		: matchedEl;
+	            if (!el) return;
+	            let trigger = el; // default trigger is the owning ActiveTag root
 
-            // ensure correct job ownership
-            if (job.e && el !== job.e) return;
+	            // normalize nested ActiveTag matches back to the owning job root
 
-            // matched selector gate
-            if (subSelector) {
+	            // matched selector gate
+	            if (subSelector) {
 		const hit = resolveMatchedTarget({
 		    el,
 		    node: e && e.target,
