@@ -144,8 +144,8 @@ export const DEFAULT_REQUEST_SHAPE = {
 	// Typical HTTP response policy example.
 	// Leave these commented in default shape; copy into user request_shape when needed.
 	parse: "auto", // Parse mode: auto | json | text | raw | blob | arrayBuffer
-	requireOk: false, // If true, non-2xx HTTP responses should be treated as errors
-	acceptedStatus: [], // Optional explicit allowlist for acceptable status codes
+	requireOk: false, // If true, mark responsePolicy.pass=false when payload.ok is false
+	acceptedStatus: [], // Optional explicit allowlist used by responsePolicy pass/fail
 	return: "payload", // Return view: payload | body | json | text | headers | status
 	path: undefined // Optional deep-pick path (typically against response body/payload)
 	*/

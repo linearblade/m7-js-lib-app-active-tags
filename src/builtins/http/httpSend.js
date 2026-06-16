@@ -184,10 +184,30 @@ function resolveResponseOutcome({ lib, payload, responseCfg }) {
 	return: lib.str.to(lib.hash.get(responseCfg, "return"), true).trim() || "payload",
 	path: lib.str.to(lib.hash.get(responseCfg, "path"), true).trim() || null,
 	requireOk: policy.requireOk,
-	acceptedStatus: policy.accepted
+	acceptedStatus: policy.accepted,
+	pass: policy.pass,
+	reason: policy.reason,
+	status: policy.status
     };
 
     return { exportValue, policy, responsePolicyMeta, responseParse };
+}
+
+function evaluateDispatchOutcome(payload) {
+    const status = (payload && typeof payload.status === "number") ? payload.status : 0;
+    const sent = status > 0;
+    let reason = null;
+
+    if (!sent) {
+	reason = (payload && payload.error) ? "transportError" : "noStatus";
+    }
+
+    return {
+	sent,
+	reason,
+	status,
+	error: payload && payload.error ? payload.error : null,
+    };
 }
 
 function normalizeLibRequestPayload(payload, url) {
@@ -484,9 +504,12 @@ async function sendWithXhr({ lib, request, url, method, headers, body, encoding,
  *   - requireOk / acceptedStatus gating
  * - writes projected response value into `buffer`
  * - writes request/response summary into `buffer.meta`
- * - on response-policy failure, still writes buffer/meta then returns `SR_error`
+ * - response-policy mismatches are recorded in meta but do not fail the stage
+ *   once a real HTTP status is available
+ * - pre-dispatch/config/transport failures still return `SR_error`
  */
 export default async function httpSend({ job, lib, args, buffer, inputs, step } = {}) {
+    console.warn('INSIDE HTTP SEND');
     try {
 	const { request, refs } = resolveRequestConfig({ lib, job, args, buffer });
 
@@ -500,13 +523,14 @@ export default async function httpSend({ job, lib, args, buffer, inputs, step } 
 	}
 
 	const url = resolveHttpUrl(lib, request);
+	console.warn('trying to go to ',url);
 	if (lib.utils.isEmpty(url)) {
 	    return helpers.SR_error(new Error("http.send: missing endpoint.url (or endpoint host/scheme/path)"), {
 		op: "http.send",
 		step
 	    });
 	}
-
+	
 	const method = lib.str.to(request.method, true).trim().toUpperCase() || "GET";
 	const headers = lib.hash.to(request.headers);
 	const timeoutMs = lib.number.toInt(request.timeoutMs, 0);
@@ -525,6 +549,7 @@ export default async function httpSend({ job, lib, args, buffer, inputs, step } 
 	payload = normalizeLibRequestPayload(payload, url);
 
 	const outcome = resolveResponseOutcome({ lib, payload, responseCfg });
+	const dispatch = evaluateDispatchOutcome(payload);
 	const txName = lib.str.to(refs[0], true).trim();
 	storeHttpTransaction({
 	    job,
@@ -539,17 +564,21 @@ export default async function httpSend({ job, lib, args, buffer, inputs, step } 
 	    http: {
 		op: "http.send",
 		refs,
-			request: {
-			    transport: transport || "http",
-			    url,
-			    method,
-			    encoding: lib.str.to(request.encoding, true).trim().toLowerCase() || null,
-			    timeoutMs: timeoutMs > 0 ? timeoutMs : null,
-			    headers
-			},
+		request: {
+		    transport: transport || "http",
+		    url,
+		    method,
+		    encoding: lib.str.to(request.encoding, true).trim().toLowerCase() || null,
+		    timeoutMs: timeoutMs > 0 ? timeoutMs : null,
+		    headers
+		},
 		response: {
 		    ok: payload && ("ok" in payload) ? !!payload.ok : null,
 		    status: payload && ("status" in payload) ? payload.status : null
+		},
+		dispatch: {
+		    sent: dispatch.sent,
+		    reason: dispatch.reason
 		},
 		responsePolicy: outcome.responsePolicyMeta
 	    }
@@ -558,13 +587,20 @@ export default async function httpSend({ job, lib, args, buffer, inputs, step } 
 	buffer.set(outcome.exportValue, meta);
 	if (inputs && typeof inputs === "object") inputs.response = outcome.exportValue;
 
-	if (!outcome.policy.pass) {
-	    return helpers.SR_error(new Error(`http.send: response policy failed (${outcome.policy.reason})`), {
+	if (!dispatch.sent) {
+	    const dispatchError =
+		dispatch.error instanceof Error
+		    ? dispatch.error
+		    : new Error(`http.send: request was not dispatched (${dispatch.reason || "unknown"})`);
+
+	    return helpers.SR_error(dispatchError, {
 		op: "http.send",
 		step,
-		reason: outcome.policy.reason,
-		status: outcome.policy.status,
-		refs
+		reason: dispatch.reason,
+		status: dispatch.status,
+		refs,
+		url,
+		method
 	    });
 	}
 
@@ -574,7 +610,12 @@ export default async function httpSend({ job, lib, args, buffer, inputs, step } 
 	    refs,
 	    url,
 	    method,
-	    status: payload && ("status" in payload) ? payload.status : null
+	    status: payload && ("status" in payload) ? payload.status : null,
+	    responsePolicy: {
+		pass: outcome.policy.pass,
+		reason: outcome.policy.reason,
+		status: outcome.policy.status
+	    }
 	});
     } catch (err) {
 	return helpers.SR_error(err, { op: "http.send", step });

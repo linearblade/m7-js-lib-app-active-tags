@@ -37,12 +37,17 @@ Merge order:
 
 ## Return Contract
 
-* `ok`: request sent and response policy passed.
-* `error`: unsupported transport, bad request config, thrown runtime error, or response-policy failure.
+* `ok`: request was configured and dispatched far enough to produce an HTTP
+  status; response-policy result is exposed in `buffer.meta().http.responsePolicy`.
+* `error`: unsupported transport, bad request config, or transport/setup
+  failure before a real HTTP status was obtained.
 
 Note:
 
-* transport/network failures may still be returned as payload (for example `{ ok:false, status:0 }`) and remain `ok` at stage level unless `request.response.requireOk` or `acceptedStatus` enforces failure.
+* response-policy mismatches do not change stage status once a real HTTP
+  response exists.
+* transport/network failures normalized as `{ ok:false, status:0 }` still
+  return `error` at stage level.
 
 ## See also
 

@@ -114,14 +114,17 @@ Supported policy keys:
 * `parse`: `auto | json | text | raw | blob | arrayBuffer`
 * `return`: `payload | body | json | text | headers | status`
 * `path`: optional deep-pick path on selected return value
-* `requireOk`: fail stage when response is not ok
+* `requireOk`: mark policy failure when response is not ok
 * `acceptedStatus`: explicit accepted status list
 
 Output behavior:
 
 * Projected value is written to `buffer` and `inputs.response`.
-* On policy failure, projected value is still written, then stage returns `error`.
 * Policy metadata is written under `buffer.meta().http.responsePolicy`.
+* Policy metadata includes both the configured rules and the evaluated result:
+  `pass`, `reason`, and response `status`.
+* On policy failure, projected value is still written and stage remains `ok`
+  as long as request dispatch produced a real HTTP status.
 
 Default policy:
 
@@ -142,17 +145,22 @@ Note:
 Successful stage returns:
 
 * `status: "ok"`
-* detail includes `op`, `refs`, `url`, `method`, and response `status`
+* detail includes `op`, `refs`, `url`, `method`, response `status`, and
+  response-policy outcome
 
 Error stage returns:
 
 * `status: "error"`
 * error info in StageResult
 * response export may still be present in buffer/meta
+* used for invalid request config or transport failures where no real HTTP
+  status was obtained
 
 Network/transport note:
 
-* some transport failures may be normalized into payload (`ok:false`, `status:0`) and still return `status:"ok"` unless `request.response.requireOk` or `acceptedStatus` enforces failure.
+* transport failures normalized into payload (`ok:false`, `status:0`) are
+  treated as stage errors because the request did not complete with a real
+  HTTP status.
 
 ---
 

@@ -135,27 +135,40 @@ export class Tick {
  * @returns {Promise<Object>}
  *   Normalized tick trace describing the outcome of this step.
  */
-    async tick({
-	ctx = {},
-	ticket = null,
+	    async tick({
+		ctx = {},
+		ticket = null,
 	requireJob = undefined,
 	cascade = true,
 	cascadeCtx = false,
 	seedJobId = undefined,
     } = {}) {
-        const v = this._validateTick({ ctx, ticket, requireJob, cascade, cascadeCtx, seedJobId });
-        if (v.done) return v.res;
+	        const v = this._validateTick({ ctx, ticket, requireJob, cascade, cascadeCtx, seedJobId });
+	        if (v.done) return v.res;
+		if (v.ticket && v.ticket._stepping === true) {
+		    return this.response._makeTickTrace({
+			jobId: v.jobId,
+			job: v.job,
+			ticket: v.ticket,
+			flags: { didWork: false, reason: "ticketStepping" }
+		    });
+		}
 
-        const finalize = this._makeFinalize(v);
+	        const finalize = this._makeFinalize(v);
 
-        let res;
-        try {
-            res = await this.engine.vm.step({ job: v.job, ticket: v.ticket, ctx: v.ctx});
-        } catch (err) {
-	    //console.warn('trap an error');
-	    res = helpers.SR_error(err, { pipelineKey: v.ticket?.pipelineKey || null });
-            //res = { status: helpers.STAGE_STATUS.ERROR, error: err };
-        }
+	        let res;
+	        try {
+		    v.ticket._stepping = true;
+	            res = await this.engine.vm.step({ job: v.job, ticket: v.ticket, ctx: v.ctx});
+	        } catch (err) {
+		    //console.warn('trap an error');
+		    res = helpers.SR_error(err, { pipelineKey: v.ticket?.pipelineKey || null });
+	            //res = { status: helpers.STAGE_STATUS.ERROR, error: err };
+	        } finally {
+		    if (v.ticket) {
+			v.ticket._stepping = false;
+		    }
+	        }
 	//console.log(res);
 	v.ticket.last = { at: Date.now(), res };
 	// build a non-terminal trace for stage events (even if it's a transition OK)

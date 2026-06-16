@@ -1394,23 +1394,29 @@ export class Controller {
             }
 
             // ---- normal behavior ----
-            const ticket = engine.enqueue(job, pipeline, {
-		inputs: {
-                    reason: "event",
-                    eventName,
+	            const queued = engine.enqueue(job, pipeline, {
+			inputs: {
+	                    reason: "event",
+	                    eventName,
                     event: e,
 		    trigger
 		},
-		meta: {
-                    source: "delegator",
-                    eventType,
-                    eventName,
-                    subSelector: subSelector || null,
-		},
-            });
+			meta: {
+	                    source: "delegator",
+	                    eventType,
+	                    eventName,
+	                    subSelector: subSelector || null,
+			},
+			returnMeta: true,
+	            });
+		    const ticket = queued && queued.ticket ? queued.ticket : null;
+		    const created = !!(queued && queued.created);
+		    if (!ticket || !created) {
+			return;
+		    }
 
-            // pass trigger through ctx for ops/runtime use
-            Promise.resolve().then(async () => {
+	            // pass trigger through ctx for ops/runtime use
+	            Promise.resolve().then(async () => {
 		await AT.engine.drain({ ticket, ctx: {} });
 		await AT.engine.drain({ requireJob: job, ctx: {}, max: 25 });
 		AT.engine.wake.refresh();
