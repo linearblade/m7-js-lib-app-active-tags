@@ -1,0 +1,19 @@
+{
+  "name": "m7-js-lib-app-active-tags",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "license": "LicenseRef-MTL-10",
+  "scripts": {
+    "test": "node --test test/**/*.test.js",
+    "test:engine": "node --test test/engine/**/*.test.js",
+    "test:controllers": "node --test test/controllers/**/*.test.js",
+    "test:builtins": "node --test test/builtins/**/*.test.js",
+    "test:unit": "node --test test/unit/**/*.test.js",
+    "test:install": "node --test test/install/**/*.test.js",
+    "build:nomap": "bash scripts/build-standalone.sh --out-dir dist/nomap",
+    "build:map": "bash scripts/build-standalone.sh --out-dir dist/map --with-map",
+    "build": "npm run build:nomap && npm run build:map",
+    "release-check": "bash scripts/release-check.sh"
+  }
+}

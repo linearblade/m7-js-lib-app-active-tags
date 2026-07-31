@@ -96,7 +96,7 @@ export class Controller {
 
 	this.installReplayHandler();
 	this.state.started = true;
-	console.log("[activeTags.popstate] started; handler installed:", this.handlerKey);
+
 	return this;
     }
 

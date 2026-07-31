@@ -509,7 +509,7 @@ async function sendWithXhr({ lib, request, url, method, headers, body, encoding,
  * - pre-dispatch/config/transport failures still return `SR_error`
  */
 export default async function httpSend({ job, lib, args, buffer, inputs, step } = {}) {
-    console.warn('INSIDE HTTP SEND');
+
     try {
 	const { request, refs } = resolveRequestConfig({ lib, job, args, buffer });
 
@@ -523,7 +523,7 @@ export default async function httpSend({ job, lib, args, buffer, inputs, step } 
 	}
 
 	const url = resolveHttpUrl(lib, request);
-	console.warn('trying to go to ',url);
+
 	if (lib.utils.isEmpty(url)) {
 	    return helpers.SR_error(new Error("http.send: missing endpoint.url (or endpoint host/scheme/path)"), {
 		op: "http.send",

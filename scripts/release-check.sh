@@ -32,6 +32,16 @@ else
     ok "VERSION=${VERSION_VALUE}"
 fi
 
+# Automated suite (engine / controllers / builtins / unit / install).
+# Prefer npm test when package.json is present; fall back to node --test.
+# Note: pass file globs (not directories) — Node's test runner treats bare
+# directory args as entry modules on some versions.
+if [ -f package.json ] && command -v npm >/dev/null 2>&1; then
+    run_gate "test suite (npm test)" npm test
+else
+    run_gate "test suite (node --test)" node --test test/**/*.test.js
+fi
+
 DIST_NOMAP_JS="dist/nomap/activeTags.standalone.v${VERSION_VALUE}.min.js"
 DIST_NOMAP_LEGAL="${DIST_NOMAP_JS}.LEGAL.txt"
 DIST_MAP_JS="dist/map/activeTags.standalone.v${VERSION_VALUE}.min.js"
